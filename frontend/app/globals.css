@@ -1,0 +1,228 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ---------------------------------------------------------------------------
+ * colehenry.dev design tokens
+ *
+ * The raw HSL triplets (--bg, --fg, --accent, ...) are the source of truth —
+ * purple brand, amber companion, cool violet-tinted neutrals. Sections reskin
+ * themselves by overriding --accent via a `data-section` attribute; everything
+ * downstream (buttons, rings, highlights) follows.
+ * ------------------------------------------------------------------------- */
+
+:root {
+  /* neutral base — faint violet tint, constant site-wide */
+  --bg: 270 20% 99%;
+  --fg: 265 25% 12%;
+  --muted-hsl: 265 10% 45%;
+  --border-hsl: 265 15% 90%;
+  --card-hsl: 0 0% 100%;
+  --radius: 0.75rem;
+
+  /* brand */
+  --accent: 265 70% 58%; /* purple — default / portfolio */
+  --accent-2: 38 92% 55%; /* amber/gold companion */
+  --accent-contrast: 0 0% 100%; /* text on solid accent */
+
+  /* motion scale — one easing, few durations */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-fast: 150ms;
+  --dur-base: 250ms;
+  --dur-slow: 500ms;
+
+  /* shadcn semantic tokens, derived from the raw triplets */
+  --background: hsl(var(--bg));
+  --foreground: hsl(var(--fg));
+  --card: hsl(var(--card-hsl));
+  --card-foreground: hsl(var(--fg));
+  --popover: hsl(var(--card-hsl));
+  --popover-foreground: hsl(var(--fg));
+  --primary: hsl(var(--accent));
+  --primary-foreground: hsl(var(--accent-contrast));
+  --secondary: hsl(var(--border-hsl) / 0.5);
+  --secondary-foreground: hsl(var(--fg));
+  --muted: hsl(var(--border-hsl) / 0.4);
+  --muted-foreground: hsl(var(--muted-hsl));
+  --accent-subtle: hsl(var(--accent) / 0.09);
+  --accent-subtle-foreground: hsl(var(--fg));
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: hsl(var(--border-hsl));
+  --input: hsl(var(--border-hsl));
+  --ring: hsl(var(--accent) / 0.45);
+}
+
+/* section skins — one line reskins a section */
+[data-section="catan"] {
+  --accent: 38 92% 52%; /* amber */
+  --accent-contrast: 30 60% 10%;
+}
+[data-section="recipes"] {
+  --accent: 150 45% 42%; /* herb green */
+}
+[data-section="blog"] {
+  --accent: 320 60% 55%; /* magenta, near purple */
+}
+[data-section="language"] {
+  --accent: 190 65% 45%; /* teal */
+}
+[data-section="dash"] {
+  --accent: 245 75% 62%; /* indigo */
+}
+
+.dark {
+  --bg: 265 25% 7%;
+  --fg: 270 20% 96%;
+  --muted-hsl: 265 12% 65%;
+  --border-hsl: 265 15% 18%;
+  --card-hsl: 265 24% 10%;
+  --accent: 265 75% 66%; /* lift purple for dark */
+  --accent-2: 38 90% 60%;
+  --destructive: oklch(0.704 0.191 22.216);
+}
+
+.dark [data-section="catan"] {
+  --accent: 38 90% 58%;
+  --accent-contrast: 30 60% 10%;
+}
+.dark [data-section="recipes"] {
+  --accent: 150 45% 52%;
+}
+.dark [data-section="blog"] {
+  --accent: 320 65% 65%;
+}
+.dark [data-section="language"] {
+  --accent: 190 65% 55%;
+}
+.dark [data-section="dash"] {
+  --accent: 245 80% 70%;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  /* shadcn's "accent" (subtle hover surface) — not the brand accent */
+  --color-accent: var(--accent-subtle);
+  --color-accent-foreground: var(--accent-subtle-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* brand utilities: text-brand, bg-brand, border-brand/30, ... */
+  --color-brand: hsl(var(--accent));
+  --color-brand-contrast: hsl(var(--accent-contrast));
+  --color-brand-2: hsl(var(--accent-2));
+
+  --font-sans: var(--font-inter);
+  --font-serif: var(--font-fraunces);
+  --font-mono: var(--font-jetbrains-mono);
+  --font-heading: var(--font-fraunces);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  --ease-out-quart: var(--ease-out);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans antialiased;
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-fraunces);
+    font-optical-sizing: auto;
+  }
+  ::selection {
+    background: hsl(var(--accent) / 0.25);
+  }
+  code,
+  kbd {
+    font-family: var(--font-jetbrains-mono);
+  }
+}
+
+@layer components {
+  /* mono section label — "01 / projects" */
+  .section-label {
+    @apply font-mono text-xs uppercase tracking-[0.2em] text-brand;
+  }
+
+  /* faint blueprint grid, fades out downward */
+  .bg-grid {
+    background-image:
+      linear-gradient(hsl(var(--fg) / 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--fg) / 0.04) 1px, transparent 1px);
+    background-size: 32px 32px;
+    mask-image: linear-gradient(to bottom, black 20%, transparent 90%);
+  }
+
+  /* film-grain overlay, mounted once in the shell */
+  .noise::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    pointer-events: none;
+    opacity: 0.35;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.02 0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* staggered page-load reveal */
+  .reveal {
+    opacity: 0;
+    transform: translateY(12px);
+    animation: reveal var(--dur-slow) var(--ease-out) forwards;
+    animation-delay: calc(var(--reveal-i, 0) * 90ms);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .reveal {
+      animation: none;
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+@keyframes reveal {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* cmd+k: the signature — selected row gets the solid accent bar */
+[cmdk-item][data-selected="true"] {
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-contrast));
+}
+[cmdk-item][data-selected="true"] * {
+  color: hsl(var(--accent-contrast));
+}

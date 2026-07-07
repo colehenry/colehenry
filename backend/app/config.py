@@ -1,0 +1,29 @@
+from functools import lru_cache
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    database_url: str
+    jwt_secret: str
+    owner_email: str
+    google_client_id: str
+    google_client_secret: str
+    oauth_redirect_uri: str
+    cookie_domain: str = ""  # empty for localhost (host-only cookie)
+    frontend_origin: str = "http://localhost:3000"
+
+    cookie_name: str = "ch_session"
+    jwt_expires_days: int = 30
+
+    @property
+    def cookie_secure(self) -> bool:
+        # Secure cookies require https; localhost dev runs plain http.
+        return self.frontend_origin.startswith("https://")
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
