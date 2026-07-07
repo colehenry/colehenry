@@ -17,9 +17,7 @@ export function Footer() {
     <footer className="border-t">
       <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-6 sm:px-6">
         <p className="font-mono text-xs text-muted-foreground">
-          © {new Date().getFullYear()} cole henry ·{" "}
-          <span className="text-brand">purple</span>{" "}
-          <span className="text-brand-2">&amp; amber</span>
+          © {new Date().getFullYear()} cole henry
         </p>
         <div className="flex items-center gap-1">
           {links.map(({ href, label, icon: Icon }) => (

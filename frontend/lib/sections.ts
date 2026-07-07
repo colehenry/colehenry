@@ -22,7 +22,6 @@ export const sections: Section[] = [
     name: "Catan",
     accent: "catan",
     description: "Game log, standings, win rates, head-to-head.",
-    comingSoon: true,
   },
   {
     slug: "blog",
