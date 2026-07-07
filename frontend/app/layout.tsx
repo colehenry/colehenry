@@ -25,6 +25,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://colehenry.dev"),
   title: {
     default: "Cole Henry",
     template: "%s — Cole Henry",
