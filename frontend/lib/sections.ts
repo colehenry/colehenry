@@ -44,8 +44,8 @@ export const sections: Section[] = [
     path: "/challenges",
     name: "Challenges",
     accent: "challenges",
-    description: "Group challenges and scoreboards, shared by passcode.",
-    comingSoon: true,
+    description: "The 25 — a personal challenge log. Owner only.",
+    ownerOnly: true,
   },
   {
     slug: "language",

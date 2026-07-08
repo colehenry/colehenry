@@ -19,5 +19,5 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   // Keep in sync with ownerOnlyPaths in lib/sections.ts.
-  matcher: ["/journal/:path*", "/dashboard/:path*"],
+  matcher: ["/challenges/:path*", "/journal/:path*", "/dashboard/:path*"],
 };

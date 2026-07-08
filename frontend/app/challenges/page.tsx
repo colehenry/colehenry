@@ -1,10 +1,11 @@
-import { ComingSoon } from "@/components/coming-soon";
-import { sections } from "@/lib/sections";
+import { ChallengesPage } from "@/components/challenges/challenges-page";
 
-const section = sections.find((s) => s.slug === "challenges")!;
+export const metadata = {
+  title: "The 25",
+  description: "Private challenge log. Owner only.",
+  robots: { index: false },
+};
 
-export const metadata = { title: section.name };
-
-export default function ChallengesPage() {
-  return <ComingSoon section={section} />;
+export default function Page() {
+  return <ChallengesPage />;
 }
