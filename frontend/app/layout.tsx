@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Fraunces, Inter, JetBrains_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 
 import { CommandPalette } from "@/components/shell/command-palette";
 import { Footer } from "@/components/shell/footer";
@@ -7,12 +7,6 @@ import { Header } from "@/components/shell/header";
 import { Providers } from "@/components/providers";
 
 import "./globals.css";
-
-const fraunces = Fraunces({
-  subsets: ["latin"],
-  variable: "--font-fraunces",
-  axes: ["opsz", "SOFT", "WONK"],
-});
 
 const inter = Inter({
   subsets: ["latin"],
@@ -40,7 +34,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${fraunces.variable} ${inter.variable} ${jetbrainsMono.variable} noise flex min-h-svh flex-col antialiased`}
+        className={`${inter.variable} ${jetbrainsMono.variable} noise flex min-h-svh flex-col antialiased`}
       >
         <Providers>
           <Header />

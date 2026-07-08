@@ -3,7 +3,7 @@
 import { ArrowUpRight, FileText, Mail } from "lucide-react";
 import { useState } from "react";
 
-import { GitHubIcon, LinkedInIcon } from "@/components/icons";
+import { AppLogoIcon, GitHubIcon, LinkedInIcon } from "@/components/icons";
 import { ResumeSection } from "@/components/portfolio/resume-section";
 import { resume } from "@/lib/resume";
 import { cn } from "@/lib/utils";
@@ -22,7 +22,7 @@ function reveal(i: number) {
 const heroSkills = ["LLM agents", "RAG", "React", "Python"];
 
 const heroResumeHighlights = [
-  "Build production LLM agents and RAG systems for internal music analytics workflows.",
+  "Build production LLM data analysis agents and RAG systems for 150+ internal daily users.",
   "Ship React and TypeScript data tools backed by Python services, GCP, and large-scale streaming/social data pipelines.",
 ];
 
@@ -46,12 +46,13 @@ const lapwiseViews = [
   {
     label: "Replay",
     url: "https://lapwise.dev/replay",
-    description: "The real Lapwise replay browser, embedded from production.",
+    description:
+      "Lap by lap race replays visualized with telemetry and comparison tools.",
   },
   {
     label: "Home",
     url: "https://lapwise.dev",
-    description: "Live production homepage with latest race context.",
+    description: "Homepage with latest race data.",
   },
 ];
 
@@ -63,14 +64,14 @@ function LapwiseProjectSection() {
       <h2 className="section-label">00 / project</h2>
       <div className="mt-6 grid gap-6 lg:grid-cols-[0.78fr_1.22fr] lg:items-start">
         <div>
-          <h3 className="font-serif text-3xl font-medium tracking-tight">
+          <h3 className="font-heading text-3xl font-medium tracking-tight">
             Lapwise
           </h3>
           <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-            A production Formula 1 analytics platform with race results, season
-            standings, telemetry replay, driver pages, discussion threads, and
-            an AI analyst surface. The app is built with Next.js, React,
-            FastAPI, PostgreSQL, and Python data pipelines.
+            A Formula 1 analytics platform with race results, season standings,
+            telemetry replay, driver pages, discussion threads, and an AI data
+            analyst. Built with Next.js, React, FastAPI, PostgreSQL, and Python
+            data pipelines.
           </p>
           <div className="mt-5 flex flex-wrap gap-1.5">
             {["Next.js", "React", "FastAPI", "PostgreSQL", "Python"].map(
@@ -158,9 +159,11 @@ function ResumeSnapshot() {
       aria-label="Resume highlights"
     >
       <div>
-        <p className="font-serif text-xl font-medium leading-tight">
+        <p className="font-sans text-xl font-semibold leading-tight">
           AI Software Engineer{" "}
-          <span className="text-muted-foreground">@ Interscope Records</span>
+          <span className="font-medium text-muted-foreground">
+            @ Interscope Records
+          </span>
         </p>
         <ul className="mt-3 list-disc space-y-2 pl-4 text-sm leading-relaxed text-muted-foreground marker:text-brand">
           {heroResumeHighlights.map((highlight) => (
@@ -169,15 +172,18 @@ function ResumeSnapshot() {
         </ul>
       </div>
       <div className="mt-5 border-t pt-4">
-        <p className="text-sm leading-relaxed">
-          <span className="font-semibold">
-            University of North Carolina at Chapel Hill
-          </span>
-          <span className="text-muted-foreground">
-            {" "}
-            Computer Science, Statistics & Analytics
-          </span>
-        </p>
+        <div className="flex items-center gap-2.5">
+          <AppLogoIcon className="size-6 shrink-0" />
+          <p className="text-sm leading-relaxed">
+            <span className="font-semibold">
+              University of North Carolina at Chapel Hill
+            </span>
+            <span className="text-muted-foreground">
+              {" "}
+              Computer Science, Statistics & Analytics
+            </span>
+          </p>
+        </div>
       </div>
       <div className="mt-5 border-t pt-4">
         <div className="flex flex-wrap gap-1.5">
@@ -204,11 +210,11 @@ export default function HomePage() {
       <section className="relative mx-auto grid w-full max-w-5xl gap-10 px-4 pt-24 pb-20 sm:px-6 sm:pt-32 lg:grid-cols-[1fr_360px] lg:items-start">
         <div>
           <h1
-            className="reveal max-w-3xl text-6xl font-medium tracking-tight text-balance sm:text-8xl"
+            className="reveal max-w-3xl font-sans text-6xl font-semibold tracking-tight text-balance sm:text-8xl"
             style={reveal(0)}
           >
             {resume.name.split(" ")[0]}{" "}
-            <span className="text-brand">{resume.name.split(" ")[1]}</span>
+            <span className="text-carolina">{resume.name.split(" ")[1]}</span>
           </h1>
           <p
             className="reveal mt-6 max-w-xl text-xl leading-relaxed text-muted-foreground text-balance"

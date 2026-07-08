@@ -61,9 +61,11 @@ export function ResumeSection() {
                 {job.start} — {job.end}
                 {job.location ? ` · ${job.location}` : ""}
               </p>
-              <h3 className="mt-1 font-serif text-lg font-medium">
+              <h3 className="mt-1 font-sans text-lg font-semibold tracking-normal">
                 {job.role}{" "}
-                <span className="text-muted-foreground">@ {job.company}</span>
+                <span className="font-medium text-muted-foreground">
+                  @ {job.company}
+                </span>
               </h3>
               <ul className="mt-2 list-disc space-y-1 pl-4 text-sm leading-relaxed text-muted-foreground marker:text-brand">
                 {job.bullets.map((b) => (
@@ -105,7 +107,7 @@ export function ResumeSection() {
                     priority={false}
                   />
                 </div>
-                <p className="font-serif text-lg font-medium leading-tight">
+                <p className="font-sans text-lg font-semibold leading-tight">
                   {edu.school}
                 </p>
                 <div className="mt-3 space-y-1.5">

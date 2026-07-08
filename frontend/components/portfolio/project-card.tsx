@@ -58,7 +58,7 @@ export function ProjectCard({
     <article className="group rounded-xl border bg-card p-6 transition-colors duration-250 hover:border-brand/40">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h3 className="font-serif text-xl font-medium tracking-tight">
+          <h3 className="font-heading text-xl font-medium tracking-tight">
             {project.live_url ? (
               <a
                 href={project.live_url}

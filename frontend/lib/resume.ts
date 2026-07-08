@@ -38,7 +38,7 @@ export const resume = {
 
   experience: [
     {
-      company: "Interscope Records (Universal Music Group)",
+      company: "Interscope Records (UMG)",
       role: "AI Software Engineer",
       start: "Sep 2025",
       end: "present",
@@ -46,7 +46,12 @@ export const resume = {
       bullets: [
         {
           text: "Shipped production LLM agents serving 150+ internal users daily, built on Python backend services (LangGraph / MCP) running on GCP with Vertex AI and GCS-backed pipelines processing large-scale streaming and social data.",
-          highlights: ["LLM agents", "150+ internal users daily", "Python", "LangGraph / MCP"],
+          highlights: [
+            "LLM agents",
+            "150+ internal users daily",
+            "Python",
+            "LangGraph / MCP",
+          ],
         },
         {
           text: "Designed and built a RAG knowledge platform that lets LLM agents answer questions from internal docs, cutting manual analytics reporting 50%.",
@@ -58,13 +63,25 @@ export const resume = {
         },
         {
           text: "Built a React + TypeScript analytics platform replacing 30+ Tableau dashboards, with embedded AI agents for natural-language data analysis.",
-          highlights: ["React + TypeScript", "30+ Tableau dashboards", "AI agents"],
+          highlights: [
+            "React + TypeScript",
+            "30+ Tableau dashboards",
+            "AI agents",
+          ],
         },
       ],
-      tech: ["Python", "LangGraph", "MCP", "Vertex AI", "GCP", "React", "TypeScript"],
+      tech: [
+        "Python",
+        "LangGraph",
+        "MCP",
+        "Vertex AI",
+        "GCP",
+        "React",
+        "TypeScript",
+      ],
     },
     {
-      company: "Interscope Records (Universal Music Group)",
+      company: "Interscope Records (UMG)",
       role: "Analytics Engineer",
       start: "Sep 2024",
       end: "Aug 2025",
@@ -140,7 +157,14 @@ export const resume = {
     },
     {
       label: "AI / LLM",
-      skills: ["LangGraph", "RAG", "LLM agents", "Embeddings", "Vertex AI", "MCP"],
+      skills: [
+        "LangGraph",
+        "RAG",
+        "LLM agents",
+        "Embeddings",
+        "Vertex AI",
+        "MCP",
+      ],
     },
     {
       label: "Cloud & data",

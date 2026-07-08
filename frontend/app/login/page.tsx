@@ -14,7 +14,7 @@ export default function LoginPage() {
       <div className="bg-grid absolute inset-x-0 top-0 h-72" aria-hidden />
       <div className="relative mx-auto flex w-full max-w-5xl flex-col items-center px-4 pt-32 pb-40 sm:px-6">
         <p className="section-label reveal">/login</p>
-        <h1 className="reveal mt-4 font-serif text-4xl font-medium tracking-tight" style={{ "--reveal-i": 1 } as React.CSSProperties}>
+        <h1 className="reveal mt-4 font-heading text-4xl font-medium tracking-tight" style={{ "--reveal-i": 1 } as React.CSSProperties}>
           Owner access
         </h1>
         <p

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, ChevronDown, GripVertical, Maximize2, Minimize2 } from "lucide-react";
 
@@ -26,6 +26,19 @@ function windowFor(date: string, windows: ChallengeWindow[]): number | null {
   return null; // post-window tail before the finish date
 }
 
+const prefersReducedMotion = () =>
+  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/** Live geometry for a drag: where each row sits (page coords) and the grab point. */
+type DragGeometry = {
+  grabOffset: number; // pointer offset inside the picked-up row
+  pointerY: number; // last pointer position, page coords
+  tops: Map<number, number>;
+  heights: Map<number, number>;
+};
+
+const LIFT = "scale(1.03)";
+
 export function ChallengesPage() {
   const queryClient = useQueryClient();
   const dashboard = useQuery({ queryKey: QUERY_KEY, queryFn: getChallengeDashboard });
@@ -39,6 +52,7 @@ export function ChallengesPage() {
   const rowRefs = useRef<Record<number, HTMLLIElement | null>>({});
   const draftRef = useRef<number[] | null>(null);
   draftRef.current = draftOrder;
+  const geom = useRef<DragGeometry | null>(null);
 
   const applyServer = (data: ChallengeDashboard) =>
     queryClient.setQueryData(QUERY_KEY, data);
@@ -63,18 +77,31 @@ export function ChallengesPage() {
     },
   });
 
-  // Pointer drag: track the row under the pointer, reorder the draft.
+  /** Pin the picked-up row under the pointer, lifted and slightly grown. */
+  const positionDragged = (id: number) => {
+    const el = rowRefs.current[id];
+    const g = geom.current;
+    if (!el || !g) return;
+    const layoutTop = g.tops.get(id) ?? 0;
+    el.style.transform = `translateY(${g.pointerY - g.grabOffset - layoutTop}px) ${LIFT}`;
+  };
+
+  // Pointer drag: the picked-up row follows the pointer; crossing a row's
+  // midpoint reorders the draft, and the layout effect below glides the
+  // neighbors into their new slots.
   useEffect(() => {
     if (dragId == null) return;
-    const order = () => draftRef.current ?? [];
     const move = (e: PointerEvent) => {
-      const ids = order();
+      const g = geom.current;
+      if (!g) return;
+      g.pointerY = e.pageY;
+      positionDragged(dragId);
+      const ids = draftRef.current ?? [];
       let target = ids.length - 1;
       for (let i = 0; i < ids.length; i++) {
-        const el = rowRefs.current[ids[i]];
-        if (!el) continue;
-        const r = el.getBoundingClientRect();
-        if (e.clientY < r.top + r.height / 2) {
+        const top = g.tops.get(ids[i]);
+        const height = g.heights.get(ids[i]) ?? 0;
+        if (top != null && g.pointerY < top + height / 2) {
           target = i;
           break;
         }
@@ -89,6 +116,24 @@ export function ChallengesPage() {
       });
     };
     const up = () => {
+      const el = rowRefs.current[dragId];
+      if (el) {
+        // settle: shrink back and drop into the slot it's already laid out in
+        const lifted = el.style.transform;
+        el.style.transform = "";
+        if (lifted && !prefersReducedMotion()) {
+          const settle = el.animate(
+            [{ transform: lifted }, { transform: "translateY(0) scale(1)" }],
+            { duration: 180, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+          );
+          settle.onfinish = () => {
+            el.style.zIndex = "";
+          };
+        } else {
+          el.style.zIndex = "";
+        }
+      }
+      geom.current = null;
       setDragId(null);
       document.body.style.userSelect = "";
       const final = draftRef.current;
@@ -106,6 +151,40 @@ export function ChallengesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dragId]);
 
+  // FLIP: after a reorder, measure the new layout and animate every other row
+  // from where it was to where it now sits. Runs before paint, so no flicker.
+  useLayoutEffect(() => {
+    const g = geom.current;
+    if (dragId == null || !g || !draftOrder) return;
+    const dragEl = rowRefs.current[dragId];
+    if (dragEl) dragEl.style.transform = ""; // measure layout, not the lift
+    const prevTops = new Map(g.tops);
+    const scrollY = window.scrollY;
+    for (const id of draftOrder) {
+      const el = rowRefs.current[id];
+      if (!el) continue;
+      const r = el.getBoundingClientRect();
+      g.tops.set(id, r.top + scrollY);
+      g.heights.set(id, r.height);
+    }
+    const reduce = prefersReducedMotion();
+    for (const id of draftOrder) {
+      if (id === dragId) continue;
+      const el = rowRefs.current[id];
+      const from = prevTops.get(id);
+      const to = g.tops.get(id);
+      if (!el || from == null || to == null || from === to) continue;
+      if (!reduce)
+        el.animate(
+          [{ transform: `translateY(${from - to}px)` }, { transform: "translateY(0)" }],
+          { duration: 160, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+        );
+    }
+    positionDragged(dragId);
+    // positionDragged reads refs only
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftOrder, dragId]);
+
   const data = dashboard.data;
   const ordering = draftOrder ?? data?.ordering ?? [];
 
@@ -113,7 +192,34 @@ export function ChallengesPage() {
     e.preventDefault();
     document.body.style.userSelect = "none";
     setDraftOrder(ordering);
+    const tops = new Map<number, number>();
+    const heights = new Map<number, number>();
+    const scrollY = window.scrollY;
+    for (const rid of ordering) {
+      const el = rowRefs.current[rid];
+      if (!el) continue;
+      const r = el.getBoundingClientRect();
+      tops.set(rid, r.top + scrollY);
+      heights.set(rid, r.height);
+    }
+    geom.current = {
+      grabOffset: e.pageY - (tops.get(id) ?? e.pageY),
+      pointerY: e.pageY,
+      tops,
+      heights,
+    };
     setDragId(id);
+    const el = rowRefs.current[id];
+    if (el) {
+      // pick up: grow into the lift
+      el.style.zIndex = "10";
+      el.style.transform = LIFT;
+      if (!prefersReducedMotion())
+        el.animate([{ transform: "scale(1)" }, { transform: LIFT }], {
+          duration: 120,
+          easing: "ease-out",
+        });
+    }
   };
 
   /** Keyboard fallback for the drag handle: arrow keys move the row. */
@@ -177,9 +283,9 @@ export function ChallengesPage() {
                     rowRefs.current[id] = el;
                   }}
                   className={
-                    "flex items-stretch overflow-hidden rounded-lg border bg-card transition-opacity " +
+                    "relative flex items-stretch overflow-hidden rounded-lg border bg-card " +
                     (done ? "border-brand/40 shadow-[inset_3px_0_0] shadow-brand " : "") +
-                    (dragId === id ? "opacity-60" : "")
+                    (dragId === id ? "shadow-xl ring-1 ring-brand/40" : "")
                   }
                 >
                   <button

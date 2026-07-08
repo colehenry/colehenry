@@ -37,9 +37,9 @@ export function Header() {
           href="/"
           className="group flex items-baseline gap-1 font-mono text-sm"
         >
-          <span className="text-brand transition-colors duration-150">~/</span>
+          <span className="text-carolina transition-colors duration-150">~/</span>
           <span className="font-medium tracking-tight">colehenry</span>
-          <span className="animate-pulse text-brand">▊</span>
+          <span className="animate-pulse text-carolina">▊</span>
         </Link>
 
         <nav className="ml-4 hidden items-center gap-1 md:flex">

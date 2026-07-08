@@ -11,6 +11,21 @@ export function GitHubIcon({ className }: { className?: string }) {
   );
 }
 
+/** The Old Well mark from app/icon.svg — fixed Carolina blue + UNC navy. */
+export function AppLogoIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 64 64" className={className} aria-hidden>
+      <g transform="translate(32 31.5) scale(1.4) translate(-32 -31.5)">
+        <path
+          d="M14 49h36v5H14zM18 43h28v4H18zM20 24h5v19h-5zM29.5 24h5v19h-5zM39 24h5v19h-5zM17 18h30L32 9z"
+          fill="#4b9cd3"
+        />
+        <path d="M18 18h28v4H18z" fill="#13294b" />
+      </g>
+    </svg>
+  );
+}
+
 export function LinkedInIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden>
