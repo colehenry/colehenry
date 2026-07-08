@@ -1,10 +1,19 @@
 "use client";
 
+import { FileText, FolderGit2, Home, Menu, Search } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { ThemeToggle } from "@/components/shell/theme-toggle";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { googleLoginUrl } from "@/lib/api/auth";
 import { useLogout, useMe } from "@/lib/hooks/use-me";
 import { sections } from "@/lib/sections";
@@ -49,6 +58,84 @@ export function Header() {
         </nav>
 
         <div className="ml-auto flex items-center gap-1.5">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="md:hidden"
+                aria-label="Open navigation menu"
+              >
+                <Menu data-icon="inline-start" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="w-56"
+              aria-label="Mobile navigation"
+            >
+              <DropdownMenuGroup>
+                <DropdownMenuItem asChild>
+                  <Link
+                    href="/"
+                    className={cn(pathname === "/" && "bg-accent text-accent-foreground")}
+                  >
+                    <Home />
+                    Home
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link
+                    href="/#projects"
+                    className={cn(
+                      pathname === "/" && "bg-accent text-accent-foreground",
+                    )}
+                  >
+                    <FolderGit2 />
+                    Projects
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link
+                    href="/#resume"
+                    className={cn(
+                      pathname === "/" && "bg-accent text-accent-foreground",
+                    )}
+                  >
+                    <FileText />
+                    Resume
+                  </Link>
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuGroup>
+                {navSections.map((s) => (
+                  <DropdownMenuItem key={s.slug} asChild>
+                    <Link
+                      href={s.path}
+                      className={cn(
+                        pathname.startsWith(s.path) &&
+                          "bg-accent text-accent-foreground",
+                      )}
+                    >
+                      <span
+                        data-section={s.accent}
+                        className="size-2 rounded-full bg-brand"
+                      />
+                      {s.name}
+                    </Link>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuGroup>
+                <DropdownMenuItem onSelect={openPalette}>
+                  <Search />
+                  Search
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <button
             onClick={openPalette}
             className="hidden items-center gap-2 rounded-md border px-2.5 py-1.5 font-mono text-xs text-muted-foreground transition-colors duration-150 hover:border-brand/40 hover:text-foreground sm:flex"
