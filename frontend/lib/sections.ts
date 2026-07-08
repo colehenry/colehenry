@@ -19,7 +19,7 @@ export const sections: Section[] = [
   {
     slug: "catan",
     path: "/catan",
-    name: "Catan",
+    name: "Catan Stats",
     accent: "catan",
     description: "Game log, standings, win rates, head-to-head.",
   },
@@ -29,6 +29,7 @@ export const sections: Section[] = [
     name: "Blog",
     accent: "blog",
     description: "Writing on software, side projects, and whatever else.",
+    ownerOnly: true,
     comingSoon: true,
   },
   {
@@ -37,6 +38,7 @@ export const sections: Section[] = [
     name: "Recipes",
     accent: "recipes",
     description: "Things I cook, with photos and honest notes.",
+    ownerOnly: true,
     comingSoon: true,
   },
   {
@@ -53,6 +55,7 @@ export const sections: Section[] = [
     name: "Language",
     accent: "language",
     description: "Flashcard decks and spaced-repetition study.",
+    ownerOnly: true,
     comingSoon: true,
   },
   {
