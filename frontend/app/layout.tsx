@@ -27,11 +27,11 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://colehenry.dev"),
   title: {
-    default: "Cole Henry",
-    template: "%s — Cole Henry",
+    default: "colehenry.dev",
+    template: "%s · colehenry.dev",
   },
   description:
-    "Software engineer. Portfolio, projects, and a growing set of tools.",
+    "Software engineer building agents, data tools, and personal systems.",
 };
 
 export default function RootLayout({
