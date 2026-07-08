@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, X } from "lucide-react";
 import { toast } from "sonner";
@@ -23,6 +23,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { PlayerMark } from "@/components/catan/player-mark";
+import { cn } from "@/lib/utils";
 
 type RowState = {
   player_name: string;
@@ -46,6 +48,86 @@ const today = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
+
+function AutocompleteInput({
+  id,
+  value,
+  onChange,
+  options,
+  placeholder,
+  className,
+  showPlayerMarks = false,
+}: {
+  id?: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: string[];
+  placeholder?: string;
+  className?: string;
+  showPlayerMarks?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const normalizedValue = value.trim().toLowerCase();
+  const matches = useMemo(() => {
+    const cleanOptions = [...new Set(options)].filter(Boolean);
+    if (!normalizedValue) return cleanOptions.slice(0, 8);
+    return cleanOptions
+      .filter((option) => option.toLowerCase().includes(normalizedValue))
+      .slice(0, 8);
+  }, [normalizedValue, options]);
+
+  const showMenu = open && matches.length > 0;
+
+  return (
+    <div className="relative">
+      <Input
+        id={id}
+        value={value}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => {
+          if (blurTimer.current) clearTimeout(blurTimer.current);
+          setOpen(true);
+        }}
+        onBlur={() => {
+          blurTimer.current = setTimeout(() => setOpen(false), 120);
+        }}
+        placeholder={placeholder}
+        autoComplete="off"
+        role="combobox"
+        aria-expanded={showMenu}
+        className={className}
+      />
+      {showMenu && (
+        <div className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10">
+          {matches.map((option) => (
+            <button
+              key={option}
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                onChange(option);
+                setOpen(false);
+              }}
+              className={cn(
+                "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-none transition-colors hover:bg-accent focus:bg-accent",
+                option.toLowerCase() === normalizedValue && "bg-accent",
+              )}
+            >
+              {showPlayerMarks && (
+                <PlayerMark name={option} className="size-4 shrink-0" />
+              )}
+              <span className="truncate">{option}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function GameEditorDialog({
   open,
@@ -189,18 +271,13 @@ function EditorForm({
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="catan-location">Location</Label>
-          <Input
+          <AutocompleteInput
             id="catan-location"
-            list="catan-locations"
             value={location}
-            onChange={(e) => setLocation(e.target.value)}
+            onChange={setLocation}
+            options={knownLocations}
             placeholder="Redcliff"
           />
-          <datalist id="catan-locations">
-            {knownLocations.map((l) => (
-              <option key={l} value={l} />
-            ))}
-          </datalist>
         </div>
       </div>
 
@@ -230,12 +307,13 @@ function EditorForm({
             key={i}
             className="grid grid-cols-[1fr_3.5rem_3.5rem_2rem_2rem_2.5rem_1.5rem] items-center gap-1.5"
           >
-            <Input
-              list="catan-players"
+            <AutocompleteInput
               value={row.player_name}
-              onChange={(e) => setRow(i, { player_name: e.target.value })}
+              onChange={(playerName) => setRow(i, { player_name: playerName })}
+              options={knownPlayers}
               placeholder={`Player ${i + 1}`}
               className="h-8 text-sm"
+              showPlayerMarks
             />
             <Input
               type="number"
@@ -285,11 +363,6 @@ function EditorForm({
             </button>
           </div>
         ))}
-        <datalist id="catan-players">
-          {knownPlayers.map((p) => (
-            <option key={p} value={p} />
-          ))}
-        </datalist>
         <Button
           variant="ghost"
           size="sm"
