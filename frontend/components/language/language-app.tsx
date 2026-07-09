@@ -31,7 +31,12 @@ const WIKI_CHILDREN: { tab: WikiTab; label: string }[] = [
   { tab: "pronunciation", label: "Pronunciation" },
 ];
 
-type StudyInit = { deckId?: number; language?: LanguageCode; key: number };
+type StudyInit = {
+  deckId?: number;
+  verbSetId?: number;
+  language?: LanguageCode;
+  key: number;
+};
 type MenuId = "file" | "study" | "view" | "help";
 
 // Title-bar greeting — a new phrase every load, click to hear it.
@@ -420,6 +425,7 @@ export function LanguageApp() {
                           decks={decks}
                           initialLanguage={studyInit.language}
                           initialDeckId={studyInit.deckId ?? null}
+                          initialVerbSetId={studyInit.verbSetId ?? null}
                         />
                       )}
                       {section === "decks" && (
@@ -436,6 +442,9 @@ export function LanguageApp() {
                           initialQuery={wikiQuery}
                           onTabChange={setWikiTab}
                           onStudyDeck={(deckId) => goStudy({ deckId })}
+                          onStudyVerbSet={(verbSetId, language) =>
+                            goStudy({ verbSetId, language })
+                          }
                           onDrillsCreated={() => go("decks")}
                         />
                       )}

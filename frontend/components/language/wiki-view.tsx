@@ -5,10 +5,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   createCard,
+  addVerbToSet,
+  createVerbSet,
   createDrills,
   getConjugationAudio,
   getVerb,
   listCards,
+  listVerbSets,
+  removeVerbFromSet,
   listVerbs,
   saveVerb,
   wikiLookup,
@@ -17,6 +21,7 @@ import {
   type DrillIn,
   type LanguageCode,
   type VerbDetail,
+  type VerbSet,
   type WikiConjugation,
   type WikiDefsLanguage,
   type WikiResult,
@@ -116,6 +121,7 @@ export function WikiView({
   initialQuery = null,
   onTabChange,
   onStudyDeck,
+  onStudyVerbSet,
   onDrillsCreated,
 }: {
   decks: Deck[];
@@ -123,12 +129,15 @@ export function WikiView({
   initialQuery?: WikiQuery | null;
   onTabChange?: (tab: WikiTab) => void;
   onStudyDeck: (deckId: number) => void;
+  onStudyVerbSet: (setId: number, language: LanguageCode) => void;
   onDrillsCreated: () => void;
 }) {
   const [tab, setTab] = useState<WikiTab>(initialTab);
   const [conjugationVerbId, setConjugationVerbId] = useState<number | null>(
     null,
   );
+  const [conjugationLanguage, setConjugationLanguage] =
+    useState<LanguageCode>("fr");
 
   // The sidebar tree drives initialTab after mount too — follow it.
   const [lastInitialTab, setLastInitialTab] = useState(initialTab);
@@ -167,8 +176,9 @@ export function WikiView({
           <WikiSearch
             decks={decks}
             initialQuery={initialQuery}
-            onOpenVerb={(verbId) => {
+            onOpenVerb={(verbId, language) => {
               setConjugationVerbId(verbId);
+              setConjugationLanguage(language);
               switchTab("conjugation");
             }}
           />
@@ -176,7 +186,9 @@ export function WikiView({
         {tab === "conjugation" && (
           <Conjugation
             initialVerbId={conjugationVerbId}
+            initialLanguage={conjugationLanguage}
             onDrillsCreated={onDrillsCreated}
+            onStudyVerbSet={onStudyVerbSet}
           />
         )}
         {tab === "pronunciation" && (
@@ -198,7 +210,7 @@ function WikiSearch({
 }: {
   decks: Deck[];
   initialQuery?: WikiQuery | null;
-  onOpenVerb: (verbId: number) => void;
+  onOpenVerb: (verbId: number, language: LanguageCode) => void;
 }) {
   const [language, setLanguage] = useState<LanguageCode>(
     initialQuery?.language ?? "fr",
@@ -298,9 +310,10 @@ function WikiSearch({
           key={`${result.data.language}:${result.data.word}`}
           result={result.data}
           decks={decks}
-          onSearch={(word) => {
+          onSearch={(word, nextLanguage = result.data.language) => {
+            setLanguage(nextLanguage);
             setInput(word);
-            search(word, result.data.language);
+            search(word, nextLanguage);
           }}
           onOpenVerb={onOpenVerb}
         />
@@ -317,8 +330,8 @@ function WikiWordPage({
 }: {
   result: WikiResult;
   decks: Deck[];
-  onSearch: (word: string) => void;
-  onOpenVerb: (verbId: number) => void;
+  onSearch: (word: string, language?: LanguageCode) => void;
+  onOpenVerb: (verbId: number, language: LanguageCode) => void;
 }) {
   const queryClient = useQueryClient();
   const compatibleDecks = decks.filter(
@@ -327,6 +340,18 @@ function WikiWordPage({
   const [deckId, setDeckId] = useState<number | "">(
     compatibleDecks[0]?.id ?? "",
   );
+  const [selectedSetIds, setSelectedSetIds] = useState<number[]>([]);
+  const existingDeckIds = new Set(
+    result.existing_cards.map((card) => card.deck_id),
+  );
+  const selectedDeckHasCard =
+    deckId !== "" && existingDeckIds.has(deckId as number);
+
+  const verbSets = useQuery({
+    queryKey: ["language", "verb-sets", result.language],
+    queryFn: () => listVerbSets(result.language),
+    enabled: result.is_verb,
+  });
 
   // Saved verbs keep their conjugations in the DB — reuse them for the panel.
   const savedVerb = useQuery({
@@ -343,25 +368,36 @@ function WikiWordPage({
       if (!deckId) throw new Error("No deck");
       return createCard({
         deck_id: deckId as number,
-        front: result.word,
-        back: result.entries[0]?.senses[0]?.definition ?? "",
+        front: result.headword || result.word,
+        back: result.is_inflected
+          ? ""
+          : (result.entries[0]?.senses[0]?.definition ?? ""),
         tags: ["wiki"],
         enrich: true,
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["language", "decks"] });
+      queryClient.invalidateQueries({
+        queryKey: ["language", "wiki", result.language],
+      });
     },
   });
 
   const saveVerbMutation = useMutation({
-    mutationFn: () => saveVerb(result.word),
+    mutationFn: () =>
+      saveVerb(
+        result.language,
+        result.headword || result.word,
+        selectedSetIds,
+      ),
     onSuccess: (verb) => {
       queryClient.invalidateQueries({ queryKey: ["language", "verbs"] });
+      queryClient.invalidateQueries({ queryKey: ["language", "verb-sets"] });
       queryClient.invalidateQueries({
         queryKey: ["language", "wiki", result.language, result.word],
       });
-      onOpenVerb(verb.id);
+      onOpenVerb(verb.id, verb.language);
     },
   });
 
@@ -429,6 +465,25 @@ function WikiWordPage({
             onClick={() => onSearch(result.lemma)}
           >
             {result.lemma}
+          </button>
+        </p>
+      )}
+
+      {result.is_inflected && result.form_note && (
+        <p className="xp-muted">{result.form_note}</p>
+      )}
+
+      {result.equivalent && (
+        <p className="xp-muted">
+          {result.equivalent.language.toUpperCase()} equivalent: {" "}
+          <button
+            type="button"
+            className="xp-link"
+            onClick={() =>
+              onSearch(result.equivalent!.word, result.equivalent!.language)
+            }
+          >
+            {result.equivalent.word}
           </button>
         </p>
       )}
@@ -526,39 +581,65 @@ function WikiWordPage({
               )}
               {compatibleDecks.map((d) => (
                 <option key={d.id} value={d.id}>
-                  {d.name}
+                  {d.name}{existingDeckIds.has(d.id) ? " — already added" : ""}
                 </option>
               ))}
             </select>
             <button
               type="button"
               className="xp-btn is-small"
-              disabled={!deckId || addCardMutation.isPending}
+              disabled={
+                !deckId || addCardMutation.isPending || selectedDeckHasCard
+              }
               onClick={() => addCardMutation.mutate()}
             >
-              {addCardMutation.isSuccess ? "Card added ✓" : "Add card to deck"}
+              {addCardMutation.isSuccess
+                ? "Card added ✓"
+                : selectedDeckHasCard
+                  ? "Already in deck"
+                  : `Add ${result.headword || result.word}`}
             </button>
             {result.verb_id != null && (
               <button
                 type="button"
                 className="xp-btn is-small"
-                onClick={() => onOpenVerb(result.verb_id as number)}
+                onClick={() =>
+                  onOpenVerb(result.verb_id as number, result.language)
+                }
               >
                 Open in conjugations
               </button>
             )}
             {result.is_verb &&
               result.verb_id == null &&
-              result.can_conjugate &&
-              result.language === "fr" && (
-                <button
-                  type="button"
-                  className="xp-btn is-small"
-                  disabled={saveVerbMutation.isPending}
-                  onClick={() => saveVerbMutation.mutate()}
-                >
-                  Save to conjugation center
-                </button>
+              result.can_conjugate && (
+                <div className="flex flex-wrap items-center gap-2">
+                  {(verbSets.data ?? []).map((set) => (
+                    <label key={set.id} className="flex items-center gap-1">
+                      <input
+                        type="checkbox"
+                        className="xp-checkbox"
+                        checked={selectedSetIds.includes(set.id)}
+                        onChange={(event) =>
+                          setSelectedSetIds((current) =>
+                            event.target.checked
+                              ? [...current, set.id]
+                              : current.filter((id) => id !== set.id),
+                          )
+                        }
+                      />
+                      {set.name}
+                    </label>
+                  ))}
+                  <button
+                    type="button"
+                    className="xp-btn is-small"
+                    disabled={saveVerbMutation.isPending}
+                    onClick={() => saveVerbMutation.mutate()}
+                  >
+                    Save to conjugation center
+                  </button>
+                </div>
               )}
           </div>
         </div>
@@ -958,10 +1039,10 @@ function Pronunciation({
 
 function ConjugationTable({
   verb,
-  showSpanish,
+  showEquivalent,
 }: {
   verb: VerbDetail;
-  showSpanish: boolean;
+  showEquivalent: boolean;
 }) {
   const queryClient = useQueryClient();
   const audioMutation = useMutation({
@@ -986,8 +1067,13 @@ function ConjugationTable({
       } else {
         // Server TTS unconfigured — browser speech says the same phrase.
         void speakText(
-          "fr",
-          spokenConjugation(conj.person, conj.form, conj.mood),
+          verb.language,
+          spokenConjugation(
+            conj.person,
+            conj.form,
+            conj.mood,
+            verb.language,
+          ),
         );
       }
     },
@@ -1003,7 +1089,8 @@ function ConjugationTable({
 
   return (
     <div className="flex flex-col gap-3">
-      {TENSES.map(({ mood, tense, label }) => {
+      {(verb.language === "es" ? ES_TENSES : TENSES).map(
+        ({ mood, tense, label }) => {
         const rows = verb.conjugations.filter(
           (conj) => conj.mood === mood && conj.tense === tense,
         );
@@ -1021,8 +1108,10 @@ function ConjugationTable({
                 <thead>
                   <tr>
                     <th>Person</th>
-                    <th>French</th>
-                    {showSpanish && <th>Spanish</th>}
+                    <th>{verb.language.toUpperCase()}</th>
+                    {showEquivalent && verb.equivalent_language && (
+                      <th>{verb.equivalent_language.toUpperCase()}</th>
+                    )}
                     <th style={{ width: 1 }} />
                   </tr>
                 </thead>
@@ -1030,7 +1119,7 @@ function ConjugationTable({
                   {rows.map((conj) => (
                     <tr key={conj.id}>
                       <td className="xp-muted">
-                        {PERSON_LABELS[conj.person] ?? conj.person}
+                        {personLabel(conj.person, conj.mood, verb.language)}
                       </td>
                       <td>
                         <b>{conj.form}</b>
@@ -1038,12 +1127,14 @@ function ConjugationTable({
                           <span className="xp-muted"> (homophone)</span>
                         )}
                       </td>
-                      {showSpanish && <td>{conj.es_form || "—"}</td>}
+                      {showEquivalent && verb.equivalent_language && (
+                        <td>{conj.equivalent_form || "—"}</td>
+                      )}
                       <td>
                         <button
                           type="button"
                           className="xp-link"
-                          title={`Listen: ${spokenConjugation(conj.person, conj.form, conj.mood)}`}
+                          title={`Listen: ${spokenConjugation(conj.person, conj.form, conj.mood, verb.language)}`}
                           onClick={() =>
                             conj.audio_url
                               ? playAudio(conj.audio_url)
@@ -1060,36 +1151,54 @@ function ConjugationTable({
             </div>
           </fieldset>
         );
-      })}
+        },
+      )}
     </div>
   );
 }
 
 function Conjugation({
   initialVerbId,
+  initialLanguage,
   onDrillsCreated,
+  onStudyVerbSet,
 }: {
   initialVerbId?: number | null;
+  initialLanguage?: LanguageCode;
   onDrillsCreated: () => void;
+  onStudyVerbSet: (setId: number, language: LanguageCode) => void;
 }) {
   const queryClient = useQueryClient();
+  const [language, setLanguage] = useState<LanguageCode>(
+    initialLanguage ?? "fr",
+  );
   const [query, setQuery] = useState("");
   const [group, setGroup] = useState("all");
   const [selectedVerbId, setSelectedVerbId] = useState<number | null>(
     initialVerbId ?? null,
   );
-  const [showSpanish, setShowSpanish] = useState(true);
-  const [drillTense, setDrillTense] = useState<(typeof TENSES)[number]>(
-    TENSES[0],
-  );
+  const [showEquivalent, setShowEquivalent] = useState(true);
+  const [drillTense, setDrillTense] = useState<{
+    mood: string;
+    tense: string;
+    label: string;
+  }>(TENSES[0]);
   const [drillScope, setDrillScope] = useState<
-    "selected" | "group" | "irregular"
+    "selected" | "group" | "irregular" | "set"
   >("selected");
   const [audioFirst, setAudioFirst] = useState(false);
+  const [selectedSetId, setSelectedSetId] = useState<number | "">("");
+  const [newSetName, setNewSetName] = useState("");
+
+  const tenses = language === "es" ? ES_TENSES : TENSES;
 
   const verbs = useQuery({
-    queryKey: ["language", "verbs"],
-    queryFn: listVerbs,
+    queryKey: ["language", "verbs", language],
+    queryFn: () => listVerbs(language),
+  });
+  const verbSets = useQuery({
+    queryKey: ["language", "verb-sets", language],
+    queryFn: () => listVerbSets(language),
   });
 
   const filtered = useMemo(() => {
@@ -1121,21 +1230,67 @@ function Conjugation({
         mood: drillTense.mood,
         tense: drillTense.tense,
         audio_first: audioFirst,
+        language,
       };
       if (drillScope === "selected") body.verb_ids = [selectedVerb.id];
       if (drillScope === "group") body.group = selectedVerb.group;
       if (drillScope === "irregular") body.irregular_only = true;
+      if (drillScope === "set" && selectedSetId) body.set_id = selectedSetId;
       return createDrills(body);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["language", "decks"] });
-      onDrillsCreated();
+      if (drillScope === "set" && selectedSetId) {
+        onStudyVerbSet(selectedSetId, language);
+      } else {
+        onDrillsCreated();
+      }
+    },
+  });
+
+  const createSetMutation = useMutation({
+    mutationFn: () =>
+      createVerbSet({ language, name: newSetName.trim() }),
+    onSuccess: (created) => {
+      setNewSetName("");
+      setSelectedSetId(created.id);
+      queryClient.invalidateQueries({ queryKey: ["language", "verb-sets"] });
+    },
+  });
+
+  const membershipMutation = useMutation({
+    mutationFn: async ({ set, add }: { set: VerbSet; add: boolean }) => {
+      if (!selectedVerb) throw new Error("No verb selected");
+      if (add) {
+        await addVerbToSet(set.id, selectedVerb.id);
+      } else {
+        await removeVerbFromSet(set.id, selectedVerb.id);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["language", "verbs"] });
+      queryClient.invalidateQueries({ queryKey: ["language", "verb-sets"] });
     },
   });
 
   return (
     <div className="flex flex-col gap-3 lg:flex-row">
       <aside className="flex w-full flex-col gap-2 lg:w-56 lg:shrink-0">
+        <select
+          aria-label="Conjugation language"
+          className="xp-select"
+          value={language}
+          onChange={(event) => {
+            const next = event.target.value as LanguageCode;
+            setLanguage(next);
+            setDrillTense(next === "es" ? ES_TENSES[0] : TENSES[0]);
+            setSelectedVerbId(null);
+            setSelectedSetId("");
+          }}
+        >
+          <option value="fr">French</option>
+          <option value="es">Spanish</option>
+        </select>
         <div className="flex gap-2">
           <input
             aria-label="Search verbs"
@@ -1151,9 +1306,19 @@ function Conjugation({
             onChange={(event) => setGroup(event.target.value)}
           >
             <option value="all">All</option>
-            <option value="-er">-er</option>
-            <option value="-ir">-ir</option>
-            <option value="-re">-re</option>
+            {language === "fr" ? (
+              <>
+                <option value="-er">-er</option>
+                <option value="-ir">-ir</option>
+                <option value="-re">-re</option>
+              </>
+            ) : (
+              <>
+                <option value="-ar">-ar</option>
+                <option value="-er">-er</option>
+                <option value="-ir">-ir</option>
+              </>
+            )}
             <option value="irregular">Irreg.</option>
           </select>
         </div>
@@ -1198,13 +1363,13 @@ function Conjugation({
                 value={`${drillTense.mood}|${drillTense.tense}`}
                 onChange={(event) => {
                   const [mood, tense] = event.target.value.split("|");
-                  const next = TENSES.find(
+                  const next = tenses.find(
                     (t) => t.mood === mood && t.tense === tense,
                   );
                   if (next) setDrillTense(next);
                 }}
               >
-                {TENSES.map((tense) => (
+                {tenses.map((tense) => (
                   <option
                     key={`${tense.mood}-${tense.tense}`}
                     value={`${tense.mood}|${tense.tense}`}
@@ -1224,15 +1389,39 @@ function Conjugation({
                 value={drillScope}
                 onChange={(event) =>
                   setDrillScope(
-                    event.target.value as "selected" | "group" | "irregular",
+                    event.target.value as
+                      | "selected"
+                      | "group"
+                      | "irregular"
+                      | "set",
                   )
                 }
               >
                 <option value="selected">Selected verb</option>
                 <option value="group">Selected verb&apos;s group</option>
                 <option value="irregular">All irregulars</option>
+                <option value="set">Verb set</option>
               </select>
             </div>
+            {drillScope === "set" && (
+              <select
+                aria-label="Verb set"
+                className="xp-select w-full"
+                value={selectedSetId}
+                onChange={(event) =>
+                  setSelectedSetId(
+                    event.target.value ? Number(event.target.value) : "",
+                  )
+                }
+              >
+                <option value="">Choose set…</option>
+                {(verbSets.data ?? []).map((set) => (
+                  <option key={set.id} value={set.id}>
+                    {set.name} ({set.verb_count})
+                  </option>
+                ))}
+              </select>
+            )}
             <label
               className="flex items-center gap-2"
               style={{ fontSize: "11px" }}
@@ -1248,13 +1437,56 @@ function Conjugation({
             <div className="flex justify-end">
               <button
                 className="xp-btn"
-                disabled={!selectedVerb || drillMutation.isPending}
+                disabled={
+                  !selectedVerb ||
+                  drillMutation.isPending ||
+                  (drillScope === "set" && !selectedSetId)
+                }
               >
                 Generate
               </button>
             </div>
           </fieldset>
         </form>
+
+        <fieldset className="xp-group flex flex-col gap-2">
+          <legend>Verb sets</legend>
+          {selectedVerb &&
+            (verbSets.data ?? []).map((set) => (
+              <label key={set.id} className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  className="xp-checkbox"
+                  checked={selectedVerb.set_ids.includes(set.id)}
+                  disabled={membershipMutation.isPending}
+                  onChange={(event) =>
+                    membershipMutation.mutate({
+                      set,
+                      add: event.target.checked,
+                    })
+                  }
+                />
+                {set.name}
+              </label>
+            ))}
+          <div className="flex gap-1">
+            <input
+              aria-label="New verb set name"
+              className="xp-input min-w-0 flex-1"
+              placeholder="New set…"
+              value={newSetName}
+              onChange={(event) => setNewSetName(event.target.value)}
+            />
+            <button
+              type="button"
+              className="xp-btn is-small"
+              disabled={!newSetName.trim() || createSetMutation.isPending}
+              onClick={() => createSetMutation.mutate()}
+            >
+              Add
+            </button>
+          </div>
+        </fieldset>
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col gap-2">
@@ -1262,11 +1494,11 @@ function Conjugation({
           {selectedVerb && (
             <span>
               <b style={{ fontSize: "14px" }}>{selectedVerb.infinitive}</b>{" "}
-              <Speak language="fr" text={selectedVerb.infinitive} label="►" />{" "}
+              <Speak language={language} text={selectedVerb.infinitive} label="►" />{" "}
               <span className="xp-muted">
                 {selectedVerb.translation}
-                {selectedVerb.es_equivalent
-                  ? ` · ES ${selectedVerb.es_equivalent}`
+                {selectedVerb.equivalent_infinitive
+                  ? ` · ${selectedVerb.equivalent_language.toUpperCase()} ${selectedVerb.equivalent_infinitive}`
                   : ""}
               </span>
             </span>
@@ -1278,16 +1510,19 @@ function Conjugation({
             <input
               type="checkbox"
               className="xp-checkbox"
-              checked={showSpanish}
-              onChange={(event) => setShowSpanish(event.target.checked)}
+            checked={showEquivalent}
+            onChange={(event) => setShowEquivalent(event.target.checked)}
             />
-            Show Spanish forms
+            Show equivalent forms
           </label>
         </div>
 
         {detail.isLoading && <p className="xp-muted">Loading conjugations…</p>}
         {detail.data && (
-          <ConjugationTable verb={detail.data} showSpanish={showSpanish} />
+          <ConjugationTable
+            verb={detail.data}
+            showEquivalent={showEquivalent}
+          />
         )}
         {verbs.data?.length === 0 && (
           <p className="xp-muted">

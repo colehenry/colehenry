@@ -92,6 +92,8 @@ export const cardSchema = z.object({
   is_false_friend: z.boolean(),
   source: z.string(),
   source_ref: z.string(),
+  lexeme_id: z.number().nullable(),
+  conjugation_id: z.number().nullable(),
   tags: z.array(z.string()),
   created_at: z.string(),
   state: reviewStateSchema,
@@ -175,11 +177,14 @@ export type ReviewOut = z.infer<typeof reviewOutSchema>;
 
 export function getStudyQueue(params: {
   deckId?: number;
+  verbSetId?: number;
   language?: LanguageCode;
   newLimit?: number;
 }): Promise<StudyQueue> {
   const search = new URLSearchParams();
   if (params.deckId != null) search.set("deck_id", String(params.deckId));
+  if (params.verbSetId != null)
+    search.set("verb_set_id", String(params.verbSetId));
   if (params.language) search.set("language", params.language);
   if (params.newLimit != null) search.set("new_limit", String(params.newLimit));
   return apiFetch(`/language/study/queue?${search}`, studyQueueSchema);
@@ -315,6 +320,9 @@ export const textAnnotationSchema = z.object({
   part_of_speech: z.string(),
   cognate_note: z.string(),
   is_false_friend: z.boolean(),
+  lexeme_id: z.number().nullable(),
+  headword: z.string(),
+  form_note: z.string(),
   deck_id: z.number().nullable(),
   flashcard_id: z.number().nullable(),
   created_at: z.string(),
@@ -363,7 +371,15 @@ export type TextAnnotationIn = {
   part_of_speech?: string;
   cognate_note?: string;
   is_false_friend?: boolean;
+  headword?: string;
+  form_note?: string;
 };
+
+export const cardLocationSchema = z.object({
+  card_id: z.number(),
+  deck_id: z.number(),
+  deck_name: z.string(),
+});
 
 export const textLookupSchema = z.object({
   selected_text: z.string(),
@@ -374,6 +390,11 @@ export const textLookupSchema = z.object({
   cognate_note: z.string(),
   is_false_friend: z.boolean(),
   provider: z.string(),
+  headword: z.string(),
+  is_inflected: z.boolean(),
+  form_note: z.string(),
+  lexeme_id: z.number().nullable(),
+  existing_cards: z.array(cardLocationSchema),
 });
 export type TextLookup = z.infer<typeof textLookupSchema>;
 
@@ -528,6 +549,11 @@ export const wikiOutSchema = z.object({
   ipa: z.string(),
   frequency: z.number().nullable(),
   lemma: z.string(),
+  headword: z.string(),
+  is_inflected: z.boolean(),
+  form_note: z.string(),
+  lexeme_id: z.number().nullable(),
+  existing_cards: z.array(cardLocationSchema),
   cognate_note: z.string(),
   is_false_friend: z.boolean(),
   is_verb: z.boolean(),
@@ -535,6 +561,13 @@ export const wikiOutSchema = z.object({
   conjugations: z.array(wikiConjugationSchema),
   can_conjugate: z.boolean(),
   predicted: z.boolean(),
+  equivalent: z
+    .object({
+      language: languageCodeSchema,
+      word: z.string(),
+      verb_id: z.number().nullable(),
+    })
+    .nullable(),
 });
 export type WikiResult = z.infer<typeof wikiOutSchema>;
 
@@ -558,12 +591,17 @@ export function wikiLookup(
 
 export const verbSchema = z.object({
   id: z.number(),
+  language: languageCodeSchema,
+  lexeme_id: z.number().nullable(),
   infinitive: z.string(),
   group: z.string(),
   is_irregular: z.boolean(),
   translation: z.string(),
-  es_equivalent: z.string(),
   frequency_rank: z.number(),
+  equivalent_verb_id: z.number().nullable(),
+  equivalent_language: z.string(),
+  equivalent_infinitive: z.string(),
+  set_ids: z.array(z.number()),
 });
 export type Verb = z.infer<typeof verbSchema>;
 
@@ -573,7 +611,8 @@ export const conjugationSchema = z.object({
   tense: z.string(),
   person: z.string(),
   form: z.string(),
-  es_form: z.string(),
+  slot_key: z.string(),
+  equivalent_form: z.string(),
   audio_url: z.string(),
 });
 export type Conjugation = z.infer<typeof conjugationSchema>;
@@ -583,15 +622,19 @@ export const verbDetailSchema = verbSchema.extend({
 });
 export type VerbDetail = z.infer<typeof verbDetailSchema>;
 
-export function listVerbs(): Promise<Verb[]> {
-  return apiFetch("/language/verbs", z.array(verbSchema));
+export function listVerbs(language: LanguageCode = "fr"): Promise<Verb[]> {
+  return apiFetch(`/language/verbs?language=${language}`, z.array(verbSchema));
 }
 
 /** Conjugate + save a wiki verb into the conjugation center (verbecc). */
-export function saveVerb(infinitive: string): Promise<VerbDetail> {
+export function saveVerb(
+  language: LanguageCode,
+  infinitive: string,
+  setIds: number[] = [],
+): Promise<VerbDetail> {
   return apiFetch("/language/verbs", verbDetailSchema, {
     method: "POST",
-    body: JSON.stringify({ infinitive }),
+    body: JSON.stringify({ language, infinitive, set_ids: setIds }),
   });
 }
 
@@ -616,6 +659,8 @@ export type DrillIn = {
   group?: string;
   irregular_only?: boolean;
   audio_first?: boolean;
+  language?: LanguageCode;
+  set_id?: number;
 };
 
 export function createDrills(body: DrillIn): Promise<Deck> {
@@ -623,4 +668,48 @@ export function createDrills(body: DrillIn): Promise<Deck> {
     method: "POST",
     body: JSON.stringify(body),
   });
+}
+
+export const verbSetSchema = z.object({
+  id: z.number(),
+  language: languageCodeSchema,
+  name: z.string(),
+  description: z.string(),
+  verb_count: z.number(),
+  created_at: z.string(),
+});
+export type VerbSet = z.infer<typeof verbSetSchema>;
+
+export function listVerbSets(language?: LanguageCode): Promise<VerbSet[]> {
+  const suffix = language ? `?language=${language}` : "";
+  return apiFetch(`/language/verb-sets${suffix}`, z.array(verbSetSchema));
+}
+
+export function createVerbSet(body: {
+  language: LanguageCode;
+  name: string;
+  description?: string;
+}): Promise<VerbSet> {
+  return apiFetch("/language/verb-sets", verbSetSchema, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function addVerbToSet(setId: number, verbId: number): Promise<VerbSet> {
+  return apiFetch(`/language/verb-sets/${setId}/members`, verbSetSchema, {
+    method: "POST",
+    body: JSON.stringify({ verb_id: verbId }),
+  });
+}
+
+export async function removeVerbFromSet(
+  setId: number,
+  verbId: number,
+): Promise<void> {
+  const res = await fetch(
+    `${API_URL}/language/verb-sets/${setId}/members/${verbId}`,
+    { method: "DELETE", credentials: "include" },
+  );
+  if (!res.ok) throw new ApiError(res.status, await res.text());
 }

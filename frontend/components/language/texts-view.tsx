@@ -46,6 +46,8 @@ type AnnotationDraft = {
   gender: string;
   cognate_note: string;
   is_false_friend: boolean;
+  headword: string;
+  form_note: string;
 };
 
 function toDraft(a: TextAnnotation): AnnotationDraft {
@@ -56,6 +58,8 @@ function toDraft(a: TextAnnotation): AnnotationDraft {
     gender: a.gender,
     cognate_note: a.cognate_note,
     is_false_friend: a.is_false_friend,
+    headword: a.headword,
+    form_note: a.form_note,
   };
 }
 
@@ -391,6 +395,34 @@ function Reader({
   const popoverAnnotation =
     (popover && text?.annotations.find((a) => a.id === popover.id)) || null;
 
+  const annotationLookup = useQuery({
+    queryKey: ["language", "text-lookup", textId, editAnnotation?.selected_text],
+    queryFn: () =>
+      lookupTextSelection(textId, editAnnotation?.selected_text as string),
+    enabled: editAnnotation != null,
+    staleTime: 60_000,
+  });
+  useEffect(() => {
+    const found = annotationLookup.data;
+    if (!editAnnotation || !found || !found.is_inflected) return;
+    setDrafts((current) => {
+      const base = current[editAnnotation.id] ?? toDraft(editAnnotation);
+      const translationWasFormDescription =
+        !base.translation || base.translation === found.form_note;
+      return {
+        ...current,
+        [editAnnotation.id]: {
+          ...base,
+          headword: base.headword || found.headword,
+          form_note: base.form_note || found.form_note,
+          translation: translationWasFormDescription
+            ? found.translation
+            : base.translation,
+        },
+      };
+    });
+  }, [annotationLookup.data, editAnnotation]);
+
   const compatibleDecks = text
     ? decks.filter((d) => d.language === text.language && !d.is_system)
     : [];
@@ -398,6 +430,10 @@ function Reader({
     cardDeckId !== "" && compatibleDecks.some((d) => d.id === cardDeckId)
       ? cardDeckId
       : compatibleDecks[0]?.id ?? null;
+  const existingDeckIds = new Set(
+    annotationLookup.data?.existing_cards.map((card) => card.deck_id) ?? [],
+  );
+  const selectedDeckHasCard = deckId != null && existingDeckIds.has(deckId);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["language", "text", textId] });
@@ -462,6 +498,8 @@ function Reader({
         part_of_speech: found?.part_of_speech ?? "",
         cognate_note: found?.cognate_note ?? "",
         is_false_friend: found?.is_false_friend ?? false,
+        headword: found?.headword ?? selection.selectedText,
+        form_note: found?.form_note ?? "",
       });
     },
     onSuccess: (annotation) => {
@@ -498,6 +536,8 @@ function Reader({
         part_of_speech: found.part_of_speech,
         cognate_note: found.cognate_note,
         is_false_friend: found.is_false_friend,
+        headword: found.headword,
+        form_note: found.form_note,
       });
     },
     onSuccess: (updated) => {
@@ -519,7 +559,10 @@ function Reader({
       if (!editAnnotation || !draft || !deckId) throw new Error("No deck");
       return createCardFromAnnotation(editAnnotation.id, {
         deck_id: deckId,
-        front: editAnnotation.selected_text,
+        front:
+          draft.headword ||
+          annotationLookup.data?.headword ||
+          editAnnotation.selected_text,
         back: draft.translation || draft.note,
         card_type: "basic",
         direction: "recognition",
@@ -805,6 +848,26 @@ function Reader({
                   <span className="xp-muted">{genderLabel(draft.gender)}</span>
                 )}
               </div>
+              {(draft.headword || annotationLookup.data?.headword) && (
+                <div>
+                  <label className="xp-label" htmlFor="a-headword">
+                    Card headword:
+                  </label>
+                  <input
+                    id="a-headword"
+                    className="xp-input"
+                    value={draft.headword || annotationLookup.data?.headword || ""}
+                    onChange={(event) =>
+                      patchDraft({ headword: event.target.value })
+                    }
+                  />
+                  {(draft.form_note || annotationLookup.data?.form_note) && (
+                    <p className="xp-muted mt-1">
+                      {draft.form_note || annotationLookup.data?.form_note}
+                    </p>
+                  )}
+                </div>
+              )}
               <div>
                 <label className="xp-label" htmlFor="a-translation">
                   Translation:
@@ -913,17 +976,21 @@ function Reader({
                       )}
                       {compatibleDecks.map((d) => (
                         <option key={d.id} value={d.id}>
-                          {d.name}
+                          {d.name}{existingDeckIds.has(d.id) ? " — already added" : ""}
                         </option>
                       ))}
                     </select>
                     <button
                       type="button"
                       className="xp-btn is-small"
-                      disabled={!deckId || addCardMutation.isPending}
+                      disabled={
+                        !deckId || addCardMutation.isPending || selectedDeckHasCard
+                      }
                       onClick={() => addCardMutation.mutate()}
                     >
-                      Add to deck
+                      {selectedDeckHasCard
+                        ? "Already in deck"
+                        : `Add ${draft.headword || annotationLookup.data?.headword || editAnnotation.selected_text}`}
                     </button>
                   </div>
                 )}

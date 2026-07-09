@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   getStudyQueue,
+  listVerbSets,
   reviewCard,
   type Deck,
   type LanguageCode,
@@ -29,27 +30,38 @@ export function StudyView({
   decks,
   initialLanguage,
   initialDeckId,
+  initialVerbSetId,
 }: {
   decks: Deck[];
   initialLanguage?: LanguageCode;
   initialDeckId?: number | null;
+  initialVerbSetId?: number | null;
 }) {
   const queryClient = useQueryClient();
   const [language, setLanguage] = useState<LanguageCode | "all">(
     initialLanguage ?? "all",
   );
   const [deckId, setDeckId] = useState<number | "all">(initialDeckId ?? "all");
+  const [verbSetId, setVerbSetId] = useState<number | "all">(
+    initialVerbSetId ?? "all",
+  );
   const [index, setIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
 
   const queue = useQuery({
-    queryKey: ["language", "study", language, deckId],
+    queryKey: ["language", "study", language, deckId, verbSetId],
     queryFn: () =>
       getStudyQueue({
         language: language === "all" ? undefined : language,
         deckId: deckId === "all" ? undefined : deckId,
+        verbSetId: verbSetId === "all" ? undefined : verbSetId,
         newLimit: 12,
       }),
+  });
+  const verbSets = useQuery({
+    queryKey: ["language", "verb-sets", language],
+    queryFn: () =>
+      listVerbSets(language === "all" ? undefined : language),
   });
 
   const reviewMutation = useMutation({
@@ -128,6 +140,30 @@ export function StudyView({
           <option value="all">All</option>
           <option value="fr">French</option>
           <option value="es">Spanish</option>
+        </select>
+        <label className="xp-label mb-0" htmlFor="study-verb-set">
+          Verb set:
+        </label>
+        <select
+          id="study-verb-set"
+          className="xp-select"
+          value={verbSetId}
+          onChange={(event) => {
+            setVerbSetId(
+              event.target.value === "all"
+                ? "all"
+                : Number(event.target.value),
+            );
+            setIndex(0);
+            setRevealed(false);
+          }}
+        >
+          <option value="all">All verbs</option>
+          {(verbSets.data ?? []).map((set) => (
+            <option key={set.id} value={set.id}>
+              {set.name}
+            </option>
+          ))}
         </select>
         <label className="xp-label mb-0" htmlFor="study-deck">
           Deck:

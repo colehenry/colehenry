@@ -67,6 +67,8 @@ class CardOut(BaseModel):
     is_false_friend: bool
     source: CardSource
     source_ref: str
+    lexeme_id: int | None
+    conjugation_id: int | None
     tags: list[str]
     created_at: datetime
     # flattened review state
@@ -257,6 +259,9 @@ class TextAnnotationOut(BaseModel):
     part_of_speech: str
     cognate_note: str
     is_false_friend: bool
+    lexeme_id: int | None
+    headword: str = ""
+    form_note: str
     deck_id: int | None
     flashcard_id: int | None
     created_at: datetime
@@ -326,6 +331,8 @@ class TextAnnotationCreate(BaseModel):
     part_of_speech: str = ""
     cognate_note: str = ""
     is_false_friend: bool = False
+    headword: str = ""
+    form_note: str = ""
 
 
 class TextAnnotationUpdate(BaseModel):
@@ -341,6 +348,8 @@ class TextAnnotationUpdate(BaseModel):
     part_of_speech: str | None = None
     cognate_note: str | None = None
     is_false_friend: bool | None = None
+    headword: str | None = None
+    form_note: str | None = None
 
 
 class TextLookupIn(BaseModel):
@@ -355,6 +364,12 @@ class TextLookupIn(BaseModel):
         return value
 
 
+class CardLocationOut(BaseModel):
+    card_id: int
+    deck_id: int
+    deck_name: str
+
+
 class TextLookupOut(BaseModel):
     selected_text: str
     translation: str
@@ -364,6 +379,11 @@ class TextLookupOut(BaseModel):
     cognate_note: str
     is_false_friend: bool
     provider: str
+    headword: str
+    is_inflected: bool = False
+    form_note: str = ""
+    lexeme_id: int | None = None
+    existing_cards: list[CardLocationOut] = []
 
 
 class AnnotationCardCreate(BaseModel):
@@ -427,6 +447,12 @@ class WikiConjugationOut(BaseModel):
     form: str
 
 
+class WikiEquivalentOut(BaseModel):
+    language: str
+    word: str
+    verb_id: int | None = None
+
+
 class WikiOut(BaseModel):
     word: str
     language: Language
@@ -439,6 +465,11 @@ class WikiOut(BaseModel):
     ipa: str = ""
     frequency: float | None = None  # Lexique films freq per million (fr only)
     lemma: str = ""  # set when the word inflects a different lemma
+    headword: str = ""  # canonical card term (infinitive for conjugated verbs)
+    is_inflected: bool = False
+    form_note: str = ""
+    lexeme_id: int | None = None
+    existing_cards: list[CardLocationOut] = []
     cognate_note: str = ""
     is_false_friend: bool = False
     is_verb: bool = False
@@ -446,10 +477,13 @@ class WikiOut(BaseModel):
     conjugations: list[WikiConjugationOut] = []  # on-the-fly, unsaved verbs
     can_conjugate: bool = False  # verbecc present on this server
     predicted: bool = False  # verbecc guessed the template — double-check forms
+    equivalent: WikiEquivalentOut | None = None
 
 
 class VerbCreate(BaseModel):
+    language: Language = Language.fr
     infinitive: str
+    set_ids: list[int] = []
 
     @field_validator("infinitive")
     @classmethod
@@ -469,12 +503,17 @@ class VerbOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    language: str
+    lexeme_id: int | None
     infinitive: str
     group: str
     is_irregular: bool
     translation: str
-    es_equivalent: str
     frequency_rank: int
+    equivalent_verb_id: int | None = None
+    equivalent_language: str = ""
+    equivalent_infinitive: str = ""
+    set_ids: list[int] = []
 
 
 class ConjugationOut(BaseModel):
@@ -485,7 +524,8 @@ class ConjugationOut(BaseModel):
     tense: str
     person: str
     form: str
-    es_form: str
+    slot_key: str
+    equivalent_form: str = ""
     audio_url: str
 
 
@@ -507,3 +547,37 @@ class DrillCreate(BaseModel):
     group: str = ""  # "-er" | "-ir" | "-re" | "irregular" | ""
     irregular_only: bool = False
     audio_first: bool = False
+    language: Language = Language.fr
+    set_id: int | None = None
+
+
+class VerbSetCreate(BaseModel):
+    language: Language
+    name: str
+    description: str = ""
+
+    @field_validator("name")
+    @classmethod
+    def set_name_not_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("set name is required")
+        return value
+
+
+class VerbSetUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+
+
+class VerbSetOut(BaseModel):
+    id: int
+    language: str
+    name: str
+    description: str
+    verb_count: int = 0
+    created_at: datetime
+
+
+class VerbSetMemberIn(BaseModel):
+    verb_id: int

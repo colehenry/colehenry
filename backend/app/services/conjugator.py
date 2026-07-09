@@ -60,6 +60,31 @@ _REGULAR_TEMPLATES = {
 
 _GROUPS = {"fr": ("-er", "-ir", "-re"), "es": ("-ar", "-er", "-ir")}
 
+SLOT_KEYS = {
+    "fr": {
+        ("indicatif", "présent"): ("indicative", "present"),
+        ("indicatif", "passé-composé"): ("indicative", "compound-past"),
+        ("indicatif", "imparfait"): ("indicative", "imperfect"),
+        ("indicatif", "futur-simple"): ("indicative", "future"),
+        ("indicatif", "passé-simple"): ("indicative", "simple-past"),
+        ("conditionnel", "présent"): ("conditional", "present"),
+        ("subjonctif", "présent"): ("subjunctive", "present"),
+        ("imperatif", "présent"): ("imperative", "present"),
+        ("indicatif", "futur-proche"): ("indicative", "near-future"),
+    },
+    "es": {
+        ("indicativo", "presente"): ("indicative", "present"),
+        ("indicativo", "pretérito-perfecto-compuesto"): ("indicative", "compound-past"),
+        ("indicativo", "pretérito-imperfecto"): ("indicative", "imperfect"),
+        ("indicativo", "futuro"): ("indicative", "future"),
+        ("indicativo", "pretérito-perfecto-simple"): ("indicative", "simple-past"),
+        ("condicional", "presente"): ("conditional", "present"),
+        ("subjuntivo", "presente"): ("subjunctive", "present"),
+        ("imperativo", "afirmativo"): ("imperative", "present"),
+        ("indicativo", "futuro-próximo"): ("indicative", "near-future"),
+    },
+}
+
 
 def available() -> bool:
     try:
@@ -146,20 +171,29 @@ def conjugate(infinitive: str, language: str = "fr") -> dict | None:
         for person, form in zip(persons, _forms_for(data, mood, verbecc_tense, persons)):
             form = form.strip()
             if _usable(form):
+                slot_mood, slot_tense = SLOT_KEYS[language][(mood, our_tense)]
                 forms.append(
-                    {"mood": mood, "tense": our_tense, "person": person, "form": form}
+                    {
+                        "mood": mood,
+                        "tense": our_tense,
+                        "person": person,
+                        "form": form,
+                        "slot_key": f"{slot_mood}:{slot_tense}:{person}",
+                    }
                 )
     if not forms:
         return None
 
     near_mood, near_tense, helpers, particle = _NEAR_FUTURE[language]
     for person, helper in zip(PERSONS_6, helpers):
+        slot_mood, slot_tense = SLOT_KEYS[language][(near_mood, near_tense)]
         forms.append(
             {
                 "mood": near_mood,
                 "tense": near_tense,
                 "person": person,
                 "form": f"{helper} {particle}{infinitive}",
+                "slot_key": f"{slot_mood}:{slot_tense}:{person}",
             }
         )
 

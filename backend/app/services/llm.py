@@ -24,7 +24,7 @@ LANGUAGE_NAMES = {"fr": "French", "es": "Spanish"}
 PROMPT = """You are a {language_name} dictionary. Define the {language_name} word or phrase: "{term}"
 
 Reply with ONLY a JSON object, no prose and no code fences, in exactly this shape:
-{{"entries": [{{"part_of_speech": "phrase", "ipa": "", "gender": "", "senses": [{{"definition": "", "examples": [], "tags": []}}], "synonyms": []}}]}}
+{{"lemma": "", "entries": [{{"part_of_speech": "phrase", "ipa": "", "gender": "", "senses": [{{"definition": "", "examples": [], "tags": []}}], "synonyms": []}}]}}
 
 Rules:
 - definitions in English, concise dictionary register
@@ -32,6 +32,8 @@ Rules:
 - 1-3 senses; each with 1-2 natural example sentences in {language_name}
 - part_of_speech: standard POS for single words, "phrase" for expressions
 - gender: "m" or "f" for nouns, otherwise ""
+- lemma: for a conjugated verb, the infinitive only; otherwise the original term
+- never use a grammatical description such as "third-person imperfect" as lemma
 - ipa: IPA for the whole term if confident, otherwise ""
 - tags: register labels like "informal", "idiom", "slang" when relevant
 - if the term is not real {language_name}, reply {{"entries": []}}"""
@@ -134,4 +136,10 @@ def define(language: str, term: str) -> dict | None:
         )
     if not entries:
         return None
-    return {"word": term.lower(), "entries": entries, "source": "llm"}
+    lemma = str(data.get("lemma") or "").strip().lower()[:160]
+    return {
+        "word": term.lower(),
+        "lemma": lemma,
+        "entries": entries,
+        "source": "llm",
+    }

@@ -26,11 +26,20 @@ def translate(db: Session, text: str, target: str) -> str:
 
     Adds a cache row to the session on success — the caller commits.
     """
+    return translate_pair(db, text, "en", target)
+
+
+def translate_pair(
+    db: Session, text: str, source_language: str, target: str
+) -> str:
+    """Translate between supported languages, using the same durable cache."""
     text = text.strip()
-    if not text or target not in TARGETS:
+    if not text or not source_language or not target or source_language == target:
         return ""
 
-    digest = hashlib.sha1(f"en:{target}:{text}".encode()).hexdigest()[:40]
+    digest = hashlib.sha1(
+        f"{source_language}:{target}:{text}".encode()
+    ).hexdigest()[:40]
     cached = db.execute(
         select(TranslationCache).where(TranslationCache.digest == digest)
     ).scalar_one_or_none()
@@ -40,7 +49,7 @@ def translate(db: Session, text: str, target: str) -> str:
     try:
         res = httpx.get(
             URL,
-            params={"q": text, "langpair": f"en|{target}"},
+            params={"q": text, "langpair": f"{source_language}|{target}"},
             timeout=8,
         )
         res.raise_for_status()

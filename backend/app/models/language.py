@@ -54,13 +54,51 @@ class ReviewStateName(str, enum.Enum):
     relearning = "relearning"
 
 
+class SupportedLanguage(Base):
+    """Languages enabled for this installation.
+
+    The application currently exposes French and Spanish, but language-bearing
+    tables use this catalog rather than a PostgreSQL enum so another deployment
+    can add languages without redesigning the schema.
+    """
+
+    __tablename__ = "supported_languages"
+
+    code: Mapped[str] = mapped_column(String(12), primary_key=True)
+    name: Mapped[str] = mapped_column(String(80), nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class LanguageLexeme(Base):
+    """Canonical vocabulary identity shared by lookups, notes, and cards."""
+
+    __tablename__ = "language_lexemes"
+    __table_args__ = (
+        UniqueConstraint("language", "normalized_headword"),
+        Index("ix_language_lexemes_language_headword", "language", "normalized_headword"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    language: Mapped[str] = mapped_column(
+        String(12), ForeignKey("supported_languages.code"), nullable=False
+    )
+    headword: Mapped[str] = mapped_column(String(160), nullable=False)
+    normalized_headword: Mapped[str] = mapped_column(String(160), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class FlashcardDeck(Base):
     __tablename__ = "flashcard_decks"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
-    language: Mapped[Language] = mapped_column(
-        Enum(Language, name="language_code"), nullable=False
+    language: Mapped[str] = mapped_column(
+        String(12), ForeignKey("supported_languages.code"), nullable=False
     )
     description: Mapped[str] = mapped_column(Text, default="", nullable=False)
     tags: Mapped[list[str]] = mapped_column(ARRAY(String), default=list, nullable=False)
@@ -108,6 +146,12 @@ class Flashcard(Base):
         Enum(CardSource, name="card_source"), default=CardSource.manual, nullable=False
     )
     source_ref: Mapped[str] = mapped_column(String(200), default="", nullable=False)
+    lexeme_id: Mapped[int | None] = mapped_column(
+        ForeignKey("language_lexemes.id", ondelete="SET NULL"), index=True
+    )
+    conjugation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("conjugations.id", ondelete="SET NULL"), index=True
+    )
     tags: Mapped[list[str]] = mapped_column(ARRAY(String), default=list, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -129,6 +173,8 @@ class Flashcard(Base):
     text_annotations: Mapped[list["LanguageTextAnnotation"]] = relationship(
         back_populates="flashcard"
     )
+    lexeme: Mapped[LanguageLexeme | None] = relationship()
+    conjugation: Mapped["Conjugation | None"] = relationship()
 
 
 class FlashcardReview(Base):
@@ -167,8 +213,8 @@ class ReviewLog(Base):
     card_id: Mapped[int] = mapped_column(
         ForeignKey("flashcards.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    language: Mapped[Language] = mapped_column(
-        Enum(Language, name="language_code", create_type=False), nullable=False
+    language: Mapped[str] = mapped_column(
+        String(12), ForeignKey("supported_languages.code"), nullable=False
     )
     rating: Mapped[int] = mapped_column(Integer, nullable=False)  # 1–4 (FSRS)
     # State the card was in when graded — retention counts review-state cards.
@@ -238,8 +284,8 @@ class LanguageText(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String(180), nullable=False)
-    language: Mapped[Language] = mapped_column(
-        Enum(Language, name="language_code", create_type=False), nullable=False
+    language: Mapped[str] = mapped_column(
+        String(12), ForeignKey("supported_languages.code"), nullable=False
     )
     source_type: Mapped[str] = mapped_column(String(40), default="other", nullable=False)
     source_ref: Mapped[str] = mapped_column(String(300), default="", nullable=False)
@@ -286,6 +332,10 @@ class LanguageTextAnnotation(Base):
     part_of_speech: Mapped[str] = mapped_column(String(40), default="", nullable=False)
     cognate_note: Mapped[str] = mapped_column(Text, default="", nullable=False)
     is_false_friend: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    lexeme_id: Mapped[int | None] = mapped_column(
+        ForeignKey("language_lexemes.id", ondelete="SET NULL"), index=True
+    )
+    form_note: Mapped[str] = mapped_column(Text, default="", nullable=False)
     deck_id: Mapped[int | None] = mapped_column(
         ForeignKey("flashcard_decks.id", ondelete="SET NULL")
     )
@@ -305,6 +355,7 @@ class LanguageTextAnnotation(Base):
     text: Mapped[LanguageText] = relationship(back_populates="annotations")
     deck: Mapped[FlashcardDeck | None] = relationship(back_populates="text_annotations")
     flashcard: Mapped[Flashcard | None] = relationship(back_populates="text_annotations")
+    lexeme: Mapped[LanguageLexeme | None] = relationship()
 
 
 class WikiEntry(Base):
@@ -314,14 +365,15 @@ class WikiEntry(Base):
     __table_args__ = (UniqueConstraint("language", "word"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    language: Mapped[Language] = mapped_column(
-        Enum(Language, name="language_code", create_type=False), nullable=False
+    language: Mapped[str] = mapped_column(
+        String(12), ForeignKey("supported_languages.code"), nullable=False
     )
     word: Mapped[str] = mapped_column(String(120), nullable=False)
     payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
     fetched_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+    payload_version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 
 
 class TranslationCache(Base):
@@ -355,16 +407,26 @@ class LexiqueEntry(Base):
 
 
 class Verb(Base):
-    """Top ~100 French verbs, seeded at build time via scripts/seed_verbs.py."""
+    """A saved, conjugatable verb in any supported language."""
 
     __tablename__ = "verbs"
+    __table_args__ = (
+        UniqueConstraint("language", "normalized_infinitive"),
+        Index("ix_verbs_language_infinitive", "language", "normalized_infinitive"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    infinitive: Mapped[str] = mapped_column(String(60), nullable=False, unique=True)
+    language: Mapped[str] = mapped_column(
+        String(12), ForeignKey("supported_languages.code"), nullable=False
+    )
+    lexeme_id: Mapped[int | None] = mapped_column(
+        ForeignKey("language_lexemes.id", ondelete="SET NULL"), unique=True
+    )
+    infinitive: Mapped[str] = mapped_column(String(160), nullable=False)
+    normalized_infinitive: Mapped[str] = mapped_column(String(160), nullable=False)
     group: Mapped[str] = mapped_column(String(20), nullable=False)  # -er|-ir|-re|irregular
     is_irregular: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     translation: Mapped[str] = mapped_column(String(120), nullable=False)
-    es_equivalent: Mapped[str] = mapped_column(String(60), default="", nullable=False)
     frequency_rank: Mapped[int] = mapped_column(Integer, nullable=False)
 
     conjugations: Mapped[list["Conjugation"]] = relationship(
@@ -384,7 +446,63 @@ class Conjugation(Base):
     tense: Mapped[str] = mapped_column(String(40), nullable=False)
     person: Mapped[str] = mapped_column(String(20), nullable=False)  # je|tu|il|nous|vous|ils
     form: Mapped[str] = mapped_column(String(120), nullable=False)
-    es_form: Mapped[str] = mapped_column(String(120), default="", nullable=False)
+    # Language-neutral slot shared by equivalent forms, e.g.
+    # "indicative:imperfect:3s" for both FR tenait and ES tenía.
+    slot_key: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     audio_url: Mapped[str] = mapped_column(String(500), default="", nullable=False)
 
     verb: Mapped[Verb] = relationship(back_populates="conjugations")
+
+
+class VerbRelation(Base):
+    """A directional relation between verbs (currently translation/equivalence)."""
+
+    __tablename__ = "verb_relations"
+    __table_args__ = (
+        UniqueConstraint("source_verb_id", "target_verb_id", "relation_type"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source_verb_id: Mapped[int] = mapped_column(
+        ForeignKey("verbs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    target_verb_id: Mapped[int] = mapped_column(
+        ForeignKey("verbs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    relation_type: Mapped[str] = mapped_column(
+        String(30), default="translation", nullable=False
+    )
+
+
+class VerbSet(Base):
+    """A language-specific, reusable collection of verbs."""
+
+    __tablename__ = "verb_sets"
+    __table_args__ = (UniqueConstraint("language", "name"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    language: Mapped[str] = mapped_column(
+        String(12), ForeignKey("supported_languages.code"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class VerbSetMember(Base):
+    __tablename__ = "verb_set_members"
+    __table_args__ = (UniqueConstraint("set_id", "verb_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    set_id: Mapped[int] = mapped_column(
+        ForeignKey("verb_sets.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    verb_id: Mapped[int] = mapped_column(
+        ForeignKey("verbs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )

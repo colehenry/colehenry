@@ -16,6 +16,7 @@ from app.models import (
     FlashcardDeck,
     FlashcardReview,
     Language,
+    LanguageLexeme,
     LanguageTarget,
     LanguageTask,
     LanguageText,
@@ -24,12 +25,16 @@ from app.models import (
     ReviewLog,
     ReviewStateName,
     Verb,
+    VerbRelation,
+    VerbSet,
+    VerbSetMember,
     WikiEntry,
 )
 from app.schemas.language import (
     CardCreate,
     CardOut,
     CardUpdate,
+    ConjugationOut,
     ConjugationAudioOut,
     DeckCreate,
     DeckOut,
@@ -64,11 +69,16 @@ from app.schemas.language import (
     VerbCreate,
     VerbDetail,
     VerbOut,
+    VerbSetCreate,
+    VerbSetMemberIn,
+    VerbSetOut,
+    VerbSetUpdate,
     WikiConjugationOut,
     WikiDictEntry,
+    WikiEquivalentOut,
     WikiOut,
 )
-from app.services import conjugator, dictionary, enrich, llm, translate, tts
+from app.services import conjugator, dictionary, enrich, lexemes, llm, translate, tts
 from app.services.fsrs_engine import grade
 
 # The whole tool is owner-only — one dependency gates every route.
@@ -90,37 +100,64 @@ PERSON_LABELS = {
     "3p": "ils/elles",
 }
 
+PERSON_LABELS_ES = {
+    "1s": "yo",
+    "2s": "tú",
+    "3s": "él/ella",
+    "1p": "nosotros",
+    "2p": "vosotros",
+    "3p": "ellos/ellas",
+}
+
 # What TTS says for each person — one concrete pronoun, not "il/elle".
 SPOKEN_SUBJECTS = {
-    "1s": "je",
-    "2s": "tu",
-    "3s": "il",
-    "1p": "nous",
-    "2p": "vous",
-    "3p": "ils",
+    "fr": {
+        "1s": "je",
+        "2s": "tu",
+        "3s": "il",
+        "1p": "nous",
+        "2p": "vous",
+        "3p": "ils",
+    },
+    "es": {
+        "1s": "yo",
+        "2s": "tú",
+        "3s": "él",
+        "1p": "nosotros",
+        "2p": "vosotros",
+        "3p": "ellos",
+    },
 }
 
 _VOWELISH = tuple("aeiouyàâäéèêëîïôöùûüh")
 
 
-def spoken_conjugation(person: str, form: str, mood: str) -> str:
+def spoken_conjugation(
+    person: str, form: str, mood: str, language: str = "fr"
+) -> str:
     """Subject + verb as actually said: "je suis", "j'aime", "que je sois"."""
-    if mood == "imperatif" or not form:
+    if mood in ("imperatif", "imperativo") or not form:
         return form
-    subject = SPOKEN_SUBJECTS.get(person)
+    subject = SPOKEN_SUBJECTS.get(language, {}).get(person)
     if not subject:
         return form
-    if subject == "je" and form.lower().startswith(_VOWELISH):
+    if language == "fr" and subject == "je" and form.lower().startswith(_VOWELISH):
         phrase = f"j'{form}"
     else:
         phrase = f"{subject} {form}"
     if mood == "subjonctif":
         return f"qu'{phrase}" if phrase[0] in "iî" else f"que {phrase}"
+    if mood == "subjuntivo":
+        return f"que {phrase}"
     return phrase
 
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _lang_code(value: str | Language) -> str:
+    return str(getattr(value, "value", value))
 
 
 def _local_today(tz_offset: int) -> date:
@@ -275,6 +312,8 @@ def _card_out(card: Flashcard) -> CardOut:
         is_false_friend=card.is_false_friend,
         source=card.source,
         source_ref=card.source_ref,
+        lexeme_id=card.lexeme_id,
+        conjugation_id=card.conjugation_id,
         tags=card.tags,
         created_at=card.created_at,
         state=r.state,
@@ -283,6 +322,12 @@ def _card_out(card: Flashcard) -> CardOut:
         lapses=r.lapses,
         stability=r.stability,
     )
+
+
+def _assign_card_lexeme(db: Session, card: Flashcard, language: str) -> None:
+    target = enrich.target_word(card, language).strip()
+    if target and len(target) <= 160 and card.source != CardSource.conjugation:
+        card.lexeme = lexemes.maybe_get_or_create(db, language, target)
 
 
 @router.get("/decks/{deck_id}/cards", response_model=list[CardOut])
@@ -323,7 +368,22 @@ def create_card(body: CardCreate, db: Session = Depends(get_db)):
         source=CardSource.manual,
     )
     if body.enrich:
-        enrich.enrich_card(db, card, deck.language.value)
+        enrich.enrich_card(db, card, _lang_code(deck.language))
+    _assign_card_lexeme(db, card, _lang_code(deck.language))
+    if "wiki" in body.tags and card.lexeme:
+        duplicate = next(
+            (
+                location
+                for location in lexemes.card_locations(db, card.lexeme)
+                if location["deck_id"] == deck.id
+            ),
+            None,
+        )
+        if duplicate:
+            raise HTTPException(
+                status_code=409,
+                detail=f"{card.lexeme.headword} is already in {duplicate['deck_name']}",
+            )
     card.review = FlashcardReview()
     db.add(card)
     db.commit()
@@ -346,7 +406,8 @@ def update_card(card_id: int, body: CardUpdate, db: Session = Depends(get_db)):
             setattr(card, key, value.strip() if isinstance(value, str) else value)
     if content_changed:
         card.audio_url = ""  # regenerate below — the word changed
-        enrich.enrich_card(db, card, card.deck.language.value)
+        enrich.enrich_card(db, card, _lang_code(card.deck.language))
+        _assign_card_lexeme(db, card, _lang_code(card.deck.language))
     db.commit()
     db.refresh(card)
     return _card_out(card)
@@ -358,7 +419,8 @@ def reenrich_card(card_id: int, db: Session = Depends(get_db)):
     if card is None:
         raise HTTPException(status_code=404, detail="Card not found")
     card.audio_url = ""
-    enrich.enrich_card(db, card, card.deck.language.value)
+    enrich.enrich_card(db, card, _lang_code(card.deck.language))
+    _assign_card_lexeme(db, card, _lang_code(card.deck.language))
     db.commit()
     db.refresh(card)
     return _card_out(card)
@@ -381,6 +443,7 @@ def delete_card(card_id: int, db: Session = Depends(get_db)):
 @router.get("/study/queue", response_model=StudyQueue)
 def study_queue(
     deck_id: int | None = None,
+    verb_set_id: int | None = None,
     language: Language | None = None,
     limit: int = Query(default=50, ge=1, le=200),
     new_limit: int = Query(default=10, ge=0, le=50),
@@ -402,6 +465,14 @@ def study_queue(
             query = query.join(
                 FlashcardDeck, FlashcardDeck.id == Flashcard.deck_id
             ).where(FlashcardDeck.language == language)
+        if verb_set_id is not None:
+            query = (
+                query.join(
+                    Conjugation, Conjugation.id == Flashcard.conjugation_id
+                )
+                .join(VerbSetMember, VerbSetMember.verb_id == Conjugation.verb_id)
+                .where(VerbSetMember.set_id == verb_set_id)
+            )
         return query
 
     def count_query():
@@ -416,6 +487,14 @@ def study_queue(
             query = query.join(
                 FlashcardDeck, FlashcardDeck.id == Flashcard.deck_id
             ).where(FlashcardDeck.language == language)
+        if verb_set_id is not None:
+            query = (
+                query.join(
+                    Conjugation, Conjugation.id == Flashcard.conjugation_id
+                )
+                .join(VerbSetMember, VerbSetMember.verb_id == Conjugation.verb_id)
+                .where(VerbSetMember.set_id == verb_set_id)
+            )
         return query
 
     due_rows = (
@@ -805,10 +884,11 @@ def dashboard(tz_offset: int = 0, db: Session = Depends(get_db)):
         .group_by(FlashcardDeck.language)
     ).all()
     for lang, total, due, new, mature in rows:
-        counts["total"][lang.value] = total
-        counts["due"][lang.value] = due
-        counts["new"][lang.value] = new
-        counts["mature"][lang.value] = mature
+        code = _lang_code(lang)
+        counts["total"][code] = total
+        counts["due"][code] = due
+        counts["new"][code] = new
+        counts["mature"][code] = mature
 
     targets = (
         db.execute(select(LanguageTarget).order_by(LanguageTarget.id)).scalars().all()
@@ -850,7 +930,29 @@ def _text_summary(text: LanguageText, annotation_count: int) -> LanguageTextOut:
 
 
 def _annotation_out(annotation: LanguageTextAnnotation) -> TextAnnotationOut:
-    return TextAnnotationOut.model_validate(annotation)
+    return TextAnnotationOut(
+        id=annotation.id,
+        text_id=annotation.text_id,
+        start_offset=annotation.start_offset,
+        end_offset=annotation.end_offset,
+        selected_text=annotation.selected_text,
+        kind=annotation.kind,
+        color=annotation.color,
+        note=annotation.note,
+        translation=annotation.translation,
+        ipa=annotation.ipa,
+        gender=annotation.gender,
+        part_of_speech=annotation.part_of_speech,
+        cognate_note=annotation.cognate_note,
+        is_false_friend=annotation.is_false_friend,
+        lexeme_id=annotation.lexeme_id,
+        headword=annotation.lexeme.headword if annotation.lexeme else "",
+        form_note=annotation.form_note,
+        deck_id=annotation.deck_id,
+        flashcard_id=annotation.flashcard_id,
+        created_at=annotation.created_at,
+        updated_at=annotation.updated_at,
+    )
 
 
 def _text_detail(text: LanguageText) -> LanguageTextDetail:
@@ -907,21 +1009,22 @@ def _lexique_gender(db: Session, language: Language, word: str) -> str:
 
 
 def _lookup_annotation_text(
-    db: Session, language: Language, selected_text: str
+    db: Session, language: str | Language, selected_text: str
 ) -> TextLookupOut:
+    language_code = _lang_code(language)
     selected = selected_text.strip()
     found = None
     provider = "manual_needed"
     matched_term = ""
     for term in _lookup_terms(selected):
-        found = dictionary.lookup(language.value, term)
+        found = dictionary.lookup(language_code, term)
         if found:
             provider = "dictionary"
             matched_term = term
             break
 
     false_friend = None
-    column = FalseFriend.fr if language == Language.fr else FalseFriend.es
+    column = FalseFriend.fr if language_code == "fr" else FalseFriend.es
     for term in _lookup_terms(selected):
         false_friend = db.execute(
             select(FalseFriend).where(func.lower(column) == term.lower())
@@ -932,23 +1035,37 @@ def _lookup_annotation_text(
             )
             break
 
-    translation = found["translation"] if found else ""
+    resolution = lexemes.resolve(
+        db, language_code, matched_term or selected, found=found
+    )
+    canonical_found = resolution.lookup or found
+    lexeme = lexemes.maybe_get_or_create(db, language_code, resolution.headword)
+    translation = canonical_found["translation"] if canonical_found else ""
     if false_friend and not translation:
-        translation = false_friend.es if language == Language.fr else false_friend.fr
+        translation = false_friend.es if language_code == "fr" else false_friend.fr
 
-    gender = found["gender"] if found else ""
+    gender = canonical_found["gender"] if canonical_found else ""
     if not gender:
-        gender = _lexique_gender(db, language, matched_term or selected)
+        gender = _lexique_gender(db, Language(language_code), resolution.headword)
 
     return TextLookupOut(
         selected_text=selected,
         translation=translation,
-        ipa=found["ipa"] if found else "",
+        ipa=canonical_found["ipa"] if canonical_found else "",
         gender=gender,
-        part_of_speech=found["part_of_speech"] if found else "",
+        part_of_speech=canonical_found["part_of_speech"] if canonical_found else "",
         cognate_note=false_friend.note if false_friend else "",
         is_false_friend=false_friend is not None,
-        provider=provider,
+        provider=(
+            f"{provider}+{resolution.provider}"
+            if resolution.is_inflected
+            else provider
+        ),
+        headword=resolution.headword,
+        is_inflected=resolution.is_inflected,
+        form_note=resolution.form_note,
+        lexeme_id=lexeme.id if lexeme else None,
+        existing_cards=lexemes.card_locations(db, lexeme) if lexeme else [],
     )
 
 
@@ -1084,7 +1201,9 @@ def lookup_text_selection(
     text = db.get(LanguageText, text_id)
     if text is None:
         raise HTTPException(status_code=404, detail="Text not found")
-    return _lookup_annotation_text(db, text.language, body.selected_text)
+    result = _lookup_annotation_text(db, text.language, body.selected_text)
+    db.commit()
+    return result
 
 
 @router.post(
@@ -1115,6 +1234,12 @@ def create_text_annotation(
         part_of_speech=body.part_of_speech.strip(),
         cognate_note=body.cognate_note.strip(),
         is_false_friend=body.is_false_friend,
+        lexeme=(
+            lexemes.maybe_get_or_create(db, _lang_code(text.language), body.headword)
+            if body.headword.strip()
+            else None
+        ),
+        form_note=body.form_note.strip(),
     )
     db.add(annotation)
     db.commit()
@@ -1155,12 +1280,22 @@ def update_text_annotation(
         "gender",
         "part_of_speech",
         "cognate_note",
+        "form_note",
     ):
         if key in data and data[key] is not None:
             value = data[key].strip()
             if key in ("kind", "color") and not value:
                 value = "highlight" if key == "kind" else "brand"
             setattr(annotation, key, value)
+    if "headword" in data and data["headword"] is not None:
+        headword = data["headword"].strip()
+        annotation.lexeme = (
+            lexemes.maybe_get_or_create(
+                db, _lang_code(annotation.text.language), headword
+            )
+            if headword
+            else None
+        )
     if "is_false_friend" in data and data["is_false_friend"] is not None:
         annotation.is_false_friend = data["is_false_friend"]
     db.commit()
@@ -1199,10 +1334,31 @@ def create_card_from_annotation(
             detail="Annotation and deck languages must match",
         )
 
-    front = body.front.strip() or annotation.selected_text
+    front = (
+        body.front.strip()
+        or (annotation.lexeme.headword if annotation.lexeme else "")
+        or annotation.selected_text
+    )
     back = body.back.strip() or annotation.translation or annotation.note
     if not front.strip():
         raise HTTPException(status_code=400, detail="Card front is required")
+
+    card_lexeme = lexemes.maybe_get_or_create(db, _lang_code(deck.language), front)
+    duplicate = next(
+        (
+            location
+            for location in (
+                lexemes.card_locations(db, card_lexeme) if card_lexeme else []
+            )
+            if location["deck_id"] == deck.id
+        ),
+        None,
+    )
+    if duplicate:
+        raise HTTPException(
+            status_code=409,
+            detail=f"{front} is already in {duplicate['deck_name']}",
+        )
 
     card = Flashcard(
         deck_id=deck.id,
@@ -1221,9 +1377,10 @@ def create_card_from_annotation(
         source=CardSource.paste,
         source_ref=f"language_text:{annotation.text_id}:annotation:{annotation.id}",
         tags=_dedupe_tags(annotation.text.tags, body.tags, ["text"]),
+        lexeme_id=card_lexeme.id if card_lexeme else None,
     )
     if body.enrich:
-        enrich.enrich_card(db, card, deck.language.value)
+        enrich.enrich_card(db, card, _lang_code(deck.language))
     card.review = FlashcardReview()
     db.add(card)
     db.flush()
@@ -1256,7 +1413,7 @@ def _wiki_payload(
     cached = db.execute(
         select(WikiEntry).where(WikiEntry.language == language, WikiEntry.word == term)
     ).scalar_one_or_none()
-    if cached and not refresh:
+    if cached and cached.payload_version >= 2 and not refresh:
         return cached.payload
 
     payload = dictionary.lookup_full(language.value, term)
@@ -1266,8 +1423,16 @@ def _wiki_payload(
         if cached:
             cached.payload = payload
             cached.fetched_at = _now()
+            cached.payload_version = 2
         else:
-            db.add(WikiEntry(language=language, word=term, payload=payload))
+            db.add(
+                WikiEntry(
+                    language=language,
+                    word=term,
+                    payload=payload,
+                    payload_version=2,
+                )
+            )
         db.commit()
         return payload
     return cached.payload if cached else None
@@ -1344,11 +1509,37 @@ def wiki_lookup(
     ipa = next((e.ipa for e in entries if e.ipa), "")
 
     lexique = _lexique_row(db, term) if language == Language.fr else None
-    lemma = (
+    display_lemma = (
         lexique.lemma
         if lexique and lexique.lemma and lexique.lemma.lower() != term
         else ""
     )
+
+    first_entry = entries[0] if entries else None
+    first_sense = first_entry.senses[0] if first_entry and first_entry.senses else None
+    lookup_hint = (
+        {
+            "ipa": first_entry.ipa,
+            "part_of_speech": first_entry.part_of_speech,
+            "gender": first_entry.gender,
+            "translation": first_sense.definition if first_sense else "",
+            "example": first_sense.examples[0]
+            if first_sense and first_sense.examples
+            else "",
+        }
+        if first_entry
+        else None
+    )
+    resolution = lexemes.resolve(
+        db,
+        language.value,
+        term,
+        found=lookup_hint,
+        hinted_lemma=(payload or {}).get("lemma", "") or display_lemma,
+    )
+    headword = resolution.headword
+    lemma = headword if headword != term else display_lemma
+    lexeme = lexemes.get_or_create(db, language.value, headword)
 
     column = FalseFriend.fr if language == Language.fr else FalseFriend.es
     false_friend = db.execute(
@@ -1356,29 +1547,49 @@ def wiki_lookup(
     ).scalar_one_or_none()
 
     saved_verb = None
-    if language == Language.fr:
-        saved_verb = db.execute(
-            select(Verb).where(func.lower(Verb.infinitive) == term)
-        ).scalar_one_or_none()
-    is_verb = saved_verb is not None or any(
+    saved_verb = db.execute(
+        select(Verb).where(
+            Verb.language == language.value,
+            Verb.normalized_infinitive == lexemes.normalize_headword(headword),
+        )
+    ).scalar_one_or_none()
+    is_verb = saved_verb is not None or resolution.is_verb or any(
         e.part_of_speech == "verb" for e in entries
     )
 
-    # Conjugate on the fly for unsaved infinitives (saved FR verbs already
+    # Conjugate on the fly for unsaved infinitives (saved verbs already
     # have their conjugations in the DB — the client reuses those).
     conjugations: list[WikiConjugationOut] = []
     predicted = False
     if (
         is_verb
         and saved_verb is None
-        and term.endswith(_INFINITIVE_ENDINGS[language])
+        and headword.endswith(_INFINITIVE_ENDINGS[language])
     ):
-        conjugated = conjugator.conjugate(term, language.value)
+        conjugated = conjugator.conjugate(headword, language.value)
         if conjugated:
             conjugations = [WikiConjugationOut(**f) for f in conjugated["forms"]]
             predicted = conjugated["predicted"]
 
-    return WikiOut(
+    equivalent = None
+    if saved_verb:
+        related = db.execute(
+            select(Verb)
+            .join(VerbRelation, VerbRelation.target_verb_id == Verb.id)
+            .where(
+                VerbRelation.source_verb_id == saved_verb.id,
+                VerbRelation.relation_type == "translation",
+            )
+            .order_by(Verb.language)
+        ).scalars().first()
+        if related:
+            equivalent = WikiEquivalentOut(
+                language=related.language,
+                word=related.infinitive,
+                verb_id=related.id,
+            )
+
+    result = WikiOut(
         word=term,
         language=language,
         found=bool(entries) or false_friend is not None or saved_verb is not None,
@@ -1389,6 +1600,11 @@ def wiki_lookup(
         ipa=ipa,
         frequency=lexique.frequency if lexique else None,
         lemma=lemma,
+        headword=headword,
+        is_inflected=resolution.is_inflected,
+        form_note=resolution.form_note,
+        lexeme_id=lexeme.id,
+        existing_cards=lexemes.card_locations(db, lexeme),
         cognate_note=false_friend.note if false_friend else "",
         is_false_friend=false_friend is not None,
         is_verb=is_verb,
@@ -1396,7 +1612,10 @@ def wiki_lookup(
         conjugations=conjugations,
         can_conjugate=conjugator.available(),
         predicted=predicted,
+        equivalent=equivalent,
     )
+    db.commit()
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -1404,47 +1623,219 @@ def wiki_lookup(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/verbs", response_model=VerbDetail, status_code=201)
-def create_verb(body: VerbCreate, db: Session = Depends(get_db)):
-    """Save a wiki-looked-up verb into the conjugation center (via verbecc)."""
-    existing = db.execute(
-        select(Verb).where(func.lower(Verb.infinitive) == body.infinitive)
-    ).scalar_one_or_none()
-    if existing:
-        return existing
-    if not conjugator.available():
-        raise HTTPException(
-            status_code=503,
-            detail="verbecc is not installed on this server",
+def _related_verb(db: Session, verb: Verb) -> Verb | None:
+    return db.execute(
+        select(Verb)
+        .join(VerbRelation, VerbRelation.target_verb_id == Verb.id)
+        .where(
+            VerbRelation.source_verb_id == verb.id,
+            VerbRelation.relation_type == "translation",
         )
-    data = conjugator.conjugate(body.infinitive)
-    if data is None:
-        raise HTTPException(status_code=422, detail="Could not conjugate that verb")
+        .order_by(Verb.language)
+    ).scalars().first()
 
-    found = dictionary.lookup("fr", body.infinitive)
-    max_rank = db.execute(select(func.max(Verb.frequency_rank))).scalar() or 0
+
+def _verb_set_ids(db: Session, verb_id: int) -> list[int]:
+    return list(
+        db.execute(
+            select(VerbSetMember.set_id)
+            .where(VerbSetMember.verb_id == verb_id)
+            .order_by(VerbSetMember.set_id)
+        ).scalars()
+    )
+
+
+def _verb_out(db: Session, verb: Verb) -> VerbOut:
+    equivalent = _related_verb(db, verb)
+    return VerbOut(
+        id=verb.id,
+        language=verb.language,
+        lexeme_id=verb.lexeme_id,
+        infinitive=verb.infinitive,
+        group=verb.group,
+        is_irregular=verb.is_irregular,
+        translation=verb.translation,
+        frequency_rank=verb.frequency_rank,
+        equivalent_verb_id=equivalent.id if equivalent else None,
+        equivalent_language=equivalent.language if equivalent else "",
+        equivalent_infinitive=equivalent.infinitive if equivalent else "",
+        set_ids=_verb_set_ids(db, verb.id),
+    )
+
+
+def _verb_detail(db: Session, verb: Verb) -> VerbDetail:
+    equivalent = _related_verb(db, verb)
+    equivalent_forms = {}
+    if equivalent:
+        equivalent_forms = {
+            row.slot_key: row.form
+            for row in db.execute(
+                select(Conjugation).where(Conjugation.verb_id == equivalent.id)
+            ).scalars()
+        }
+    rows = db.execute(
+        select(Conjugation)
+        .where(Conjugation.verb_id == verb.id)
+        .order_by(Conjugation.id)
+    ).scalars().all()
+    return VerbDetail(
+        **_verb_out(db, verb).model_dump(),
+        conjugations=[
+            ConjugationOut(
+                id=row.id,
+                mood=row.mood,
+                tense=row.tense,
+                person=row.person,
+                form=row.form,
+                slot_key=row.slot_key,
+                equivalent_form=equivalent_forms.get(row.slot_key, ""),
+                audio_url=row.audio_url,
+            )
+            for row in rows
+        ],
+    )
+
+
+def _persist_conjugated_verb(
+    db: Session,
+    language: str,
+    data: dict,
+    translation_text: str,
+) -> Verb:
+    infinitive = data["infinitive"]
+    lexeme = lexemes.get_or_create(db, language, infinitive)
+    max_rank = db.execute(
+        select(func.max(Verb.frequency_rank)).where(Verb.language == language)
+    ).scalar() or 0
     verb = Verb(
-        infinitive=data["infinitive"],
+        language=language,
+        lexeme_id=lexeme.id,
+        infinitive=infinitive,
+        normalized_infinitive=lexemes.normalize_headword(infinitive),
         group=data["group"],
         is_irregular=data["is_irregular"],
-        translation=(found or {}).get("translation", "")[:120] or body.infinitive,
-        es_equivalent="",
+        translation=translation_text[:120] or infinitive,
         frequency_rank=max_rank + 1,
     )
     db.add(verb)
     db.flush()
     for form in data["forms"]:
         db.add(Conjugation(verb_id=verb.id, **form))
-    db.commit()
-    db.refresh(verb)
     return verb
 
 
-@router.get("/verbs", response_model=list[VerbOut])
-def list_verbs(db: Session = Depends(get_db)):
-    return (
-        db.execute(select(Verb).order_by(Verb.frequency_rank)).scalars().all()
+def _link_verbs(db: Session, source: Verb, target: Verb) -> None:
+    for left, right in ((source, target), (target, source)):
+        existing = db.execute(
+            select(VerbRelation).where(
+                VerbRelation.source_verb_id == left.id,
+                VerbRelation.target_verb_id == right.id,
+                VerbRelation.relation_type == "translation",
+            )
+        ).scalar_one_or_none()
+        if not existing:
+            db.add(
+                VerbRelation(
+                    source_verb_id=left.id,
+                    target_verb_id=right.id,
+                    relation_type="translation",
+                )
+            )
+
+
+def _try_create_equivalent(db: Session, verb: Verb) -> Verb | None:
+    if verb.language not in ("fr", "es"):
+        return None
+    target_language = "es" if verb.language == "fr" else "fr"
+    translated = translate.translate_pair(
+        db, verb.infinitive, verb.language, target_language
+    ).strip().lower().strip(_WIKI_STRIP)
+    if not translated or translated == verb.infinitive or "," in translated:
+        return None
+    for prefix in ("to ", "le ", "la ", "el ", "un ", "une "):
+        if translated.startswith(prefix):
+            translated = translated[len(prefix):].strip()
+            break
+    normalized = lexemes.normalize_headword(translated)
+    existing = db.execute(
+        select(Verb).where(
+            Verb.language == target_language,
+            Verb.normalized_infinitive == normalized,
+        )
+    ).scalar_one_or_none()
+    if existing:
+        _link_verbs(db, verb, existing)
+        return existing
+    if not translated.endswith(_INFINITIVE_ENDINGS[Language(target_language)]):
+        return None
+    data = conjugator.conjugate(translated, target_language)
+    if data is None:
+        return None
+    equivalent = _persist_conjugated_verb(
+        db, target_language, data, verb.translation
     )
+    _link_verbs(db, verb, equivalent)
+    return equivalent
+
+
+@router.post("/verbs", response_model=VerbDetail, status_code=201)
+def create_verb(body: VerbCreate, db: Session = Depends(get_db)):
+    """Save a wiki verb and, when possible, its FR/ES equivalent."""
+    language = body.language.value
+    normalized = lexemes.normalize_headword(body.infinitive)
+    verb = db.execute(
+        select(Verb).where(
+            Verb.language == language,
+            Verb.normalized_infinitive == normalized,
+        )
+    ).scalar_one_or_none()
+    if verb is None:
+        if not conjugator.available():
+            raise HTTPException(
+                status_code=503,
+                detail="verbecc is not installed on this server",
+            )
+        data = conjugator.conjugate(body.infinitive, language)
+        if data is None:
+            raise HTTPException(status_code=422, detail="Could not conjugate that verb")
+        found = dictionary.lookup(language, body.infinitive)
+        verb = _persist_conjugated_verb(
+            db,
+            language,
+            data,
+            (found or {}).get("translation", "") or body.infinitive,
+        )
+        _try_create_equivalent(db, verb)
+
+    for set_id in body.set_ids:
+        verb_set = db.get(VerbSet, set_id)
+        if verb_set is None or verb_set.language != language:
+            raise HTTPException(status_code=400, detail="Verb set language mismatch")
+        member = db.execute(
+            select(VerbSetMember).where(
+                VerbSetMember.set_id == set_id,
+                VerbSetMember.verb_id == verb.id,
+            )
+        ).scalar_one_or_none()
+        if not member:
+            db.add(VerbSetMember(set_id=set_id, verb_id=verb.id))
+
+    db.commit()
+    db.refresh(verb)
+    return _verb_detail(db, verb)
+
+
+@router.get("/verbs", response_model=list[VerbOut])
+def list_verbs(
+    language: Language = Language.fr,
+    db: Session = Depends(get_db),
+):
+    verbs = db.execute(
+        select(Verb)
+        .where(Verb.language == language.value)
+        .order_by(Verb.frequency_rank, Verb.infinitive)
+    ).scalars().all()
+    return [_verb_out(db, verb) for verb in verbs]
 
 
 @router.get("/verbs/{verb_id}", response_model=VerbDetail)
@@ -1452,7 +1843,127 @@ def get_verb(verb_id: int, db: Session = Depends(get_db)):
     verb = db.get(Verb, verb_id)
     if verb is None:
         raise HTTPException(status_code=404, detail="Verb not found")
-    return verb
+    return _verb_detail(db, verb)
+
+
+def _verb_set_out(db: Session, verb_set: VerbSet) -> VerbSetOut:
+    count = db.execute(
+        select(func.count(VerbSetMember.id)).where(
+            VerbSetMember.set_id == verb_set.id
+        )
+    ).scalar_one()
+    return VerbSetOut(
+        id=verb_set.id,
+        language=verb_set.language,
+        name=verb_set.name,
+        description=verb_set.description,
+        verb_count=count,
+        created_at=verb_set.created_at,
+    )
+
+
+@router.get("/verb-sets", response_model=list[VerbSetOut])
+def list_verb_sets(
+    language: Language | None = None,
+    db: Session = Depends(get_db),
+):
+    query = select(VerbSet).order_by(VerbSet.language, VerbSet.name)
+    if language:
+        query = query.where(VerbSet.language == language.value)
+    return [_verb_set_out(db, row) for row in db.execute(query).scalars().all()]
+
+
+@router.post("/verb-sets", response_model=VerbSetOut, status_code=201)
+def create_verb_set(body: VerbSetCreate, db: Session = Depends(get_db)):
+    existing = db.execute(
+        select(VerbSet).where(
+            VerbSet.language == body.language.value,
+            func.lower(VerbSet.name) == body.name.strip().lower(),
+        )
+    ).scalar_one_or_none()
+    if existing:
+        return _verb_set_out(db, existing)
+    row = VerbSet(
+        language=body.language.value,
+        name=body.name.strip(),
+        description=body.description.strip(),
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return _verb_set_out(db, row)
+
+
+@router.patch("/verb-sets/{set_id}", response_model=VerbSetOut)
+def update_verb_set(
+    set_id: int,
+    body: VerbSetUpdate,
+    db: Session = Depends(get_db),
+):
+    row = db.get(VerbSet, set_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Verb set not found")
+    if body.name is not None:
+        name = body.name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Set name is required")
+        row.name = name
+    if body.description is not None:
+        row.description = body.description.strip()
+    db.commit()
+    db.refresh(row)
+    return _verb_set_out(db, row)
+
+
+@router.delete("/verb-sets/{set_id}", status_code=204)
+def delete_verb_set(set_id: int, db: Session = Depends(get_db)):
+    row = db.get(VerbSet, set_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Verb set not found")
+    db.delete(row)
+    db.commit()
+
+
+@router.post("/verb-sets/{set_id}/members", response_model=VerbSetOut)
+def add_verb_set_member(
+    set_id: int,
+    body: VerbSetMemberIn,
+    db: Session = Depends(get_db),
+):
+    row = db.get(VerbSet, set_id)
+    verb = db.get(Verb, body.verb_id)
+    if row is None or verb is None:
+        raise HTTPException(status_code=404, detail="Verb set or verb not found")
+    if row.language != verb.language:
+        raise HTTPException(status_code=400, detail="Verb set language mismatch")
+    existing = db.execute(
+        select(VerbSetMember).where(
+            VerbSetMember.set_id == row.id,
+            VerbSetMember.verb_id == verb.id,
+        )
+    ).scalar_one_or_none()
+    if not existing:
+        db.add(VerbSetMember(set_id=row.id, verb_id=verb.id))
+        db.commit()
+    return _verb_set_out(db, row)
+
+
+@router.delete("/verb-sets/{set_id}/members/{verb_id}", status_code=204)
+def remove_verb_set_member(
+    set_id: int,
+    verb_id: int,
+    db: Session = Depends(get_db),
+):
+    member = db.execute(
+        select(VerbSetMember).where(
+            VerbSetMember.set_id == set_id,
+            VerbSetMember.verb_id == verb_id,
+        )
+    ).scalar_one_or_none()
+    if member is None:
+        raise HTTPException(status_code=404, detail="Verb set member not found")
+    db.delete(member)
+    db.commit()
 
 
 @router.post("/conjugations/{conjugation_id}/audio", response_model=ConjugationAudioOut)
@@ -1462,8 +1973,10 @@ def conjugation_audio(conjugation_id: int, db: Session = Depends(get_db)):
     if conj is None:
         raise HTTPException(status_code=404, detail="Conjugation not found")
     if not conj.audio_url:
+        language = conj.verb.language
         conj.audio_url = tts.synthesize(
-            "fr", spoken_conjugation(conj.person, conj.form, conj.mood)
+            language,
+            spoken_conjugation(conj.person, conj.form, conj.mood, language),
         )
         db.commit()
     return ConjugationAudioOut(id=conj.id, audio_url=conj.audio_url)
@@ -1479,6 +1992,15 @@ TENSE_LABELS = {
     ("conditionnel", "présent"): "Conditionnel",
     ("subjonctif", "présent"): "Subjonctif",
     ("imperatif", "présent"): "Impératif",
+    ("indicativo", "presente"): "Presente",
+    ("indicativo", "pretérito-perfecto-compuesto"): "Pretérito perfecto",
+    ("indicativo", "pretérito-imperfecto"): "Imperfecto",
+    ("indicativo", "futuro-próximo"): "Futuro próximo",
+    ("indicativo", "futuro"): "Futuro",
+    ("indicativo", "pretérito-perfecto-simple"): "Indefinido",
+    ("condicional", "presente"): "Condicional",
+    ("subjuntivo", "presente"): "Subjuntivo",
+    ("imperativo", "afirmativo"): "Imperativo",
 }
 
 
@@ -1489,8 +2011,16 @@ def create_drills(body: DrillCreate, db: Session = Depends(get_db)):
     if label is None:
         raise HTTPException(status_code=400, detail="Unknown mood/tense")
 
-    verbs_query = select(Verb)
-    if body.verb_ids:
+    language = body.language.value
+    verbs_query = select(Verb).where(Verb.language == language)
+    if body.set_id is not None:
+        verb_set = db.get(VerbSet, body.set_id)
+        if verb_set is None or verb_set.language != language:
+            raise HTTPException(status_code=400, detail="Verb set language mismatch")
+        verbs_query = verbs_query.join(
+            VerbSetMember, VerbSetMember.verb_id == Verb.id
+        ).where(VerbSetMember.set_id == body.set_id)
+    elif body.verb_ids:
         verbs_query = verbs_query.where(Verb.id.in_(body.verb_ids))
     elif body.irregular_only:
         verbs_query = verbs_query.where(Verb.is_irregular)
@@ -1500,16 +2030,23 @@ def create_drills(body: DrillCreate, db: Session = Depends(get_db)):
     if not verbs:
         raise HTTPException(status_code=400, detail="No verbs match the filter")
 
-    name = f"Drill · {label}" + (" · audio" if body.audio_first else "")
+    name = f"Drill · {language.upper()} · {label}" + (
+        " · audio" if body.audio_first else ""
+    )
+    legacy_name = f"Drill · {label}" + (
+        " · audio" if body.audio_first else ""
+    )
     deck = db.execute(
         select(FlashcardDeck).where(
-            FlashcardDeck.name == name, FlashcardDeck.is_system
-        )
+            FlashcardDeck.name.in_((name, legacy_name)),
+            FlashcardDeck.language == language,
+            FlashcardDeck.is_system,
+        ).order_by(FlashcardDeck.name == name).limit(1)
     ).scalar_one_or_none()
     if deck is None:
         deck = FlashcardDeck(
             name=name,
-            language=Language.fr,
+            language=language,
             description=f"Auto-generated conjugation drills — {label}.",
             tags=["conjugation"],
             is_system=True,
@@ -1538,18 +2075,33 @@ def create_drills(body: DrillCreate, db: Session = Depends(get_db)):
         if ref in existing_refs:
             continue
         verb = by_verb[conj.verb_id]
-        person = PERSON_LABELS.get(conj.person, conj.person)
-        es_note = f"≈ {conj.es_form}" if conj.es_form else ""
+        labels = PERSON_LABELS_ES if language == "es" else PERSON_LABELS
+        person = labels.get(conj.person, conj.person)
+        equivalent = _related_verb(db, verb)
+        equivalent_form = ""
+        if equivalent:
+            equivalent_form = db.execute(
+                select(Conjugation.form).where(
+                    Conjugation.verb_id == equivalent.id,
+                    Conjugation.slot_key == conj.slot_key,
+                )
+            ).scalar_one_or_none() or ""
+        equivalent_note = (
+            f"≈ {equivalent.language.upper()} {equivalent_form}"
+            if equivalent and equivalent_form
+            else ""
+        )
         card = Flashcard(
             deck_id=deck.id,
             card_type=CardType.audio if body.audio_first else CardType.cloze,
             direction=CardDirection.production,
             front=f"{person} · {verb.infinitive} · {label}",
             back=conj.form,
-            cognate_note=es_note,
+            cognate_note=equivalent_note,
             audio_url=conj.audio_url,
             source=CardSource.conjugation,
             source_ref=ref,
+            conjugation_id=conj.id,
             tags=[body.tense, verb.group],
         )
         card.review = FlashcardReview()

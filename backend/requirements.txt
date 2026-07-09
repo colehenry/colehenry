@@ -15,3 +15,6 @@ cloudinary>=1.41
 # GET /language/wiki). Heavy (ML deps) — remove this line to slim the image;
 # those endpoints degrade gracefully when it's absent.
 verbecc>=1.9
+# Lightweight FR/ES headword resolution for conjugated forms captured from
+# Texts/Wiki. Language data loads lazily and the service degrades gracefully.
+simplemma>=1.1

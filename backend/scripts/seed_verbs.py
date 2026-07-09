@@ -18,7 +18,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from sqlalchemy import delete, select  # noqa: E402
 
 from app.db import SessionLocal  # noqa: E402
-from app.models import Conjugation, Verb  # noqa: E402
+from app.models import Conjugation, Verb, VerbRelation  # noqa: E402
+from app.services import conjugator as conjugator_service, lexemes  # noqa: E402
 
 PERSONS_6 = ["1s", "2s", "3s", "1p", "2p", "3p"]
 PERSONS_IMPERATIF = ["2s", "1p", "2p"]
@@ -188,99 +189,95 @@ def usable(form: str) -> bool:
 
 
 def main(force: bool = False) -> None:
-    from verbecc import CompleteConjugator
-
-    cg_fr = CompleteConjugator(lang="fr")
-    cg_es = CompleteConjugator(lang="es")
-
     db = SessionLocal()
     seeded = skipped = 0
     try:
-        aller = cg_fr.conjugate("aller", conjugate_pronouns=False)
-        aller_present = forms_for(aller, "indicatif", "présent", PERSONS_6)
-        ir_es = cg_es.conjugate("ir", conjugate_pronouns=False)
-        ir_presente = forms_for(ir_es, "indicativo", "presente", PERSONS_6)
-
         for rank, (inf, group, irregular, translation, es_display, es_inf) in enumerate(
             VERBS, start=1
         ):
-            existing = db.execute(
-                select(Verb).where(Verb.infinitive == inf)
+            fr_data = conjugator_service.conjugate(inf, "fr")
+            if fr_data is None:
+                print(f"  !! verbecc failed for {inf}")
+                continue
+            fr_verb = db.execute(
+                select(Verb).where(
+                    Verb.language == "fr",
+                    Verb.normalized_infinitive == lexemes.normalize_headword(inf),
+                )
             ).scalar_one_or_none()
-            if existing and not force:
+            if fr_verb and not force:
                 skipped += 1
-                continue
-            if existing:
-                db.execute(delete(Conjugation).where(Conjugation.verb_id == existing.id))
-                db.delete(existing)
-                db.flush()
-
-            try:
-                fr = cg_fr.conjugate(inf, conjugate_pronouns=False)
-            except Exception as exc:
-                print(f"  !! verbecc failed for {inf}: {exc}")
-                continue
-            es = None
-            if es_inf:
-                try:
-                    es = cg_es.conjugate(es_inf, conjugate_pronouns=False)
-                except Exception as exc:
-                    print(f"  !! verbecc-es failed for {es_inf}: {exc}")
-
-            verb = Verb(
-                infinitive=inf,
-                group=group,
-                is_irregular=irregular,
-                translation=translation,
-                es_equivalent=es_display,
-                frequency_rank=rank,
-            )
-            db.add(verb)
-            db.flush()
-
-            for fr_mood, fr_tense, our_tense, es_mood, es_tense in TENSE_MAP:
-                our_mood = fr_mood
-                persons = (
-                    PERSONS_IMPERATIF if fr_mood == "imperatif" else PERSONS_6
-                )
-                fr_forms = forms_for(fr, fr_mood, fr_tense, persons)
-                es_forms = forms_for(es, es_mood, es_tense, persons) if es else []
-                for i, person in enumerate(persons):
-                    if i >= len(fr_forms) or not usable(clean(fr_forms[i])):
-                        continue
-                    es_form = (
-                        clean(es_forms[i])
-                        if es_forms and i < len(es_forms) and usable(clean(es_forms[i]))
-                        else ""
+            else:
+                if fr_verb:
+                    db.execute(
+                        delete(Conjugation).where(Conjugation.verb_id == fr_verb.id)
                     )
-                    db.add(
-                        Conjugation(
-                            verb_id=verb.id,
-                            mood=our_mood,
-                            tense=our_tense,
-                            person=person,
-                            form=clean(fr_forms[i]),
-                            es_form=es_form,
+                    fr_verb.group = group
+                    fr_verb.is_irregular = irregular
+                    fr_verb.translation = translation
+                    fr_verb.frequency_rank = rank
+                else:
+                    lexeme = lexemes.get_or_create(db, "fr", inf)
+                    fr_verb = Verb(
+                        language="fr",
+                        lexeme_id=lexeme.id,
+                        infinitive=inf,
+                        normalized_infinitive=lexemes.normalize_headword(inf),
+                        group=group,
+                        is_irregular=irregular,
+                        translation=translation,
+                        frequency_rank=rank,
+                    )
+                    db.add(fr_verb)
+                    db.flush()
+                for form in fr_data["forms"]:
+                    db.add(Conjugation(verb_id=fr_verb.id, **form))
+
+            equivalent_infinitive = es_inf or es_display
+            if equivalent_infinitive:
+                es_data = (
+                    conjugator_service.conjugate(es_inf, "es") if es_inf else None
+                )
+                es_verb = db.execute(
+                    select(Verb).where(
+                        Verb.language == "es",
+                        Verb.normalized_infinitive
+                        == lexemes.normalize_headword(equivalent_infinitive),
+                    )
+                ).scalar_one_or_none()
+                if es_verb is None:
+                    lexeme = lexemes.get_or_create(
+                        db, "es", equivalent_infinitive
+                    )
+                    es_verb = Verb(
+                        language="es",
+                        lexeme_id=lexeme.id,
+                        infinitive=equivalent_infinitive,
+                        normalized_infinitive=lexemes.normalize_headword(
+                            equivalent_infinitive
+                        ),
+                        group=(es_data or {}).get("group", "irregular"),
+                        is_irregular=(es_data or {}).get("is_irregular", True),
+                        translation=translation,
+                        frequency_rank=rank,
+                    )
+                    db.add(es_verb)
+                    db.flush()
+                    for form in (es_data or {}).get("forms", []):
+                        db.add(Conjugation(verb_id=es_verb.id, **form))
+                for left, right in ((fr_verb, es_verb), (es_verb, fr_verb)):
+                    if not db.execute(
+                        select(VerbRelation).where(
+                            VerbRelation.source_verb_id == left.id,
+                            VerbRelation.target_verb_id == right.id,
                         )
-                    )
-
-            # futur proche: aller (présent) + infinitive ≈ ES ir a + infinitive
-            for i, person in enumerate(PERSONS_6):
-                if i >= len(aller_present):
-                    continue
-                es_form = ""
-                if es_inf and i < len(ir_presente):
-                    es_form = f"{clean(ir_presente[i])} a {es_inf}"
-                db.add(
-                    Conjugation(
-                        verb_id=verb.id,
-                        mood="indicatif",
-                        tense="futur-proche",
-                        person=person,
-                        form=f"{clean(aller_present[i])} {inf}",
-                        es_form=es_form,
-                    )
-                )
+                    ).scalar_one_or_none():
+                        db.add(
+                            VerbRelation(
+                                source_verb_id=left.id,
+                                target_verb_id=right.id,
+                            )
+                        )
             seeded += 1
             print(f"  {rank:3d}. {inf} ✓")
 
