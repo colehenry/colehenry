@@ -1,13 +1,9 @@
-"""LLM fallback for wiki lookups the dictionary misses (phrases, slang).
+"""LLM fallback for wiki lookups + card enrichment.
 
-Model-agnostic: posts to any OpenAI-compatible /chat/completions endpoint —
-OpenAI, Anthropic (https://api.anthropic.com/v1/), OpenRouter, Groq, Mistral,
-or a local Ollama (http://localhost:11434/v1). Configure LLM_BASE_URL,
-LLM_API_KEY, LLM_MODEL; unset = no fallback, the wiki just reports not-found.
-
-Output is normalized to the exact shape dictionary.lookup_full returns, so
-the wiki page renders LLM definitions identically (plus a "source" marker).
-The caller caches results in wiki_entries — each phrase costs one call ever.
+Posts to any OpenAI-compatible /chat/completions endpoint (currently
+hardcoded to OpenRouter).  Uses MULTILINGUAL_MODEL as the primary and
+FALLBACK_MODEL on failure.  All results are cached in wiki_entries by
+the caller — each phrase costs one call ever.
 """
 
 import json
@@ -21,27 +17,52 @@ log = logging.getLogger(__name__)
 
 LANGUAGE_NAMES = {"fr": "French", "es": "Spanish"}
 
-PROMPT = """You are a {language_name} dictionary. Define the {language_name} word or phrase: "{term}"
+PROMPT = """Define the {language_name} word or phrase: "{term}"
 
-Reply with ONLY a JSON object, no prose and no code fences, in exactly this shape:
-{{"lemma": "", "entries": [{{"part_of_speech": "phrase", "ipa": "", "gender": "", "senses": [{{"definition": "", "examples": [], "tags": []}}], "synonyms": []}}]}}
+Return a JSON object with its dictionary definition. Output ONLY valid JSON — no prose, no markdown, no code fences.
 
-Rules:
-- definitions in English, concise dictionary register
-- when literal and idiomatic meanings differ, give both as separate senses
-- 1-3 senses; each with 1-2 natural example sentences in {language_name}
-- part_of_speech: standard POS for single words, "phrase" for expressions
-- gender: "m" or "f" for nouns, otherwise ""
-- lemma: for a conjugated verb, the infinitive only; otherwise the original term
-- never use a grammatical description such as "third-person imperfect" as lemma
-- ipa: IPA for the whole term if confident, otherwise ""
-- tags: register labels like "informal", "idiom", "slang" when relevant
-- if the term is not real {language_name}, reply {{"entries": []}}"""
+{{
+  "lemma": "<canonical form: infinitive for verbs, singular for nouns, original for phrases>",
+  "entries": [
+    {{
+      "part_of_speech": "<noun | verb | adjective | adverb | phrase | ...>",
+      "ipa": "<IPA if confident, else empty string>",
+      "gender": "<'m' or 'f' for nouns, else empty string>",
+      "senses": [
+        {{
+          "definition": "<English definition — include literal translation first for phrases/idioms>",
+          "examples": ["<1-2 natural sentences in {language_name}>"],
+          "tags": ["<informal | idiom | slang | archaic | ...>"]
+        }}
+      ],
+      "synonyms": ["<0-3 related terms>"]
+    }}
+  ]
+}}
+
+RULES:
+- Definitions in English. For single words: concise definition. For phrases and idioms: start with the literal word-for-word English translation, then explain the idiomatic meaning. Example: "Fuck them. An expression of disregard or contempt used to dismiss someone or something."
+- 1-3 senses max per entry. Each sense: 1-2 example sentences in {language_name}.
+- "phrase" for multi-word expressions, idioms, and fixed expressions.
+- gender: required only for nouns ("m" or "f"); empty string for all other POS.
+- lemma: infinitive for conjugated verbs; singular for plural nouns; original for phrases.
+- ipa: include only if confident (>80%); empty string otherwise.
+- tags: register labels useful to a learner. Empty array if none apply.
+- synonyms: 0-3. Empty array if none.
+- If the input is not a real {language_name} word or phrase, return {{"lemma": "", "entries": []}}.
+- Never use grammatical descriptions (e.g. "third-person singular imperfect") as the lemma.
+- Example sentences must be in {language_name}, never English.
+
+EXAMPLE for "comer" (Spanish):
+{{"lemma": "comer", "entries": [{{"part_of_speech": "verb", "ipa": "/koˈmeɾ/", "gender": "", "senses": [{{"definition": "To consume food, to eat.", "examples": ["Voy a comer una manzana.", "Comemos juntos los domingos."], "tags": []}}, {{"definition": "To eat a meal.", "examples": ["Ya comimos al mediodía."], "tags": []}}], "synonyms": ["alimentarse", "ingerir"]}}]}}
+
+EXAMPLE for "allons-y" (French):
+{{"lemma": "allons-y", "entries": [{{"part_of_speech": "phrase", "ipa": "/alɔ̃zi/", "gender": "", "senses": [{{"definition": "Let us go there. Used to express readiness to begin or encourage action.", "examples": ["Allons-y, on va être en retard !"], "tags": ["informal"]}}], "synonyms": ["on y va", "c'est parti"]}}]}}"""
 
 
 def available() -> bool:
     s = get_settings()
-    return bool(s.llm_api_key and s.llm_model)
+    return bool(s.open_router_api_key and s.multilingual_model)
 
 
 def _clean_senses(raw_senses) -> list[dict]:
@@ -70,19 +91,14 @@ def _clean_senses(raw_senses) -> list[dict]:
     return senses[:4]
 
 
-def define(language: str, term: str) -> dict | None:
-    """Dictionary-shaped payload for `term` from the configured LLM, or None."""
-    term = term.strip()
-    if not term or language not in LANGUAGE_NAMES or not available():
-        return None
-    settings = get_settings()
-
+def _call_model(settings, model: str, language: str, term: str) -> dict | None:
+    """Single LLM call with the given model slug.  Returns wiki-shaped dict or None."""
     try:
         res = httpx.post(
             f"{settings.llm_base_url.rstrip('/')}/chat/completions",
-            headers={"Authorization": f"Bearer {settings.llm_api_key}"},
+            headers={"Authorization": f"Bearer {settings.open_router_api_key}"},
             json={
-                "model": settings.llm_model,
+                "model": model,
                 "max_tokens": 1000,
                 "messages": [
                     {
@@ -98,10 +114,9 @@ def define(language: str, term: str) -> dict | None:
         res.raise_for_status()
         text = res.json()["choices"][0]["message"]["content"] or ""
     except (httpx.HTTPError, KeyError, IndexError, ValueError) as exc:
-        log.warning("llm define failed for %r: %s", term, exc)
+        log.warning("llm define failed for %r with model %s: %s", term, model, exc)
         return None
 
-    # Models occasionally fence the JSON despite instructions.
     text = text.strip()
     if text.startswith("```"):
         text = text.strip("`")
@@ -142,4 +157,42 @@ def define(language: str, term: str) -> dict | None:
         "lemma": lemma,
         "entries": entries,
         "source": "llm",
+    }
+
+
+def define(language: str, term: str) -> dict | None:
+    """Try primary model, then fallback on failure.  Returns wiki-shaped dict or None."""
+    term = term.strip()
+    if not term or language not in LANGUAGE_NAMES or not available():
+        return None
+    settings = get_settings()
+
+    result = _call_model(settings, settings.multilingual_model, language, term)
+    if result is not None:
+        return result
+
+    if settings.fallback_model:
+        result = _call_model(settings, settings.fallback_model, language, term)
+        if result is not None:
+            return result
+    return None
+
+
+def enrich_lookup(language: str, term: str) -> dict | None:
+    """Flat {ipa, part_of_speech, gender, translation, example} for enrichment.
+
+    Matches the return shape of dictionary.lookup() so callers can use it
+    as a drop-in fallback.
+    """
+    payload = define(language, term)
+    if not payload:
+        return None
+    entry = payload["entries"][0]
+    sense = (entry["senses"] or [{}])[0]
+    return {
+        "ipa": entry.get("ipa", ""),
+        "part_of_speech": entry.get("part_of_speech", ""),
+        "gender": entry.get("gender", ""),
+        "translation": sense.get("definition", ""),
+        "example": (sense.get("examples") or [""])[0],
     }

@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import CardDirection, CardType, FalseFriend, Flashcard
-from app.services import dictionary, tts
+from app.services import dictionary, llm, tts
 
 
 def target_word(card: Flashcard, language: str) -> str:
@@ -31,6 +31,8 @@ def enrich_card(db: Session, card: Flashcard, language: str) -> None:
 
     if not (card.ipa and card.part_of_speech and card.example):
         found = dictionary.lookup(language, word)
+        if found is None:
+            found = llm.enrich_lookup(language, word)
         if found:
             card.ipa = card.ipa or found["ipa"]
             card.part_of_speech = card.part_of_speech or found["part_of_speech"]
