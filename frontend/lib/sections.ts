@@ -56,7 +56,6 @@ export const sections: Section[] = [
     accent: "language",
     description: "Flashcard decks and spaced-repetition study.",
     ownerOnly: true,
-    comingSoon: true,
   },
   {
     slug: "journal",

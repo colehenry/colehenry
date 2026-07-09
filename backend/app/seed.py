@@ -1,4 +1,4 @@
-"""Seed the owner user and the lapwise project.
+"""Seed the owner user, the lapwise project, and language starter data.
 
 Run after migrations: `python -m app.seed`
 Idempotent — safe to run more than once.
@@ -9,6 +9,7 @@ from sqlalchemy import select
 from app.config import get_settings
 from app.db import SessionLocal
 from app.models import Project, User, Visibility
+from app.seed_language import seed as seed_language
 
 LAPWISE = dict(
     slug="lapwise",
@@ -47,6 +48,7 @@ def seed() -> None:
             print("created project lapwise")
 
         db.commit()
+    seed_language()
     print("seed complete")
 
 

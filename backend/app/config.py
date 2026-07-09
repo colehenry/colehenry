@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     cookie_domain: str = ""  # empty for localhost (host-only cookie)
     frontend_origin: str = "http://localhost:3000"
 
+    # Language tool (optional — audio generation is skipped when unset)
+    google_tts_api_key: str = ""
+    cloudinary_url: str = ""
+
     cookie_name: str = "ch_session"
     jwt_expires_days: int = 30
 

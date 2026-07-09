@@ -1,10 +1,12 @@
-import { ComingSoon } from "@/components/coming-soon";
-import { sections } from "@/lib/sections";
+import { LanguageApp } from "@/components/language/language-app";
 
-const section = sections.find((s) => s.slug === "language")!;
+const description = "Flashcards, annotated texts, and French/Spanish reference.";
 
-export const metadata = { title: section.name };
+export const metadata = {
+  title: { absolute: "Language" },
+  description,
+};
 
 export default function LanguagePage() {
-  return <ComingSoon section={section} />;
+  return <LanguageApp />;
 }

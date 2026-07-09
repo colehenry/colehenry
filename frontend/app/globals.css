@@ -71,8 +71,12 @@
   --catan-p4: #8d5fb4;
   --catan-p5: #4f7a34;
 }
-/* all other sections inherit the site-wide Carolina blue; only catan keeps
-   its own amber skin */
+
+[data-section="language"] {
+  --accent: 178 56% 34%; /* teal */
+  --accent-contrast: 0 0% 100%;
+}
+/* all other sections inherit the site-wide Carolina blue */
 
 .dark {
   --bg: 215 25% 7%;
@@ -94,6 +98,11 @@
   --catan-p3: #b3891a;
   --catan-p4: #a377d1;
   --catan-p5: #74a356;
+}
+
+.dark [data-section="language"] {
+  --accent: 178 58% 48%;
+  --accent-contrast: 190 35% 8%;
 }
 
 @theme inline {

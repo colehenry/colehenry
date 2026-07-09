@@ -1,0 +1,4 @@
+# Seed-time-only dependencies — install into your local venv when running
+# scripts/seed_verbs.py. Deliberately NOT in requirements.txt so the Railway
+# image stays slim (verbecc pulls in ML deps).
+verbecc>=1.9
