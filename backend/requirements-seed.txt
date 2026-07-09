@@ -1,0 +1,4 @@
+# Dependencies for scripts/seed_verbs.py and scripts/seed_lexique.py.
+# verbecc is now also in requirements.txt (wiki conjugates unsaved verbs at
+# runtime); this file remains for local seeding venvs.
+verbecc>=1.9

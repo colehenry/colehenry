@@ -8,24 +8,29 @@
  * colehenry.dev design tokens
  *
  * The raw HSL triplets (--bg, --fg, --accent, ...) are the source of truth —
- * purple brand, amber companion, cool violet-tinted neutrals. Sections reskin
- * themselves by overriding --accent via a `data-section` attribute; everything
- * downstream (buttons, rings, highlights) follows.
+ * Carolina blue brand (#7BAFD4), UNC navy companion (#13294B), cool
+ * blue-tinted neutrals. Sections reskin themselves by overriding --accent via
+ * a `data-section` attribute; everything downstream (buttons, rings,
+ * highlights) follows. Light mode deepens the Carolina hue for contrast;
+ * dark mode runs it verbatim.
  * ------------------------------------------------------------------------- */
 
 :root {
-  /* neutral base — faint violet tint, constant site-wide */
-  --bg: 270 20% 99%;
-  --fg: 265 25% 12%;
-  --muted-hsl: 265 10% 45%;
-  --border-hsl: 265 15% 90%;
+  /* neutral base — faint blue tint, constant site-wide */
+  --bg: 210 20% 99%;
+  --fg: 215 25% 12%;
+  --muted-hsl: 215 10% 45%;
+  --border-hsl: 215 15% 90%;
   --card-hsl: 0 0% 100%;
   --radius: 0.75rem;
 
   /* brand */
-  --accent: 265 70% 58%; /* purple — default / portfolio */
-  --accent-2: 38 92% 55%; /* amber/gold companion */
+  --accent: 205 51% 45%; /* carolina blue, deepened for light-mode contrast */
+  --accent-2: 216 60% 18%; /* UNC navy #13294B companion */
   --accent-contrast: 0 0% 100%; /* text on solid accent */
+  /* true #7BAFD4, both modes — for display moments (name, logo cursor),
+     not functional UI that needs contrast */
+  --carolina: 205 51% 66%;
 
   /* motion scale — one easing, few durations */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
@@ -66,27 +71,22 @@
   --catan-p4: #8d5fb4;
   --catan-p5: #4f7a34;
 }
-[data-section="recipes"] {
-  --accent: 150 45% 42%; /* herb green */
-}
-[data-section="blog"] {
-  --accent: 320 60% 55%; /* magenta, near purple */
-}
+
 [data-section="language"] {
-  --accent: 190 65% 45%; /* teal */
+  --accent: 178 56% 34%; /* teal */
+  --accent-contrast: 0 0% 100%;
 }
-[data-section="dash"] {
-  --accent: 245 75% 62%; /* indigo */
-}
+/* all other sections inherit the site-wide Carolina blue */
 
 .dark {
-  --bg: 265 25% 7%;
-  --fg: 270 20% 96%;
-  --muted-hsl: 265 12% 65%;
-  --border-hsl: 265 15% 18%;
-  --card-hsl: 265 24% 10%;
-  --accent: 265 75% 66%; /* lift purple for dark */
-  --accent-2: 38 90% 60%;
+  --bg: 215 25% 7%;
+  --fg: 210 20% 96%;
+  --muted-hsl: 215 12% 65%;
+  --border-hsl: 215 15% 18%;
+  --card-hsl: 215 24% 10%;
+  --accent: 205 51% 66%; /* carolina blue #7BAFD4, verbatim */
+  --accent-2: 213 42% 60%; /* navy lifted to steel blue for dark visibility */
+  --accent-contrast: 212 60% 10%; /* navy ink on solid carolina */
   --destructive: oklch(0.704 0.191 22.216);
 }
 
@@ -99,17 +99,10 @@
   --catan-p4: #a377d1;
   --catan-p5: #74a356;
 }
-.dark [data-section="recipes"] {
-  --accent: 150 45% 52%;
-}
-.dark [data-section="blog"] {
-  --accent: 320 65% 65%;
-}
+
 .dark [data-section="language"] {
-  --accent: 190 65% 55%;
-}
-.dark [data-section="dash"] {
-  --accent: 245 80% 70%;
+  --accent: 178 58% 48%;
+  --accent-contrast: 190 35% 8%;
 }
 
 @theme inline {
@@ -137,11 +130,11 @@
   --color-brand: hsl(var(--accent));
   --color-brand-contrast: hsl(var(--accent-contrast));
   --color-brand-2: hsl(var(--accent-2));
+  --color-carolina: hsl(var(--carolina));
 
   --font-sans: var(--font-inter);
-  --font-serif: var(--font-fraunces);
   --font-mono: var(--font-jetbrains-mono);
-  --font-heading: var(--font-fraunces);
+  --font-heading: var(--font-jetbrains-mono);
 
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
@@ -165,12 +158,13 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* headings share the terminal voice of the ~/colehenry logo */
   h1,
   h2,
   h3,
   h4 {
-    font-family: var(--font-fraunces);
-    font-optical-sizing: auto;
+    font-family: var(--font-jetbrains-mono);
+    letter-spacing: -0.03em;
   }
   ::selection {
     background: hsl(var(--accent) / 0.25);
@@ -241,6 +235,7 @@
       transform: none;
     }
   }
+
 }
 
 @keyframes chart-draw {

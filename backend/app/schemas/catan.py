@@ -123,6 +123,15 @@ class CatanWinEvent(BaseModel):
     winner: str | None
 
 
+class CatanPerformanceSpotlight(BaseModel):
+    game_id: int
+    played_at: date
+    location: str
+    player_name: str
+    victory_points: int | None
+    winner: str | None
+
+
 class CatanDashboard(BaseModel):
     total_games: int
     first_game: date | None
@@ -130,3 +139,6 @@ class CatanDashboard(BaseModel):
     leaderboard: list[CatanLeaderboardRow]
     timeline: list[CatanWinEvent]
     players: list[CatanPlayerOut]
+    worst_performances: list[CatanPerformanceSpotlight]
+    longest_road_to_nowhere: list[CatanPerformanceSpotlight]
+    close_but_no_sheep: list[CatanPerformanceSpotlight]

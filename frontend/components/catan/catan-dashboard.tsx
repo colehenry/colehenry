@@ -15,6 +15,7 @@ import { GameEditorDialog } from "@/components/catan/game-editor-dialog";
 import { GameSummaryDialog } from "@/components/catan/game-summary-dialog";
 import { HeadToHead } from "@/components/catan/head-to-head";
 import { LifetimeStats } from "@/components/catan/lifetime-stats";
+import { PerformanceTable } from "@/components/catan/performance-tables";
 import { PlayerMark } from "@/components/catan/player-mark";
 import { RecentGamesTable } from "@/components/catan/recent-games";
 import { ResourceIcon, type ResourceName } from "@/components/catan/resource-icon";
@@ -216,8 +217,36 @@ export function CatanDashboardPage() {
               <ChartCard title="Home & away" icon="hex" revealIndex={1}>
                 {games.data && <HomeAway games={games.data} />}
               </ChartCard>
+              <ChartCard
+                title="All time worst performances"
+                icon="robber"
+                revealIndex={2}
+              >
+                <PerformanceTable
+                  rows={data.worst_performances}
+                  onOpen={setOpenGameId}
+                />
+              </ChartCard>
+              <ChartCard
+                title="Longest road to nowhere"
+                icon="road"
+                revealIndex={3}
+              >
+                <PerformanceTable
+                  rows={data.longest_road_to_nowhere}
+                  onOpen={setOpenGameId}
+                />
+              </ChartCard>
               <div className="min-w-0 lg:col-span-2">
-                <ChartCard title="Wins over time" icon="road" revealIndex={2}>
+                <ChartCard title="Close but no sheep" icon="sheep" revealIndex={4}>
+                  <PerformanceTable
+                    rows={data.close_but_no_sheep}
+                    onOpen={setOpenGameId}
+                  />
+                </ChartCard>
+              </div>
+              <div className="min-w-0 lg:col-span-2">
+                <ChartCard title="Wins over time" icon="road" revealIndex={5}>
                   <WinsOverTime data={data} />
                 </ChartCard>
               </div>

@@ -15,6 +15,7 @@ from app.schemas.catan import (
     CatanGameSummary,
     CatanGameUpdate,
     CatanLeaderboardRow,
+    CatanPerformanceSpotlight,
     CatanPlayerOut,
     CatanResultIn,
     CatanResultOut,
@@ -124,10 +125,12 @@ def dashboard(db: Session = Depends(get_db)):
         }
     )
     chronological = sorted(games, key=lambda g: (g.played_at, g.id))
+    performances: list[tuple[CatanGame, CatanResult]] = []
     for game in chronological:
         for r in game.results:
             if r.player_id not in dashboard_ids:
                 continue
+            performances.append((game, r))
             s = stats[r.player_id]
             s["games"] += 1
             if r.won:
@@ -157,6 +160,61 @@ def dashboard(db: Session = Depends(get_db)):
     ]
     leaderboard.sort(key=lambda row: (-row.win_pct, -row.wins, row.name))
 
+    def spotlight(game: CatanGame, result: CatanResult) -> CatanPerformanceSpotlight:
+        return CatanPerformanceSpotlight(
+            game_id=game.id,
+            played_at=game.played_at,
+            location=game.location,
+            player_name=result.player.name,
+            victory_points=result.victory_points,
+            winner=_winner(game),
+        )
+
+    worst_performances = [
+        spotlight(game, result)
+        for game, result in sorted(
+            (p for p in performances if p[1].victory_points is not None),
+            key=lambda p: (
+                p[1].victory_points,
+                p[0].played_at,
+                p[0].id,
+                p[1].player.name,
+            ),
+        )[:5]
+    ]
+    longest_road_to_nowhere = [
+        spotlight(game, result)
+        for game, result in sorted(
+            (
+                p
+                for p in performances
+                if p[1].longest and p[1].victory_points is not None
+            ),
+            key=lambda p: (
+                p[1].victory_points,
+                p[0].played_at,
+                p[0].id,
+                p[1].player.name,
+            ),
+        )[:5]
+    ]
+    close_but_no_sheep = [
+        spotlight(game, result)
+        for game, result in sorted(
+            (
+                p
+                for p in performances
+                if not p[1].won and p[1].victory_points is not None
+            ),
+            key=lambda p: (
+                -p[1].victory_points,
+                p[0].played_at,
+                p[0].id,
+                p[1].player.name,
+            ),
+        )[:5]
+    ]
+
     return CatanDashboard(
         total_games=len(games),
         first_game=chronological[0].played_at if chronological else None,
@@ -167,6 +225,9 @@ def dashboard(db: Session = Depends(get_db)):
             for g in chronological
         ],
         players=[CatanPlayerOut.model_validate(p) for p in players],
+        worst_performances=worst_performances,
+        longest_road_to_nowhere=longest_road_to_nowhere,
+        close_but_no_sheep=close_but_no_sheep,
     )
 
 

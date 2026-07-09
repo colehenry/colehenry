@@ -48,6 +48,18 @@ export const leaderboardRowSchema = z.object({
 });
 export type LeaderboardRow = z.infer<typeof leaderboardRowSchema>;
 
+export const catanPerformanceSpotlightSchema = z.object({
+  game_id: z.number(),
+  played_at: z.string(),
+  location: z.string(),
+  player_name: z.string(),
+  victory_points: z.number().nullable(),
+  winner: z.string().nullable(),
+});
+export type CatanPerformanceSpotlight = z.infer<
+  typeof catanPerformanceSpotlightSchema
+>;
+
 export const catanDashboardSchema = z.object({
   total_games: z.number(),
   first_game: z.string().nullable(),
@@ -67,6 +79,9 @@ export const catanDashboardSchema = z.object({
       show_in_dashboard: z.boolean(),
     }),
   ),
+  worst_performances: z.array(catanPerformanceSpotlightSchema),
+  longest_road_to_nowhere: z.array(catanPerformanceSpotlightSchema),
+  close_but_no_sheep: z.array(catanPerformanceSpotlightSchema),
 });
 export type CatanDashboard = z.infer<typeof catanDashboardSchema>;
 
