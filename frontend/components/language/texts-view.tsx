@@ -402,6 +402,14 @@ function Reader({
     enabled: editAnnotation != null,
     staleTime: 60_000,
   });
+
+  const selectionLookup = useQuery({
+    queryKey: ["language", "text-lookup", textId, selection?.selectedText],
+    queryFn: () =>
+      lookupTextSelection(textId, selection?.selectedText as string),
+    enabled: selection != null,
+    staleTime: 60_000,
+  });
   useEffect(() => {
     const found = annotationLookup.data;
     if (!editAnnotation || !found || !found.is_inflected) return;
@@ -483,11 +491,9 @@ function Reader({
   });
 
   const createAnnotationMutation = useMutation({
-    mutationFn: async ({ withLookup }: { withLookup: boolean }) => {
+    mutationFn: async () => {
       if (!text || !selection) throw new Error("No selection");
-      const found = withLookup
-        ? await lookupTextSelection(text.id, selection.selectedText)
-        : null;
+      const found = selectionLookup.data;
       return createTextAnnotation(text.id, {
         start_offset: selection.start,
         end_offset: selection.end,
@@ -785,30 +791,52 @@ function Reader({
         </div>
       )}
 
-      {/* selection popup — same style as the hover popover */}
+      {/* selection popup — auto-looked-up data + add-note action */}
       {selection && selectionPoint && text && (
         <div
-          className="xp-tooltip is-interactive flex items-center gap-2"
+          className="xp-tooltip is-interactive"
           style={{
             top: selectionPoint.top,
             left: selectionPoint.left,
             transform: "translate(-50%, calc(-100% - 6px))",
           }}
         >
-          <button
-            type="button"
-            className="xp-btn is-small"
-            disabled={createAnnotationMutation.isPending}
-            onClick={() => createAnnotationMutation.mutate({ withLookup: true })}
-          >
-            Add note
-          </button>
-          <Speak
-            language={text.language}
-            text={selection.selectedText}
-            label="►"
-            title={`Listen: ${selection.selectedText}`}
-          />
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="xp-btn is-small"
+              disabled={createAnnotationMutation.isPending}
+              onClick={() => createAnnotationMutation.mutate()}
+            >
+              Add note
+            </button>
+            <Speak
+              language={text.language}
+              text={selection.selectedText}
+              label="►"
+              title={`Listen: ${selection.selectedText}`}
+            />
+            <b>{selection.selectedText}</b>
+          </div>
+          {selectionLookup.isFetching && (
+            <div className="xp-muted">looking up…</div>
+          )}
+          {selectionLookup.data?.translation && (
+            <div>{selectionLookup.data.translation}</div>
+          )}
+          {(selectionLookup.data?.ipa || selectionLookup.data?.gender) && (
+            <div>
+              {selectionLookup.data.ipa && (
+                <span className="xp-ipa">{selectionLookup.data.ipa}</span>
+              )}
+              {selectionLookup.data.ipa && selectionLookup.data.gender && " · "}
+              {selectionLookup.data.gender &&
+                genderLabel(selectionLookup.data.gender)}
+            </div>
+          )}
+          {selectionLookup.data?.cognate_note && (
+            <div>ES: {selectionLookup.data.cognate_note}</div>
+          )}
         </div>
       )}
 

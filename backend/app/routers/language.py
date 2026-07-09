@@ -1016,12 +1016,21 @@ def _lookup_annotation_text(
     found = None
     provider = "manual_needed"
     matched_term = ""
-    for term in _lookup_terms(selected):
-        found = dictionary.lookup(language_code, term)
+
+    # Multi-word phrases: the dictionary never has them, so go straight to LLM.
+    if " " in selected:
+        found = llm.enrich_lookup(language_code, selected)
         if found:
-            provider = "dictionary"
-            matched_term = term
-            break
+            provider = "llm"
+            matched_term = selected
+
+    if not found:
+        for term in _lookup_terms(selected):
+            found = dictionary.lookup(language_code, term)
+            if found:
+                provider = "dictionary"
+                matched_term = term
+                break
 
     false_friend = None
     column = FalseFriend.fr if language_code == "fr" else FalseFriend.es
