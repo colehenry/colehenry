@@ -1,39 +1,137 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { listDecks, type LanguageCode } from "@/lib/api/language";
+import {
+  createCard,
+  listDecks,
+  wikiLookup,
+  type LanguageCode,
+} from "@/lib/api/language";
+import { Speak } from "./language-shared";
 import { StudyView } from "./study-view";
 import { DecksView } from "./decks-view";
 import { TextsView } from "./texts-view";
-import { ReferenceView, type ReferenceTab } from "./reference-view";
+import { WikiView, type WikiQuery, type WikiTab } from "./wiki-view";
 import "./xp.css";
 
-type SectionId = "study" | "decks" | "texts" | "reference";
+type SectionId = "study" | "decks" | "texts" | "wiki";
 
 const SECTIONS: { id: SectionId; label: string }[] = [
   { id: "study", label: "Study" },
   { id: "decks", label: "Decks" },
   { id: "texts", label: "Texts" },
-  { id: "reference", label: "Reference" },
+  { id: "wiki", label: "Wiki" },
+];
+
+const WIKI_CHILDREN: { tab: WikiTab; label: string }[] = [
+  { tab: "conjugation", label: "Conjugations" },
+  { tab: "pronunciation", label: "Pronunciation" },
 ];
 
 type StudyInit = { deckId?: number; language?: LanguageCode; key: number };
 type MenuId = "file" | "study" | "view" | "help";
 
+// Title-bar greeting — a new phrase every load, click to hear it.
+const TITLE_PHRASES: { text: string; language: LanguageCode }[] = [
+  { text: "On y va !", language: "fr" },
+  { text: "Petit à petit", language: "fr" },
+  { text: "C'est parti !", language: "fr" },
+  { text: "Allez, hop !", language: "fr" },
+  { text: "Quoi de neuf ?", language: "fr" },
+  { text: "Mieux vaut tard que jamais", language: "fr" },
+  { text: "L'appétit vient en mangeant", language: "fr" },
+  { text: "Ça roule ?", language: "fr" },
+  { text: "Chapeau !", language: "fr" },
+  { text: "Au boulot !", language: "fr" },
+  { text: "Doucement mais sûrement", language: "fr" },
+  { text: "N'importe quoi !", language: "fr" },
+  { text: "¡Vamos!", language: "es" },
+  { text: "Poco a poco", language: "es" },
+  { text: "¡Qué padre!", language: "es" },
+  { text: "Así es la vida", language: "es" },
+  { text: "¡Ánimo!", language: "es" },
+  { text: "Más vale tarde que nunca", language: "es" },
+  { text: "El mundo es un pañuelo", language: "es" },
+  { text: "¡Manos a la obra!", language: "es" },
+  { text: "No hay mal que por bien no venga", language: "es" },
+  { text: "¿Qué tal?", language: "es" },
+];
+
 export function LanguageApp() {
   const router = useRouter();
   const [section, setSection] = useState<SectionId>("study");
-  const [refTab, setRefTab] = useState<ReferenceTab>("pronunciation");
-  const [refExpanded, setRefExpanded] = useState(true);
+  const [wikiTab, setWikiTab] = useState<WikiTab>("search");
+  const [wikiExpanded, setWikiExpanded] = useState(true);
+  const [wikiQuery, setWikiQuery] = useState<WikiQuery | null>(null);
   const [studyInit, setStudyInit] = useState<StudyInit>({ key: 0 });
   const [openMenu, setOpenMenu] = useState<MenuId | null>(null);
   const [wide, setWide] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const [titlePhrase, setTitlePhrase] = useState<
+    (typeof TITLE_PHRASES)[number] | null
+  >(null);
+
+  // Picked after mount (in a timeout) — random text can't be server-rendered
+  // without a hydration mismatch.
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      setTitlePhrase(
+        TITLE_PHRASES[Math.floor(Math.random() * TITLE_PHRASES.length)],
+      );
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, []);
+
+  // Hovering the title phrase opens a popover (play / look up / add to deck),
+  // same interaction as annotations in the texts reader.
+  const queryClient = useQueryClient();
+  const [phrasePoint, setPhrasePoint] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
+  const [phraseDeckId, setPhraseDeckId] = useState<number | "">("");
+  const phraseTimer = useRef<number | null>(null);
+  const cancelPhraseClose = () => {
+    if (phraseTimer.current != null) {
+      window.clearTimeout(phraseTimer.current);
+      phraseTimer.current = null;
+    }
+  };
+  const schedulePhraseClose = () => {
+    cancelPhraseClose();
+    phraseTimer.current = window.setTimeout(() => setPhrasePoint(null), 250);
+  };
+
+  // Same cache key shape as the wiki search page, so the lookup is shared.
+  const phraseWord = titlePhrase?.text.trim().toLowerCase() ?? "";
+  const phraseWiki = useQuery({
+    queryKey: ["language", "wiki", titlePhrase?.language, phraseWord, "en"],
+    queryFn: () => wikiLookup(titlePhrase!.language, titlePhrase!.text),
+    enabled: titlePhrase != null && phrasePoint != null,
+    staleTime: Infinity,
+  });
+  const phraseDefinition =
+    phraseWiki.data?.entries[0]?.senses[0]?.definition ?? "";
+
+  const addPhraseCard = useMutation({
+    mutationFn: (deckId: number) => {
+      if (!titlePhrase) throw new Error("No phrase");
+      return createCard({
+        deck_id: deckId,
+        front: titlePhrase.text,
+        back: phraseDefinition,
+        tags: ["phrase"],
+        enrich: true,
+      });
+    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["language", "decks"] }),
+  });
 
   // Track state via the event so Esc (browser-handled) stays in sync.
   useEffect(() => {
@@ -69,9 +167,9 @@ export function LanguageApp() {
     setSection(id);
     setOpenMenu(null);
   };
-  const goReference = (tab: ReferenceTab) => {
-    setRefTab(tab);
-    setSection("reference");
+  const goWiki = (tab: WikiTab) => {
+    setWikiTab(tab);
+    setSection("wiki");
     setOpenMenu(null);
   };
   const goStudy = (target: Omit<StudyInit, "key">) => {
@@ -118,7 +216,35 @@ export function LanguageApp() {
         <div className={`xp-window ${wide ? "is-wide" : ""}`}>
           <div className="xp-titlebar">
             <span className="xp-title-text">
-              Language Trainer{dueTotal > 0 ? ` — ${dueTotal} due` : ""}
+              {titlePhrase ? (
+                <button
+                  type="button"
+                  className="xp-title-phrase"
+                  title={`Look up in wiki (${titlePhrase.language.toUpperCase()})`}
+                  onClick={() => {
+                    setPhrasePoint(null);
+                    setWikiQuery({
+                      language: titlePhrase.language,
+                      word: titlePhrase.text,
+                    });
+                    goWiki("search");
+                  }}
+                  onMouseEnter={(event) => {
+                    cancelPhraseClose();
+                    const box = event.currentTarget.getBoundingClientRect();
+                    setPhrasePoint({
+                      top: box.bottom,
+                      left: box.left + box.width / 2,
+                    });
+                  }}
+                  onMouseLeave={schedulePhraseClose}
+                >
+                  {titlePhrase.text}
+                </button>
+              ) : (
+                "Language Trainer"
+              )}
+              {dueTotal > 0 ? ` — ${dueTotal} due` : ""}
             </span>
             <button
               type="button"
@@ -225,49 +351,48 @@ export function LanguageApp() {
                         <button
                           type="button"
                           className={`xp-tree-item ${
-                            section === id ? "is-active" : ""
+                            section === id &&
+                            (id !== "wiki" || wikiTab === "search")
+                              ? "is-active"
+                              : ""
                           }`}
                           onClick={() =>
-                            id === "reference"
-                              ? (go("reference"), setRefExpanded(true))
+                            id === "wiki"
+                              ? (goWiki("search"), setWikiExpanded(true))
                               : go(id)
                           }
                         >
-                          {id === "reference" ? (
+                          {id === "wiki" ? (
                             <span
                               className="xp-tree-glyph"
                               onClick={(event) => {
                                 event.stopPropagation();
-                                setRefExpanded((open) => !open);
+                                setWikiExpanded((open) => !open);
                               }}
                             >
-                              {refExpanded ? "−" : "+"}
+                              {wikiExpanded ? "−" : "+"}
                             </span>
                           ) : (
                             <span className="xp-tree-glyph">·</span>
                           )}
                           {label}
                         </button>
-                        {id === "reference" &&
-                          refExpanded &&
-                          (["pronunciation", "conjugation"] as const).map(
-                            (tab) => (
-                              <button
-                                key={tab}
-                                type="button"
-                                className={`xp-tree-item is-child ${
-                                  section === "reference" && refTab === tab
-                                    ? "is-active"
-                                    : ""
-                                }`}
-                                onClick={() => goReference(tab)}
-                              >
-                                {tab === "pronunciation"
-                                  ? "Pronunciation"
-                                  : "Conjugation"}
-                              </button>
-                            ),
-                          )}
+                        {id === "wiki" &&
+                          wikiExpanded &&
+                          WIKI_CHILDREN.map(({ tab, label: childLabel }) => (
+                            <button
+                              key={tab}
+                              type="button"
+                              className={`xp-tree-item is-child ${
+                                section === "wiki" && wikiTab === tab
+                                  ? "is-active"
+                                  : ""
+                              }`}
+                              onClick={() => goWiki(tab)}
+                            >
+                              {childLabel}
+                            </button>
+                          ))}
                       </div>
                     ))}
                   </nav>
@@ -304,12 +429,12 @@ export function LanguageApp() {
                         />
                       )}
                       {section === "texts" && <TextsView decks={decks} />}
-                      {section === "reference" && (
-                        <ReferenceView
-                          key={refTab}
+                      {section === "wiki" && (
+                        <WikiView
                           decks={decks}
-                          initialTab={refTab}
-                          onTabChange={setRefTab}
+                          initialTab={wikiTab}
+                          initialQuery={wikiQuery}
+                          onTabChange={setWikiTab}
                           onStudyDeck={(deckId) => goStudy({ deckId })}
                           onDrillsCreated={() => go("decks")}
                         />
@@ -335,9 +460,11 @@ export function LanguageApp() {
                   type="button"
                   className="xp-status-cell xp-grip"
                   title={fullscreen ? "Exit full screen" : "Full screen"}
-                  aria-label={fullscreen ? "Exit full screen" : "Full screen"}
                   onClick={toggleFullscreen}
                 >
+                  <span className="xp-grip-label">
+                    {fullscreen ? "⤡ Exit full screen" : "⤢ Full screen"}
+                  </span>
                   <span className="xp-grip-dots" aria-hidden />
                 </button>
               </div>
@@ -345,6 +472,97 @@ export function LanguageApp() {
           )}
         </div>
       </div>
+
+      {/* title-phrase popover — play, look up, or capture as a card */}
+      {titlePhrase && phrasePoint && (
+        <div
+          className="xp-tooltip is-interactive"
+          style={{
+            top: phrasePoint.top,
+            left: phrasePoint.left,
+            transform: "translate(-50%, 6px)",
+          }}
+          onMouseEnter={cancelPhraseClose}
+          onMouseLeave={schedulePhraseClose}
+        >
+          <div className="flex items-center gap-2">
+            <Speak
+              language={titlePhrase.language}
+              text={titlePhrase.text}
+              label="►"
+            />
+            <b>{titlePhrase.text}</b>
+          </div>
+          <div>
+            {phraseWiki.isLoading ? (
+              <span className="xp-muted">Looking up…</span>
+            ) : (
+              phraseDefinition && (
+                <>
+                  {phraseDefinition.length > 120
+                    ? `${phraseDefinition.slice(0, 120)}…`
+                    : phraseDefinition}{" "}
+                </>
+              )
+            )}
+            <button
+              type="button"
+              className="xp-link"
+              onClick={() => {
+                setPhrasePoint(null);
+                setWikiQuery({
+                  language: titlePhrase.language,
+                  word: titlePhrase.text,
+                });
+                goWiki("search");
+              }}
+            >
+              [wiki]
+            </button>
+          </div>
+          {(() => {
+            const compatible = decks.filter(
+              (d) => d.language === titlePhrase.language && !d.is_system,
+            );
+            const deckId =
+              phraseDeckId !== "" &&
+              compatible.some((d) => d.id === phraseDeckId)
+                ? phraseDeckId
+                : (compatible[0]?.id ?? null);
+            return (
+              <div className="mt-1 flex items-center gap-2">
+                <select
+                  aria-label="Deck"
+                  className="xp-select"
+                  value={deckId ?? ""}
+                  onChange={(event) =>
+                    setPhraseDeckId(
+                      event.target.value ? Number(event.target.value) : "",
+                    )
+                  }
+                >
+                  {compatible.length === 0 && (
+                    <option value="">No matching deck</option>
+                  )}
+                  {compatible.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="xp-btn is-small"
+                  disabled={!deckId || addPhraseCard.isPending}
+                  onClick={() => deckId && addPhraseCard.mutate(deckId)}
+                >
+                  {addPhraseCard.isSuccess ? "Added ✓" : "Add card"}
+                </button>
+              </div>
+            );
+          })()}
+        </div>
+      )}
 
       {aboutOpen && (
         <>

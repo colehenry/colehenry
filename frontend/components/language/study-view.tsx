@@ -9,14 +9,21 @@ import {
   type Deck,
   type LanguageCode,
 } from "@/lib/api/language";
-import { playAudio } from "./language-shared";
+import { cardSpeechText, genderLabel, Speak } from "./language-shared";
 
-const GRADES: [number, string][] = [
-  [1, "Again"],
-  [2, "Hard"],
-  [3, "Good"],
-  [4, "Easy"],
+const GRADES: [number, string, string][] = [
+  [1, "Again", "←"],
+  [2, "Hard", "↓"],
+  [3, "Good", "→"],
+  [4, "Easy", "↑"],
 ];
+
+const ARROW_GRADES: Record<string, number> = {
+  ArrowLeft: 1,
+  ArrowDown: 2,
+  ArrowRight: 3,
+  ArrowUp: 4,
+};
 
 export function StudyView({
   decks,
@@ -65,6 +72,8 @@ export function StudyView({
   const cards = queue.data?.cards ?? [];
   const safeIndex = cards.length ? Math.min(index, cards.length - 1) : 0;
   const card = cards[safeIndex];
+  const cardLanguage =
+    decks.find((deck) => deck.id === card?.deck_id)?.language ?? "fr";
 
   const grade = useCallback(
     (rating: number) => {
@@ -79,13 +88,21 @@ export function StudyView({
       if (!card) return;
       const target = event.target as HTMLElement | null;
       if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
-      if (event.key === " ") {
-        event.preventDefault();
-        setRevealed(true);
+      if (!revealed) {
+        // Space or any arrow flips the card.
+        if (event.key === " " || event.key in ARROW_GRADES) {
+          event.preventDefault();
+          setRevealed(true);
+        }
+        return;
       }
-      if (revealed && /^[1-4]$/.test(event.key)) {
+      if (/^[1-4]$/.test(event.key)) {
         event.preventDefault();
         grade(Number(event.key));
+      }
+      if (event.key in ARROW_GRADES) {
+        event.preventDefault();
+        grade(ARROW_GRADES[event.key]);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -181,14 +198,13 @@ export function StudyView({
 
           <div className="xp-well xp-doc text-center">
             {card.card_type === "audio" ? (
-              <button
-                type="button"
+              <Speak
+                language={cardLanguage}
+                text={cardSpeechText(card)}
+                url={card.audio_url || undefined}
+                label="► Play audio"
                 className="xp-btn"
-                disabled={!card.audio_url}
-                onClick={() => playAudio(card.audio_url)}
-              >
-                ► Play audio
-              </button>
+              />
             ) : (
               <>
                 <p style={{ fontSize: "30px", lineHeight: 1.3 }}>{card.front}</p>
@@ -197,15 +213,17 @@ export function StudyView({
                     {card.ipa}
                   </p>
                 )}
-                {card.audio_url && (
-                  <button
-                    type="button"
-                    className="xp-link mt-2"
-                    style={{ fontFamily: "var(--xp-font)", fontSize: "12px" }}
-                    onClick={() => playAudio(card.audio_url)}
-                  >
-                    ► listen
-                  </button>
+                {/* Production cards would leak the answer — listen after reveal. */}
+                {(card.direction !== "production" || revealed) && (
+                  <div className="mt-2">
+                    <Speak
+                      language={cardLanguage}
+                      text={cardSpeechText(card)}
+                      url={card.audio_url || undefined}
+                      label="► listen"
+                      className="xp-link"
+                    />
+                  </div>
                 )}
               </>
             )}
@@ -215,7 +233,15 @@ export function StudyView({
                 className="mt-4 border-t border-dotted pt-4 text-left"
                 style={{ borderColor: "var(--xp-well-border)" }}
               >
-                <p style={{ fontSize: "20px" }}>{card.back}</p>
+                <p style={{ fontSize: "20px" }}>
+                  {card.back}
+                  {card.gender && (
+                    <span className="xp-muted" style={{ fontSize: "13px" }}>
+                      {" "}
+                      · {genderLabel(card.gender)}
+                    </span>
+                  )}
+                </p>
                 {card.example && (
                   <p className="xp-muted mt-2" style={{ fontSize: "14px" }}>
                     {card.example}
@@ -244,7 +270,7 @@ export function StudyView({
 
           {revealed ? (
             <div className="flex flex-wrap justify-center gap-2">
-              {GRADES.map(([rating, label]) => (
+              {GRADES.map(([rating, label, arrow]) => (
                 <button
                   key={rating}
                   type="button"
@@ -252,7 +278,7 @@ export function StudyView({
                   disabled={reviewMutation.isPending}
                   onClick={() => grade(rating)}
                 >
-                  {label} ({rating})
+                  {label} ({rating} {arrow})
                 </button>
               ))}
             </div>
@@ -263,7 +289,7 @@ export function StudyView({
                 className="xp-btn is-default"
                 onClick={() => setRevealed(true)}
               >
-                Reveal (Space)
+                Reveal (Space / arrows)
               </button>
             </div>
           )}

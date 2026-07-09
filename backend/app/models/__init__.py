@@ -15,9 +15,12 @@ from app.models.language import (
     LanguageTask,
     LanguageText,
     LanguageTextAnnotation,
+    LexiqueEntry,
     ReviewLog,
     ReviewStateName,
+    TranslationCache,
     Verb,
+    WikiEntry,
 )
 from app.models.project import Project, Visibility
 from app.models.user import User
@@ -42,10 +45,13 @@ __all__ = [
     "LanguageTask",
     "LanguageText",
     "LanguageTextAnnotation",
+    "LexiqueEntry",
     "Project",
     "ReviewLog",
     "ReviewStateName",
+    "TranslationCache",
     "User",
     "Verb",
     "Visibility",
+    "WikiEntry",
 ]

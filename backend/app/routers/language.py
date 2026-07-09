@@ -20,9 +20,11 @@ from app.models import (
     LanguageTask,
     LanguageText,
     LanguageTextAnnotation,
+    LexiqueEntry,
     ReviewLog,
     ReviewStateName,
     Verb,
+    WikiEntry,
 )
 from app.schemas.language import (
     CardCreate,
@@ -45,6 +47,8 @@ from app.schemas.language import (
     RetentionOut,
     ReviewIn,
     ReviewOut,
+    SpeakIn,
+    SpeakOut,
     StudyQueue,
     TargetCreate,
     TargetOut,
@@ -57,10 +61,14 @@ from app.schemas.language import (
     TextAnnotationUpdate,
     TextLookupIn,
     TextLookupOut,
+    VerbCreate,
     VerbDetail,
     VerbOut,
+    WikiConjugationOut,
+    WikiDictEntry,
+    WikiOut,
 )
-from app.services import dictionary, enrich, tts
+from app.services import conjugator, dictionary, enrich, llm, translate, tts
 from app.services.fsrs_engine import grade
 
 # The whole tool is owner-only — one dependency gates every route.
@@ -81,6 +89,34 @@ PERSON_LABELS = {
     "2p": "vous",
     "3p": "ils/elles",
 }
+
+# What TTS says for each person — one concrete pronoun, not "il/elle".
+SPOKEN_SUBJECTS = {
+    "1s": "je",
+    "2s": "tu",
+    "3s": "il",
+    "1p": "nous",
+    "2p": "vous",
+    "3p": "ils",
+}
+
+_VOWELISH = tuple("aeiouyàâäéèêëîïôöùûüh")
+
+
+def spoken_conjugation(person: str, form: str, mood: str) -> str:
+    """Subject + verb as actually said: "je suis", "j'aime", "que je sois"."""
+    if mood == "imperatif" or not form:
+        return form
+    subject = SPOKEN_SUBJECTS.get(person)
+    if not subject:
+        return form
+    if subject == "je" and form.lower().startswith(_VOWELISH):
+        phrase = f"j'{form}"
+    else:
+        phrase = f"{subject} {form}"
+    if mood == "subjonctif":
+        return f"qu'{phrase}" if phrase[0] in "iî" else f"que {phrase}"
+    return phrase
 
 
 def _now() -> datetime:
@@ -106,6 +142,17 @@ def _week_bounds_utc(tz_offset: int) -> tuple[datetime, datetime]:
     start = datetime.combine(start_local, datetime.min.time(), tzinfo=timezone.utc)
     start += timedelta(minutes=tz_offset)
     return start, start + timedelta(days=7)
+
+
+# ---------------------------------------------------------------------------
+# speak — generic tap-to-hear for any FR/ES text
+# ---------------------------------------------------------------------------
+
+
+@router.post("/speak", response_model=SpeakOut)
+def speak(body: SpeakIn):
+    """Cached TTS for arbitrary text; "" tells the client to use browser speech."""
+    return SpeakOut(audio_url=tts.synthesize(body.language.value, body.text))
 
 
 # ---------------------------------------------------------------------------
@@ -842,16 +889,35 @@ def _lookup_terms(selected_text: str) -> list[str]:
     return result
 
 
+def _lexique_row(db: Session, word: str) -> LexiqueEntry | None:
+    return db.execute(
+        select(LexiqueEntry)
+        .where(func.lower(LexiqueEntry.word) == word.lower())
+        .order_by(LexiqueEntry.frequency.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+
+
+def _lexique_gender(db: Session, language: Language, word: str) -> str:
+    """Offline gender fallback (French only — Lexique is a French database)."""
+    if language != Language.fr:
+        return ""
+    row = _lexique_row(db, word)
+    return row.gender if row else ""
+
+
 def _lookup_annotation_text(
     db: Session, language: Language, selected_text: str
 ) -> TextLookupOut:
     selected = selected_text.strip()
     found = None
     provider = "manual_needed"
+    matched_term = ""
     for term in _lookup_terms(selected):
         found = dictionary.lookup(language.value, term)
         if found:
             provider = "dictionary"
+            matched_term = term
             break
 
     false_friend = None
@@ -870,10 +936,15 @@ def _lookup_annotation_text(
     if false_friend and not translation:
         translation = false_friend.es if language == Language.fr else false_friend.fr
 
+    gender = found["gender"] if found else ""
+    if not gender:
+        gender = _lexique_gender(db, language, matched_term or selected)
+
     return TextLookupOut(
         selected_text=selected,
         translation=translation,
         ipa=found["ipa"] if found else "",
+        gender=gender,
         part_of_speech=found["part_of_speech"] if found else "",
         cognate_note=false_friend.note if false_friend else "",
         is_false_friend=false_friend is not None,
@@ -1040,6 +1111,7 @@ def create_text_annotation(
         note=body.note.strip(),
         translation=body.translation.strip(),
         ipa=body.ipa.strip(),
+        gender=body.gender.strip(),
         part_of_speech=body.part_of_speech.strip(),
         cognate_note=body.cognate_note.strip(),
         is_false_friend=body.is_false_friend,
@@ -1080,6 +1152,7 @@ def update_text_annotation(
         "note",
         "translation",
         "ipa",
+        "gender",
         "part_of_speech",
         "cognate_note",
     ):
@@ -1138,6 +1211,7 @@ def create_card_from_annotation(
         front=front,
         back=back,
         ipa=annotation.ipa,
+        gender=annotation.gender,
         part_of_speech=annotation.part_of_speech,
         example=_line_context(
             annotation.text.content, annotation.start_offset, annotation.end_offset
@@ -1161,8 +1235,209 @@ def create_card_from_annotation(
 
 
 # ---------------------------------------------------------------------------
+# wiki — look up any word
+# ---------------------------------------------------------------------------
+
+_WIKI_STRIP = ".,;:!?¡¿()[]{}\"'“”‘’«» "
+_INFINITIVE_ENDINGS = {
+    Language.fr: ("er", "ir", "re", "oir"),
+    Language.es: ("ar", "er", "ir"),
+}
+
+
+def _wiki_payload(
+    db: Session, language: Language, term: str, refresh: bool, use_llm: bool = True
+) -> dict | None:
+    """Dictionary payload for `term`, cached in wiki_entries after first fetch.
+
+    Terms the dictionary doesn't know (phrases, slang) fall back to the
+    configured LLM; the payload carries source="llm" so the UI can label it.
+    """
+    cached = db.execute(
+        select(WikiEntry).where(WikiEntry.language == language, WikiEntry.word == term)
+    ).scalar_one_or_none()
+    if cached and not refresh:
+        return cached.payload
+
+    payload = dictionary.lookup_full(language.value, term)
+    if payload is None and use_llm:
+        payload = llm.define(language.value, term)
+    if payload:
+        if cached:
+            cached.payload = payload
+            cached.fetched_at = _now()
+        else:
+            db.add(WikiEntry(language=language, word=term, payload=payload))
+        db.commit()
+        return payload
+    return cached.payload if cached else None
+
+
+# Leading articles/particles MyMemory tends to prepend to single-word answers.
+_TRANSLATION_PREFIXES = (
+    "le ", "la ", "les ", "l'", "un ", "une ", "des ",
+    "el ", "los ", "las ", "una ", "unos ", "unas ",
+    "to ", "the ", "se ",
+)
+
+
+def _reverse_lookup_term(db: Session, language: Language, term: str) -> str:
+    """If `term` is an English word, return its FR/ES translation ("" if not).
+
+    Lets "week" with French selected resolve to the "semaine" page.
+    """
+    if not dictionary.lookup_full("en", term):
+        return ""
+    translated = translate.translate(db, term, language.value)
+    db.commit()  # persist the translation cache row
+    cleaned = translated.strip().lower().strip(_WIKI_STRIP)
+    for prefix in _TRANSLATION_PREFIXES:
+        if cleaned.startswith(prefix) and len(cleaned) > len(prefix):
+            cleaned = cleaned[len(prefix):]
+            break
+    return "" if not cleaned or cleaned == term else cleaned
+
+
+@router.get("/wiki/{language}/{word}", response_model=WikiOut)
+def wiki_lookup(
+    language: Language,
+    word: str,
+    refresh: bool = False,
+    defs: str = Query(default="en", pattern="^(en|fr|es)$"),
+    db: Session = Depends(get_db),
+):
+    term = word.strip().lower().strip(_WIKI_STRIP)
+    if not term:
+        raise HTTPException(status_code=400, detail="Word is required")
+
+    # Try the target language first ("chat" is valid French AND English —
+    # the selected language wins). On a miss, treat the input as English and
+    # redirect to its FR/ES translation's page.
+    translated_from = ""
+    payload = _wiki_payload(db, language, term, refresh, use_llm=False)
+    if payload is None:
+        target = _reverse_lookup_term(db, language, term)
+        if target:
+            target_payload = _wiki_payload(db, language, target, refresh)
+            if target_payload:
+                translated_from = term
+                term = target
+                payload = target_payload
+    if payload is None:
+        payload = _wiki_payload(db, language, term, refresh)
+
+    entries = []
+    for raw in (payload or {}).get("entries", []):
+        senses = raw.get("senses", [])
+        if defs in translate.TARGETS:
+            senses = [
+                {**s, "translation": translate.translate(db, s["definition"], defs)}
+                for s in senses
+            ]
+        entries.append(WikiDictEntry(**{**raw, "senses": senses}))
+    if defs in translate.TARGETS:
+        db.commit()  # persist any translations fetched above
+
+    gender = next((e.gender for e in entries if e.gender), "")
+    if not gender:
+        gender = _lexique_gender(db, language, term)
+    ipa = next((e.ipa for e in entries if e.ipa), "")
+
+    lexique = _lexique_row(db, term) if language == Language.fr else None
+    lemma = (
+        lexique.lemma
+        if lexique and lexique.lemma and lexique.lemma.lower() != term
+        else ""
+    )
+
+    column = FalseFriend.fr if language == Language.fr else FalseFriend.es
+    false_friend = db.execute(
+        select(FalseFriend).where(func.lower(column) == term)
+    ).scalar_one_or_none()
+
+    saved_verb = None
+    if language == Language.fr:
+        saved_verb = db.execute(
+            select(Verb).where(func.lower(Verb.infinitive) == term)
+        ).scalar_one_or_none()
+    is_verb = saved_verb is not None or any(
+        e.part_of_speech == "verb" for e in entries
+    )
+
+    # Conjugate on the fly for unsaved infinitives (saved FR verbs already
+    # have their conjugations in the DB — the client reuses those).
+    conjugations: list[WikiConjugationOut] = []
+    predicted = False
+    if (
+        is_verb
+        and saved_verb is None
+        and term.endswith(_INFINITIVE_ENDINGS[language])
+    ):
+        conjugated = conjugator.conjugate(term, language.value)
+        if conjugated:
+            conjugations = [WikiConjugationOut(**f) for f in conjugated["forms"]]
+            predicted = conjugated["predicted"]
+
+    return WikiOut(
+        word=term,
+        language=language,
+        found=bool(entries) or false_friend is not None or saved_verb is not None,
+        source=(payload or {}).get("source", "dictionary" if entries else ""),
+        translated_from=translated_from,
+        entries=entries,
+        gender=gender,
+        ipa=ipa,
+        frequency=lexique.frequency if lexique else None,
+        lemma=lemma,
+        cognate_note=false_friend.note if false_friend else "",
+        is_false_friend=false_friend is not None,
+        is_verb=is_verb,
+        verb_id=saved_verb.id if saved_verb else None,
+        conjugations=conjugations,
+        can_conjugate=conjugator.available(),
+        predicted=predicted,
+    )
+
+
+# ---------------------------------------------------------------------------
 # conjugation center
 # ---------------------------------------------------------------------------
+
+
+@router.post("/verbs", response_model=VerbDetail, status_code=201)
+def create_verb(body: VerbCreate, db: Session = Depends(get_db)):
+    """Save a wiki-looked-up verb into the conjugation center (via verbecc)."""
+    existing = db.execute(
+        select(Verb).where(func.lower(Verb.infinitive) == body.infinitive)
+    ).scalar_one_or_none()
+    if existing:
+        return existing
+    if not conjugator.available():
+        raise HTTPException(
+            status_code=503,
+            detail="verbecc is not installed on this server",
+        )
+    data = conjugator.conjugate(body.infinitive)
+    if data is None:
+        raise HTTPException(status_code=422, detail="Could not conjugate that verb")
+
+    found = dictionary.lookup("fr", body.infinitive)
+    max_rank = db.execute(select(func.max(Verb.frequency_rank))).scalar() or 0
+    verb = Verb(
+        infinitive=data["infinitive"],
+        group=data["group"],
+        is_irregular=data["is_irregular"],
+        translation=(found or {}).get("translation", "")[:120] or body.infinitive,
+        es_equivalent="",
+        frequency_rank=max_rank + 1,
+    )
+    db.add(verb)
+    db.flush()
+    for form in data["forms"]:
+        db.add(Conjugation(verb_id=verb.id, **form))
+    db.commit()
+    db.refresh(verb)
+    return verb
 
 
 @router.get("/verbs", response_model=list[VerbOut])
@@ -1187,7 +1462,9 @@ def conjugation_audio(conjugation_id: int, db: Session = Depends(get_db)):
     if conj is None:
         raise HTTPException(status_code=404, detail="Conjugation not found")
     if not conj.audio_url:
-        conj.audio_url = tts.synthesize("fr", conj.form)
+        conj.audio_url = tts.synthesize(
+            "fr", spoken_conjugation(conj.person, conj.form, conj.mood)
+        )
         db.commit()
     return ConjugationAudioOut(id=conj.id, audio_url=conj.audio_url)
 

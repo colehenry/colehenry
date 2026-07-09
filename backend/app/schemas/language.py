@@ -253,6 +253,7 @@ class TextAnnotationOut(BaseModel):
     note: str
     translation: str
     ipa: str
+    gender: str
     part_of_speech: str
     cognate_note: str
     is_false_friend: bool
@@ -321,6 +322,7 @@ class TextAnnotationCreate(BaseModel):
     note: str = ""
     translation: str = ""
     ipa: str = ""
+    gender: str = ""
     part_of_speech: str = ""
     cognate_note: str = ""
     is_false_friend: bool = False
@@ -335,6 +337,7 @@ class TextAnnotationUpdate(BaseModel):
     note: str | None = None
     translation: str | None = None
     ipa: str | None = None
+    gender: str | None = None
     part_of_speech: str | None = None
     cognate_note: str | None = None
     is_false_friend: bool | None = None
@@ -356,6 +359,7 @@ class TextLookupOut(BaseModel):
     selected_text: str
     translation: str
     ipa: str
+    gender: str
     part_of_speech: str
     cognate_note: str
     is_false_friend: bool
@@ -370,6 +374,90 @@ class AnnotationCardCreate(BaseModel):
     direction: CardDirection = CardDirection.recognition
     tags: list[str] = Field(default_factory=list)
     enrich: bool = True
+
+
+# ---------------------------------------------------------------------------
+# speak (generic tap-to-hear)
+# ---------------------------------------------------------------------------
+
+
+class SpeakIn(BaseModel):
+    language: Language
+    text: str = Field(max_length=300)
+
+    @field_validator("text")
+    @classmethod
+    def text_not_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("text is required")
+        return value
+
+
+class SpeakOut(BaseModel):
+    # "" when TTS isn't configured — the client falls back to browser speech
+    audio_url: str
+
+
+# ---------------------------------------------------------------------------
+# wiki
+# ---------------------------------------------------------------------------
+
+
+class WikiSense(BaseModel):
+    definition: str
+    examples: list[str] = []
+    tags: list[str] = []
+    # definition machine-translated to the requested `defs` language ("" = n/a)
+    translation: str = ""
+
+
+class WikiDictEntry(BaseModel):
+    part_of_speech: str
+    ipa: str
+    gender: str
+    senses: list[WikiSense]
+    synonyms: list[str] = []
+
+
+class WikiConjugationOut(BaseModel):
+    mood: str
+    tense: str
+    person: str
+    form: str
+
+
+class WikiOut(BaseModel):
+    word: str
+    language: Language
+    found: bool
+    source: str = ""  # "dictionary" | "llm" | "" (nothing found)
+    # set when an English query was redirected to its FR/ES translation
+    translated_from: str = ""
+    entries: list[WikiDictEntry] = []
+    gender: str = ""  # best-effort noun gender (dictionary, then Lexique)
+    ipa: str = ""
+    frequency: float | None = None  # Lexique films freq per million (fr only)
+    lemma: str = ""  # set when the word inflects a different lemma
+    cognate_note: str = ""
+    is_false_friend: bool = False
+    is_verb: bool = False
+    verb_id: int | None = None  # saved verb → conjugation center page
+    conjugations: list[WikiConjugationOut] = []  # on-the-fly, unsaved verbs
+    can_conjugate: bool = False  # verbecc present on this server
+    predicted: bool = False  # verbecc guessed the template — double-check forms
+
+
+class VerbCreate(BaseModel):
+    infinitive: str
+
+    @field_validator("infinitive")
+    @classmethod
+    def infinitive_not_blank(cls, value: str) -> str:
+        value = value.strip().lower()
+        if not value:
+            raise ValueError("infinitive is required")
+        return value
 
 
 # ---------------------------------------------------------------------------

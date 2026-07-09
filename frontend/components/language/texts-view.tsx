@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -19,7 +19,13 @@ import {
   type LanguageTextDetail,
   type TextAnnotation,
 } from "@/lib/api/language";
-import { languageName, shortDate, splitTags } from "./language-shared";
+import {
+  genderLabel,
+  languageName,
+  shortDate,
+  Speak,
+  splitTags,
+} from "./language-shared";
 
 const EMPTY_TEXT_FORM = {
   title: "",
@@ -37,6 +43,7 @@ type AnnotationDraft = {
   note: string;
   translation: string;
   ipa: string;
+  gender: string;
   cognate_note: string;
   is_false_friend: boolean;
 };
@@ -46,6 +53,7 @@ function toDraft(a: TextAnnotation): AnnotationDraft {
     note: a.note,
     translation: a.translation,
     ipa: a.ipa,
+    gender: a.gender,
     cognate_note: a.cognate_note,
     is_false_friend: a.is_false_friend,
   };
@@ -331,7 +339,41 @@ function Reader({
   const [editForm, setEditForm] = useState(EMPTY_TEXT_FORM);
   const [selection, setSelection] = useState<TextSelection | null>(null);
   const [selectionPoint, setSelectionPoint] = useState<Point | null>(null);
-  const [hover, setHover] = useState<{ id: number; point: Point } | null>(null);
+  // Hovering shows the popover; clicking pins it open (play + edit stay usable).
+  const [popover, setPopover] = useState<{
+    id: number;
+    point: Point;
+    pinned: boolean;
+  } | null>(null);
+  // Delay hover close so the cursor can travel into the popover.
+  const hoverTimer = useRef<number | null>(null);
+  const cancelHoverClose = () => {
+    if (hoverTimer.current != null) {
+      window.clearTimeout(hoverTimer.current);
+      hoverTimer.current = null;
+    }
+  };
+  const scheduleHoverClose = () => {
+    cancelHoverClose();
+    hoverTimer.current = window.setTimeout(
+      () => setPopover((cur) => (cur?.pinned ? cur : null)),
+      250,
+    );
+  };
+
+  // A pinned popover closes on any click outside it (or its annotation).
+  useEffect(() => {
+    if (!popover?.pinned) return;
+    const onDown = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest(".xp-tooltip") || target?.closest(".xp-annotation")) {
+        return;
+      }
+      setPopover(null);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [popover?.pinned]);
   const [editId, setEditId] = useState<number | null>(null);
   const [drafts, setDrafts] = useState<Record<number, AnnotationDraft>>({});
   const [cardDeckId, setCardDeckId] = useState<number | "">("");
@@ -346,8 +388,8 @@ function Reader({
   const draft = editAnnotation
     ? drafts[editAnnotation.id] ?? toDraft(editAnnotation)
     : null;
-  const hoverAnnotation =
-    (hover && text?.annotations.find((a) => a.id === hover.id)) || null;
+  const popoverAnnotation =
+    (popover && text?.annotations.find((a) => a.id === popover.id)) || null;
 
   const compatibleDecks = text
     ? decks.filter((d) => d.language === text.language && !d.is_system)
@@ -416,6 +458,7 @@ function Reader({
         selected_text: selection.selectedText,
         translation: found?.translation ?? "",
         ipa: found?.ipa ?? "",
+        gender: found?.gender ?? "",
         part_of_speech: found?.part_of_speech ?? "",
         cognate_note: found?.cognate_note ?? "",
         is_false_friend: found?.is_false_friend ?? false,
@@ -451,6 +494,7 @@ function Reader({
       return updateTextAnnotation(editAnnotation.id, {
         translation: found.translation,
         ipa: found.ipa,
+        gender: found.gender,
         part_of_speech: found.part_of_speech,
         cognate_note: found.cognate_note,
         is_false_friend: found.is_false_friend,
@@ -502,21 +546,34 @@ function Reader({
     ) {
       return;
     }
-    const startRange = document.createRange();
-    startRange.selectNodeContents(root);
-    startRange.setEnd(range.startContainer, range.startOffset);
-    const endRange = document.createRange();
-    endRange.selectNodeContents(root);
-    endRange.setEnd(range.endContainer, range.endOffset);
-    const start = startRange.toString().length;
-    const end = endRange.toString().length;
-    const selectedText = range.toString();
+    // Offsets are measured inside each line span (the gutter play buttons
+    // sit outside them, so they never pollute the character count).
+    const lineSpanOf = (node: Node): HTMLElement | null => {
+      const el = node instanceof Element ? node : node.parentElement;
+      return el?.closest<HTMLElement>("[data-line-start]") ?? null;
+    };
+    const startSpan = lineSpanOf(range.startContainer);
+    const endSpan = lineSpanOf(range.endContainer);
+    if (!startSpan || !endSpan) return;
+    const measure = (span: HTMLElement, container: Node, offset: number) => {
+      const probe = document.createRange();
+      probe.selectNodeContents(span);
+      probe.setEnd(container, offset);
+      return probe.toString().length;
+    };
+    const start =
+      Number(startSpan.dataset.lineStart) +
+      measure(startSpan, range.startContainer, range.startOffset);
+    const end =
+      Number(endSpan.dataset.lineStart) +
+      measure(endSpan, range.endContainer, range.endOffset);
+    const selectedText = text.content.slice(start, end);
     if (!selectedText.trim() || end <= start) return;
     const box = range.getBoundingClientRect();
     setSelection({ start, end, selectedText });
     setSelectionPoint({ top: box.top, left: box.left + box.width / 2 });
     setEditId(null);
-    setHover(null);
+    setPopover(null);
   };
 
   const startEditing = () => {
@@ -607,14 +664,18 @@ function Reader({
           >
             <AnnotatedText
               text={text}
-              activeId={editId}
-              onHover={(a, point) => !selection && setHover({ id: a.id, point })}
-              onLeave={() => setHover(null)}
-              onOpen={(a) => {
+              activeId={editId ?? (popover?.pinned ? popover.id : null)}
+              onHover={(a, point) => {
+                if (selection || popover?.pinned) return;
+                cancelHoverClose();
+                setPopover({ id: a.id, point, pinned: false });
+              }}
+              onLeave={scheduleHoverClose}
+              onPin={(a, point) => {
                 setSelection(null);
                 setSelectionPoint(null);
-                setHover(null);
-                setEditId(a.id);
+                cancelHoverClose();
+                setPopover({ id: a.id, point, pinned: true });
               }}
             />
           </div>
@@ -626,37 +687,65 @@ function Reader({
         </>
       )}
 
-      {/* hover quick-note: the XP tooltip */}
-      {hoverAnnotation && hover && (
+      {/* annotation popover — hover to peek, click to pin */}
+      {popoverAnnotation && popover && text && (
         <div
-          className="xp-tooltip"
+          className="xp-tooltip is-interactive"
           style={{
-            top: hover.point.top,
-            left: hover.point.left,
+            top: popover.point.top,
+            left: popover.point.left,
             transform: "translate(-50%, calc(-100% - 6px))",
           }}
+          onMouseEnter={cancelHoverClose}
+          onMouseLeave={() => {
+            if (!popover.pinned) scheduleHoverClose();
+          }}
         >
-          <b>{hoverAnnotation.selected_text}</b>
-          {hoverAnnotation.translation && <> — {hoverAnnotation.translation}</>}
-          {hoverAnnotation.ipa && (
-            <>
-              {" "}
-              <span className="xp-ipa">{hoverAnnotation.ipa}</span>
-            </>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="xp-link"
+              onClick={() => {
+                setPopover(null);
+                setEditId(popoverAnnotation.id);
+              }}
+            >
+              [edit]
+            </button>
+            <Speak
+              language={text.language}
+              text={popoverAnnotation.selected_text}
+              label="►"
+              title={`Listen: ${popoverAnnotation.selected_text}`}
+            />
+            <b>{popoverAnnotation.selected_text}</b>
+          </div>
+          {popoverAnnotation.translation && (
+            <div>{popoverAnnotation.translation}</div>
           )}
-          {hoverAnnotation.cognate_note && (
-            <div>ES: {hoverAnnotation.cognate_note}</div>
+          {(popoverAnnotation.ipa || popoverAnnotation.gender) && (
+            <div>
+              {popoverAnnotation.ipa && (
+                <span className="xp-ipa">{popoverAnnotation.ipa}</span>
+              )}
+              {popoverAnnotation.ipa && popoverAnnotation.gender && " · "}
+              {popoverAnnotation.gender &&
+                genderLabel(popoverAnnotation.gender)}
+            </div>
           )}
-          {!hoverAnnotation.translation &&
-            !hoverAnnotation.note &&
-            !hoverAnnotation.cognate_note && <> — no note yet</>}
+          {popoverAnnotation.cognate_note && (
+            <div>ES: {popoverAnnotation.cognate_note}</div>
+          )}
+          {!popoverAnnotation.translation &&
+            !popoverAnnotation.note &&
+            !popoverAnnotation.cognate_note && <div>no note yet</div>}
         </div>
       )}
 
-      {/* selection toolbar */}
-      {selection && selectionPoint && (
+      {/* selection popup — same style as the hover popover */}
+      {selection && selectionPoint && text && (
         <div
-          className="fixed z-[65] flex gap-1"
+          className="xp-tooltip is-interactive flex items-center gap-2"
           style={{
             top: selectionPoint.top,
             left: selectionPoint.left,
@@ -669,16 +758,14 @@ function Reader({
             disabled={createAnnotationMutation.isPending}
             onClick={() => createAnnotationMutation.mutate({ withLookup: true })}
           >
-            Look up
+            Add note
           </button>
-          <button
-            type="button"
-            className="xp-btn is-small"
-            disabled={createAnnotationMutation.isPending}
-            onClick={() => createAnnotationMutation.mutate({ withLookup: false })}
-          >
-            Note
-          </button>
+          <Speak
+            language={text.language}
+            text={selection.selectedText}
+            label="►"
+            title={`Listen: ${selection.selectedText}`}
+          />
         </div>
       )}
 
@@ -706,6 +793,18 @@ function Reader({
               </button>
             </div>
             <div className="xp-dialog-body flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <b>{editAnnotation.selected_text}</b>
+                {text && (
+                  <Speak
+                    language={text.language}
+                    text={editAnnotation.selected_text}
+                  />
+                )}
+                {draft.gender && (
+                  <span className="xp-muted">{genderLabel(draft.gender)}</span>
+                )}
+              </div>
               <div>
                 <label className="xp-label" htmlFor="a-translation">
                   Translation:
@@ -743,6 +842,23 @@ function Reader({
                     value={draft.ipa}
                     onChange={(event) => patchDraft({ ipa: event.target.value })}
                   />
+                </div>
+                <div>
+                  <label className="xp-label" htmlFor="a-gender">
+                    Gender:
+                  </label>
+                  <select
+                    id="a-gender"
+                    className="xp-select"
+                    value={draft.gender}
+                    onChange={(event) =>
+                      patchDraft({ gender: event.target.value })
+                    }
+                  >
+                    <option value="">—</option>
+                    <option value="m">masculine</option>
+                    <option value="f">feminine</option>
+                  </select>
                 </div>
                 <label
                   className="flex items-center gap-2"
@@ -858,51 +974,87 @@ function AnnotatedText({
   activeId,
   onHover,
   onLeave,
-  onOpen,
+  onPin,
 }: {
   text: LanguageTextDetail;
   activeId: number | null;
   onHover: (annotation: TextAnnotation, point: Point) => void;
   onLeave: () => void;
-  onOpen: (annotation: TextAnnotation) => void;
+  onPin: (annotation: TextAnnotation, point: Point) => void;
 }) {
-  const nodes: React.ReactNode[] = [];
-  let cursor = 0;
   const sorted = [...text.annotations].sort(
     (a, b) => a.start_offset - b.start_offset || a.end_offset - b.end_offset,
   );
 
-  for (const annotation of sorted) {
-    if (
-      annotation.start_offset < cursor ||
-      annotation.end_offset <= annotation.start_offset ||
-      annotation.end_offset > text.content.length
-    ) {
-      continue;
-    }
-    if (annotation.start_offset > cursor) {
-      nodes.push(text.content.slice(cursor, annotation.start_offset));
-    }
-    nodes.push(
-      <button
-        key={annotation.id}
-        type="button"
-        className={`xp-annotation ${activeId === annotation.id ? "is-active" : ""}`}
-        onMouseEnter={(event) => {
-          const box = event.currentTarget.getBoundingClientRect();
-          onHover(annotation, { top: box.top, left: box.left + box.width / 2 });
-        }}
-        onMouseLeave={onLeave}
-        onClick={() => onOpen(annotation)}
-      >
-        {text.content.slice(annotation.start_offset, annotation.end_offset)}
-      </button>,
-    );
-    cursor = annotation.end_offset;
+  // One row per line: a play-the-line gutter button plus the annotated text.
+  // Offsets live on the line span (data-line-start) so selection math in
+  // captureSelection stays exact.
+  const lines: { start: number; content: string }[] = [];
+  let lineStart = 0;
+  for (const line of text.content.split("\n")) {
+    lines.push({ start: lineStart, content: line });
+    lineStart += line.length + 1;
   }
 
-  if (cursor < text.content.length) {
-    nodes.push(text.content.slice(cursor));
-  }
-  return <>{nodes}</>;
+  const midpoint = (el: Element): Point => {
+    const box = el.getBoundingClientRect();
+    return { top: box.top, left: box.left + box.width / 2 };
+  };
+
+  return (
+    <>
+      {lines.map(({ start, content }) => {
+        const end = start + content.length;
+        const nodes: React.ReactNode[] = [];
+        let cursor = start;
+        for (const annotation of sorted) {
+          const segStart = Math.max(annotation.start_offset, start);
+          const segEnd = Math.min(annotation.end_offset, end);
+          if (segEnd <= segStart || segStart < cursor) continue;
+          if (segStart > cursor) {
+            nodes.push(text.content.slice(cursor, segStart));
+          }
+          nodes.push(
+            <button
+              key={`${annotation.id}-${segStart}`}
+              type="button"
+              className={`xp-annotation ${
+                activeId === annotation.id ? "is-active" : ""
+              }`}
+              onMouseEnter={(event) =>
+                onHover(annotation, midpoint(event.currentTarget))
+              }
+              onMouseLeave={onLeave}
+              onClick={(event) =>
+                onPin(annotation, midpoint(event.currentTarget))
+              }
+            >
+              {text.content.slice(segStart, segEnd)}
+            </button>,
+          );
+          cursor = segEnd;
+        }
+        if (cursor < end) {
+          nodes.push(text.content.slice(cursor, end));
+        }
+        return (
+          <div key={start} className="xp-doc-line">
+            <span className="xp-line-gutter">
+              {content.trim() && (
+                <Speak
+                  language={text.language}
+                  text={content.trim()}
+                  label="►"
+                  title="Listen to this line"
+                />
+              )}
+            </span>
+            <span className="xp-line-text" data-line-start={start}>
+              {nodes}
+            </span>
+          </div>
+        );
+      })}
+    </>
+  );
 }

@@ -311,6 +311,7 @@ export const textAnnotationSchema = z.object({
   note: z.string(),
   translation: z.string(),
   ipa: z.string(),
+  gender: z.string(),
   part_of_speech: z.string(),
   cognate_note: z.string(),
   is_false_friend: z.boolean(),
@@ -358,6 +359,7 @@ export type TextAnnotationIn = {
   note?: string;
   translation?: string;
   ipa?: string;
+  gender?: string;
   part_of_speech?: string;
   cognate_note?: string;
   is_false_friend?: boolean;
@@ -367,6 +369,7 @@ export const textLookupSchema = z.object({
   selected_text: z.string(),
   translation: z.string(),
   ipa: z.string(),
+  gender: z.string(),
   part_of_speech: z.string(),
   cognate_note: z.string(),
   is_false_friend: z.boolean(),
@@ -473,6 +476,83 @@ export function createCardFromAnnotation(
 }
 
 // ---------------------------------------------------------------------------
+// speak — generic tap-to-hear
+// ---------------------------------------------------------------------------
+
+/** Cached TTS URL for arbitrary text; "" when the server can't synthesize. */
+export function fetchSpeechUrl(
+  language: LanguageCode,
+  text: string,
+): Promise<string> {
+  return apiFetch("/language/speak", z.object({ audio_url: z.string() }), {
+    method: "POST",
+    body: JSON.stringify({ language, text }),
+  }).then((res) => res.audio_url);
+}
+
+// ---------------------------------------------------------------------------
+// wiki
+// ---------------------------------------------------------------------------
+
+export const wikiSenseSchema = z.object({
+  definition: z.string(),
+  examples: z.array(z.string()),
+  tags: z.array(z.string()),
+  translation: z.string(),
+});
+
+export const wikiDictEntrySchema = z.object({
+  part_of_speech: z.string(),
+  ipa: z.string(),
+  gender: z.string(),
+  senses: z.array(wikiSenseSchema),
+  synonyms: z.array(z.string()),
+});
+
+export const wikiConjugationSchema = z.object({
+  mood: z.string(),
+  tense: z.string(),
+  person: z.string(),
+  form: z.string(),
+});
+export type WikiConjugation = z.infer<typeof wikiConjugationSchema>;
+
+export const wikiOutSchema = z.object({
+  word: z.string(),
+  language: languageCodeSchema,
+  found: z.boolean(),
+  source: z.string(),
+  translated_from: z.string(),
+  entries: z.array(wikiDictEntrySchema),
+  gender: z.string(),
+  ipa: z.string(),
+  frequency: z.number().nullable(),
+  lemma: z.string(),
+  cognate_note: z.string(),
+  is_false_friend: z.boolean(),
+  is_verb: z.boolean(),
+  verb_id: z.number().nullable(),
+  conjugations: z.array(wikiConjugationSchema),
+  can_conjugate: z.boolean(),
+  predicted: z.boolean(),
+});
+export type WikiResult = z.infer<typeof wikiOutSchema>;
+
+/** Language the definitions are shown in — English or machine-translated. */
+export type WikiDefsLanguage = "en" | LanguageCode;
+
+export function wikiLookup(
+  language: LanguageCode,
+  word: string,
+  defs: WikiDefsLanguage = "en",
+): Promise<WikiResult> {
+  return apiFetch(
+    `/language/wiki/${language}/${encodeURIComponent(word)}?defs=${defs}`,
+    wikiOutSchema,
+  );
+}
+
+// ---------------------------------------------------------------------------
 // conjugation center
 // ---------------------------------------------------------------------------
 
@@ -505,6 +585,14 @@ export type VerbDetail = z.infer<typeof verbDetailSchema>;
 
 export function listVerbs(): Promise<Verb[]> {
   return apiFetch("/language/verbs", z.array(verbSchema));
+}
+
+/** Conjugate + save a wiki verb into the conjugation center (verbecc). */
+export function saveVerb(infinitive: string): Promise<VerbDetail> {
+  return apiFetch("/language/verbs", verbDetailSchema, {
+    method: "POST",
+    body: JSON.stringify({ infinitive }),
+  });
 }
 
 export function getVerb(id: number): Promise<VerbDetail> {

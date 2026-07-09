@@ -9,6 +9,7 @@ import base64
 import hashlib
 import io
 import logging
+from urllib.parse import urlparse
 
 import httpx
 
@@ -44,7 +45,14 @@ def synthesize(language: str, text: str) -> str:
     import cloudinary.api
     import cloudinary.uploader
 
-    cloudinary.config(cloudinary_url=settings.cloudinary_url, secure=True)
+    # The SDK only auto-parses the CLOUDINARY_URL env var — parse ours by hand.
+    parsed = urlparse(settings.cloudinary_url)
+    cloudinary.config(
+        cloud_name=parsed.hostname,
+        api_key=parsed.username,
+        api_secret=parsed.password,
+        secure=True,
+    )
 
     try:
         existing = cloudinary.api.resource(public_id, resource_type="video")

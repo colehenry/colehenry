@@ -112,6 +112,16 @@
   white-space: nowrap;
   text-shadow: 1px 1px 1px rgb(0 0 0 / 0.4);
 }
+/* rotating FR/ES phrase in the title bar — click to hear it */
+.xp-title-phrase {
+  font: inherit;
+  color: inherit;
+  text-shadow: inherit;
+  cursor: pointer;
+}
+.xp-title-phrase:hover {
+  text-decoration: underline;
+}
 .xp-caption-btn {
   display: inline-flex;
   align-items: center;
@@ -303,8 +313,16 @@
   display: flex;
   align-items: flex-end;
   justify-content: flex-end;
+  gap: 6px;
   padding: 3px 4px;
   cursor: pointer;
+}
+.xp-grip-label {
+  align-self: center;
+  white-space: nowrap;
+}
+.xp-grip:hover .xp-grip-label {
+  text-decoration: underline;
 }
 .xp-grip:hover .xp-grip-dots {
   filter: brightness(0.75);
@@ -561,13 +579,41 @@
   box-shadow: 2px 2px 3px rgb(0 0 0 / 0.3);
   pointer-events: none;
 }
+/* Popovers with buttons inside (reader hover/pin, selection toolbar). */
+.xp-tooltip.is-interactive {
+  pointer-events: auto;
+}
 
 .xp-doc {
   padding: 20px 24px;
   font-family: var(--xp-doc-font);
   font-size: 17px;
   line-height: 2;
+}
+.xp-doc-line {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.xp-line-gutter {
+  flex: 0 0 16px;
+  font-size: 12px;
+  opacity: 0;
+  user-select: none;
+  transition: opacity 0.1s;
+}
+.xp-doc-line:hover .xp-line-gutter,
+.xp-line-gutter:focus-within {
+  opacity: 1;
+}
+.xp-line-text {
+  flex: 1;
+  min-width: 0;
   white-space: pre-wrap;
+}
+/* keep blank lines from collapsing without adding selectable characters */
+.xp-line-text:empty::before {
+  content: "\00a0";
 }
 .xp-annotation {
   cursor: pointer;

@@ -7,6 +7,7 @@ import {
   createCard,
   createDeck,
   deleteCard,
+  deleteDeck,
   enrichCard,
   listCards,
   updateCard,
@@ -16,7 +17,7 @@ import {
   type Deck,
   type LanguageCode,
 } from "@/lib/api/language";
-import { playAudio, splitTags } from "./language-shared";
+import { cardSpeechText, genderLabel, Speak, splitTags } from "./language-shared";
 
 const EMPTY_CARD_FORM = {
   front: "",
@@ -48,6 +49,7 @@ export function DecksView({
   const [newDeckDescription, setNewDeckDescription] = useState("");
   const [cardForm, setCardForm] = useState(EMPTY_CARD_FORM);
   const [editingCard, setEditingCard] = useState<Card | null>(null);
+  const [confirmDeleteDeck, setConfirmDeleteDeck] = useState(false);
 
   const effectiveSelectedDeckId = selectedDeckId ?? decks[0]?.id ?? null;
   const selectedDeck =
@@ -111,6 +113,17 @@ export function DecksView({
   const deleteCardMutation = useMutation({
     mutationFn: deleteCard,
     onSuccess: invalidate,
+  });
+
+  const deleteDeckMutation = useMutation({
+    mutationFn: deleteDeck,
+    onSuccess: () => {
+      setConfirmDeleteDeck(false);
+      setSelectedDeckId(
+        decks.find((d) => d.id !== effectiveSelectedDeckId)?.id ?? null,
+      );
+      queryClient.invalidateQueries({ queryKey: ["language", "decks"] });
+    },
   });
 
   const enrichMutation = useMutation({
@@ -250,7 +263,68 @@ export function DecksView({
                 Study this deck
               </button>
             )}
+          {selectedDeck && (
+            <button
+              type="button"
+              className="xp-link ml-auto"
+              onClick={() => setConfirmDeleteDeck(true)}
+            >
+              [delete deck]
+            </button>
+          )}
         </div>
+
+        {confirmDeleteDeck && selectedDeck && (
+          <>
+            <button
+              type="button"
+              aria-label="Cancel delete"
+              className="xp-dialog-backdrop cursor-default"
+              onClick={() => setConfirmDeleteDeck(false)}
+            />
+            <div className="xp-dialog" role="dialog" aria-label="Delete deck">
+              <div className="xp-titlebar">
+                <span className="xp-title-text">Confirm Deck Delete</span>
+                <button
+                  type="button"
+                  className="xp-caption-btn is-close"
+                  aria-label="Close dialog"
+                  onClick={() => setConfirmDeleteDeck(false)}
+                >
+                  ×
+                </button>
+              </div>
+              <div className="xp-dialog-body">
+                <p>
+                  Delete <b>{selectedDeck.name}</b> and its{" "}
+                  {selectedDeck.card_count} card
+                  {selectedDeck.card_count === 1 ? "" : "s"}?
+                </p>
+                <p className="xp-muted mt-2">
+                  Review history for these cards is removed too. This cannot be
+                  undone.
+                </p>
+              </div>
+              <div className="xp-dialog-buttons">
+                <button
+                  type="button"
+                  className="xp-btn"
+                  onClick={() => setConfirmDeleteDeck(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="xp-btn is-default"
+                  disabled={deleteDeckMutation.isPending}
+                  onClick={() => deleteDeckMutation.mutate(selectedDeck.id)}
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </>
+        )}
 
         {selectedDeck?.is_system ? (
           <p className="xp-muted">
@@ -423,21 +497,24 @@ export function DecksView({
                   <td>{card.back}</td>
                   <td className="xp-muted">{card.state}</td>
                   <td>
+                    {card.gender && (
+                      <span className="xp-muted">
+                        {genderLabel(card.gender)}{" "}
+                      </span>
+                    )}
                     {card.is_false_friend && (
                       <span style={{ color: "#c4523a" }}>faux ami </span>
                     )}
                     {card.cognate_note}
                   </td>
                   <td style={{ whiteSpace: "nowrap" }}>
-                    {card.audio_url && (
+                    {selectedDeck && (
                       <>
-                        <button
-                          type="button"
-                          className="xp-link"
-                          onClick={() => playAudio(card.audio_url)}
-                        >
-                          [listen]
-                        </button>{" "}
+                        <Speak
+                          language={selectedDeck.language}
+                          text={cardSpeechText(card)}
+                          url={card.audio_url || undefined}
+                        />{" "}
                       </>
                     )}
                     <button

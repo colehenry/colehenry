@@ -15,7 +15,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -282,6 +282,7 @@ class LanguageTextAnnotation(Base):
     note: Mapped[str] = mapped_column(Text, default="", nullable=False)
     translation: Mapped[str] = mapped_column(Text, default="", nullable=False)
     ipa: Mapped[str] = mapped_column(String(200), default="", nullable=False)
+    gender: Mapped[str] = mapped_column(String(20), default="", nullable=False)
     part_of_speech: Mapped[str] = mapped_column(String(40), default="", nullable=False)
     cognate_note: Mapped[str] = mapped_column(Text, default="", nullable=False)
     is_false_friend: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -304,6 +305,53 @@ class LanguageTextAnnotation(Base):
     text: Mapped[LanguageText] = relationship(back_populates="annotations")
     deck: Mapped[FlashcardDeck | None] = relationship(back_populates="text_annotations")
     flashcard: Mapped[Flashcard | None] = relationship(back_populates="text_annotations")
+
+
+class WikiEntry(Base):
+    """Cached dictionary payload for a wiki word lookup (one row per word)."""
+
+    __tablename__ = "wiki_entries"
+    __table_args__ = (UniqueConstraint("language", "word"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    language: Mapped[Language] = mapped_column(
+        Enum(Language, name="language_code", create_type=False), nullable=False
+    )
+    word: Mapped[str] = mapped_column(String(120), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    fetched_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class TranslationCache(Base):
+    """One-time EN→FR/ES machine translations of wiki definitions."""
+
+    __tablename__ = "translation_cache"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    digest: Mapped[str] = mapped_column(String(40), nullable=False, unique=True)
+    target_lang: Mapped[str] = mapped_column(String(5), nullable=False)
+    source: Mapped[str] = mapped_column(Text, nullable=False)
+    translated: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class LexiqueEntry(Base):
+    """Lexique 3.83 lemma rows — offline gender + frequency for French."""
+
+    __tablename__ = "lexique_entries"
+    __table_args__ = (Index("ix_lexique_entries_word", "word"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    word: Mapped[str] = mapped_column(String(120), nullable=False)
+    lemma: Mapped[str] = mapped_column(String(120), nullable=False)
+    pos: Mapped[str] = mapped_column(String(30), nullable=False)  # Lexique cgram
+    gender: Mapped[str] = mapped_column(String(4), default="", nullable=False)  # m|f
+    # films subtitle frequency per million words — proxy for "how common"
+    frequency: Mapped[float] = mapped_column(Float, default=0, nullable=False)
 
 
 class Verb(Base):

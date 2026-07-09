@@ -1,4 +1,4 @@
-# Seed-time-only dependencies — install into your local venv when running
-# scripts/seed_verbs.py. Deliberately NOT in requirements.txt so the Railway
-# image stays slim (verbecc pulls in ML deps).
+# Dependencies for scripts/seed_verbs.py and scripts/seed_lexique.py.
+# verbecc is now also in requirements.txt (wiki conjugates unsaved verbs at
+# runtime); this file remains for local seeding venvs.
 verbecc>=1.9

@@ -11,3 +11,7 @@ itsdangerous>=2.2
 httpx>=0.27
 fsrs>=5.0
 cloudinary>=1.41
+# Runtime conjugation for wiki lookups of unsaved verbs (POST /language/verbs,
+# GET /language/wiki). Heavy (ML deps) — remove this line to slim the image;
+# those endpoints degrade gracefully when it's absent.
+verbecc>=1.9
