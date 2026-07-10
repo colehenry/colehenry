@@ -18,6 +18,7 @@ import {
   type LanguageCode,
 } from "@/lib/api/language";
 import { cardSpeechText, genderLabel, Speak, splitTags } from "./language-shared";
+import { ImportDialog } from "./import-dialog";
 
 const EMPTY_CARD_FORM = {
   front: "",
@@ -50,6 +51,7 @@ export function DecksView({
   const [cardForm, setCardForm] = useState(EMPTY_CARD_FORM);
   const [editingCard, setEditingCard] = useState<Card | null>(null);
   const [confirmDeleteDeck, setConfirmDeleteDeck] = useState(false);
+  const [koboOpen, setKoboOpen] = useState(false);
 
   const effectiveSelectedDeckId = selectedDeckId ?? decks[0]?.id ?? null;
   const selectedDeck =
@@ -152,13 +154,22 @@ export function DecksView({
       <aside className="flex w-full flex-col gap-2 lg:w-60 lg:shrink-0">
         <div className="flex items-center justify-between">
           <span style={{ fontWeight: 700 }}>Decks</span>
-          <button
-            type="button"
-            className="xp-link"
-            onClick={() => setNewDeckOpen((open) => !open)}
-          >
-            [new deck]
-          </button>
+          <span className="flex gap-2">
+            <button
+              type="button"
+              className="xp-link"
+              onClick={() => setKoboOpen(true)}
+            >
+              [import]
+            </button>
+            <button
+              type="button"
+              className="xp-link"
+              onClick={() => setNewDeckOpen((open) => !open)}
+            >
+              [new deck]
+            </button>
+          </span>
         </div>
 
         {newDeckOpen && (
@@ -552,6 +563,17 @@ export function DecksView({
           </table>
         </div>
       </main>
+
+      {koboOpen && (
+        <ImportDialog
+          decks={decks}
+          onClose={() => setKoboOpen(false)}
+          onImported={(deckId) => {
+            setKoboOpen(false);
+            setSelectedDeckId(deckId);
+          }}
+        />
+      )}
     </div>
   );
 }

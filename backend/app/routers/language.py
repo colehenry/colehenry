@@ -1,6 +1,7 @@
-from datetime import date, datetime, timedelta, timezone
+import tempfile
+from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -17,8 +18,6 @@ from app.models import (
     FlashcardReview,
     Language,
     LanguageLexeme,
-    LanguageTarget,
-    LanguageTask,
     LanguageText,
     LanguageTextAnnotation,
     LexiqueEntry,
@@ -40,27 +39,21 @@ from app.schemas.language import (
     DeckOut,
     DeckUpdate,
     DrillCreate,
-    GuardrailOut,
-    HeatmapDay,
     AnnotationCardCreate,
-    LanguageDashboard,
-    LanguageSplit,
+    ImportCommitIn,
+    ImportCommitOut,
+    ImportItem,
+    ImportPreviewOut,
+    PasteImportIn,
     LanguageTextCreate,
     LanguageTextDetail,
     LanguageTextOut,
     LanguageTextUpdate,
-    RetentionOut,
     ReviewIn,
     ReviewOut,
     SpeakIn,
     SpeakOut,
     StudyQueue,
-    TargetCreate,
-    TargetOut,
-    TargetUpdate,
-    TaskCreate,
-    TaskOut,
-    TaskUpdate,
     TextAnnotationCreate,
     TextAnnotationOut,
     TextAnnotationUpdate,
@@ -78,7 +71,7 @@ from app.schemas.language import (
     WikiEquivalentOut,
     WikiOut,
 )
-from app.services import conjugator, dictionary, enrich, lexemes, llm, translate, tts
+from app.services import conjugator, dictionary, enrich, kobo, lexemes, llm, translate, tts
 from app.services.fsrs_engine import grade
 
 # The whole tool is owner-only — one dependency gates every route.
@@ -86,10 +79,6 @@ router = APIRouter(
     prefix="/language", tags=["language"], dependencies=[Depends(require_owner)]
 )
 
-# Cards with stability past this many days count as "mature" (Anki convention).
-MATURE_STABILITY_DAYS = 21
-# Spanish guardrail fallback when no es_reviews target exists.
-DEFAULT_ES_FLOOR = 50
 
 PERSON_LABELS = {
     "1s": "je",
@@ -158,27 +147,6 @@ def _now() -> datetime:
 
 def _lang_code(value: str | Language) -> str:
     return str(getattr(value, "value", value))
-
-
-def _local_today(tz_offset: int) -> date:
-    """tz_offset is JS getTimezoneOffset(): minutes behind UTC (240 for EDT)."""
-    return (_now() - timedelta(minutes=tz_offset)).date()
-
-
-def _local_day(moment: datetime, tz_offset: int) -> date:
-    return (moment - timedelta(minutes=tz_offset)).date()
-
-
-def _week_start(day: date) -> date:
-    return day - timedelta(days=day.weekday())
-
-
-def _week_bounds_utc(tz_offset: int) -> tuple[datetime, datetime]:
-    """[start, end) of the current local ISO week, as UTC instants."""
-    start_local = _week_start(_local_today(tz_offset))
-    start = datetime.combine(start_local, datetime.min.time(), tzinfo=timezone.utc)
-    start += timedelta(minutes=tz_offset)
-    return start, start + timedelta(days=7)
 
 
 # ---------------------------------------------------------------------------
@@ -555,358 +523,6 @@ def review_card(body: ReviewIn, db: Session = Depends(get_db)):
         state=review.state,
         due=review.due,
         again_soon=review.due - now < timedelta(minutes=20),
-    )
-
-
-# ---------------------------------------------------------------------------
-# tasks
-# ---------------------------------------------------------------------------
-
-
-def _materialize_daily_tasks(db: Session, today: date) -> None:
-    """Create today's instance for each daily template that lacks one."""
-    templates = (
-        db.execute(
-            select(LanguageTask).where(
-                LanguageTask.recurrence == "daily", LanguageTask.template_id.is_(None)
-            )
-        )
-        .scalars()
-        .all()
-    )
-    if not templates:
-        return
-    existing = set(
-        db.execute(
-            select(LanguageTask.template_id).where(LanguageTask.task_date == today)
-        )
-        .scalars()
-        .all()
-    )
-    for tpl in templates:
-        if tpl.id not in existing:
-            db.add(
-                LanguageTask(
-                    text=tpl.text,
-                    task_date=today,
-                    template_id=tpl.id,
-                    action_ref=tpl.action_ref,
-                )
-            )
-    db.commit()
-
-
-def _today_tasks(db: Session, today: date) -> list[LanguageTask]:
-    _materialize_daily_tasks(db, today)
-    return (
-        db.execute(
-            select(LanguageTask)
-            .where(
-                LanguageTask.template_id.isnot(None)
-                & (LanguageTask.task_date == today)
-                | (LanguageTask.recurrence == "")
-                & LanguageTask.template_id.is_(None)
-                & (LanguageTask.task_date.is_(None) | (LanguageTask.task_date == today))
-                & ~LanguageTask.done
-            )
-            .order_by(LanguageTask.id)
-        )
-        .scalars()
-        .all()
-    )
-
-
-@router.get("/tasks", response_model=list[TaskOut])
-def list_tasks(tz_offset: int = 0, db: Session = Depends(get_db)):
-    return [TaskOut.model_validate(t) for t in _today_tasks(db, _local_today(tz_offset))]
-
-
-@router.post("/tasks", response_model=TaskOut, status_code=201)
-def create_task(body: TaskCreate, db: Session = Depends(get_db)):
-    task = LanguageTask(
-        text=body.text,
-        task_date=body.task_date,
-        recurrence=body.recurrence if body.recurrence == "daily" else "",
-        action_ref=body.action_ref.strip(),
-    )
-    db.add(task)
-    db.commit()
-    db.refresh(task)
-    return TaskOut.model_validate(task)
-
-
-@router.patch("/tasks/{task_id}", response_model=TaskOut)
-def update_task(task_id: int, body: TaskUpdate, db: Session = Depends(get_db)):
-    task = db.get(LanguageTask, task_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail="Task not found")
-    data = body.model_dump(exclude_unset=True)
-    if "text" in data and data["text"]:
-        task.text = data["text"].strip()
-    if "done" in data and data["done"] is not None:
-        task.done = data["done"]
-    if "action_ref" in data and data["action_ref"] is not None:
-        task.action_ref = data["action_ref"].strip()
-    db.commit()
-    db.refresh(task)
-    return TaskOut.model_validate(task)
-
-
-@router.delete("/tasks/{task_id}", status_code=204)
-def delete_task(task_id: int, db: Session = Depends(get_db)):
-    task = db.get(LanguageTask, task_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail="Task not found")
-    db.delete(task)  # deleting a template cascades to its instances
-    db.commit()
-
-
-# ---------------------------------------------------------------------------
-# targets
-# ---------------------------------------------------------------------------
-
-
-def _target_current(
-    db: Session, target: LanguageTarget, tz_offset: int, week_key: str
-) -> int:
-    start, end = _week_bounds_utc(tz_offset)
-    if not target.auto:
-        return target.manual_count if target.week_key == week_key else 0
-    logs_this_week = (
-        select(func.count(ReviewLog.id))
-        .where(ReviewLog.reviewed_at >= start)
-        .where(ReviewLog.reviewed_at < end)
-    )
-    if target.metric == "reviews":
-        return db.execute(logs_this_week).scalar_one()
-    if target.metric in ("fr_reviews", "es_reviews"):
-        lang = Language.fr if target.metric == "fr_reviews" else Language.es
-        return db.execute(logs_this_week.where(ReviewLog.language == lang)).scalar_one()
-    if target.metric == "new_cards":
-        return db.execute(
-            select(func.count(Flashcard.id))
-            .where(Flashcard.created_at >= start)
-            .where(Flashcard.created_at < end)
-        ).scalar_one()
-    if target.metric == "cards_matured":
-        return db.execute(
-            select(func.count(FlashcardReview.id))
-            .where(FlashcardReview.stability >= MATURE_STABILITY_DAYS)
-            .where(FlashcardReview.last_review >= start)
-            .where(FlashcardReview.last_review < end)
-        ).scalar_one()
-    return 0
-
-
-def _week_key(tz_offset: int) -> str:
-    today = _local_today(tz_offset)
-    iso = today.isocalendar()
-    return f"{iso.year}-W{iso.week:02d}"
-
-
-def _target_out(db: Session, t: LanguageTarget, tz_offset: int) -> TargetOut:
-    return TargetOut(
-        id=t.id,
-        metric=t.metric,
-        label=t.label,
-        target=t.target,
-        auto=t.auto,
-        current=_target_current(db, t, tz_offset, _week_key(tz_offset)),
-    )
-
-
-@router.get("/targets", response_model=list[TargetOut])
-def list_targets(tz_offset: int = 0, db: Session = Depends(get_db)):
-    targets = (
-        db.execute(select(LanguageTarget).order_by(LanguageTarget.id)).scalars().all()
-    )
-    return [_target_out(db, t, tz_offset) for t in targets]
-
-
-@router.post("/targets", response_model=TargetOut, status_code=201)
-def create_target(body: TargetCreate, tz_offset: int = 0, db: Session = Depends(get_db)):
-    if db.execute(
-        select(LanguageTarget).where(LanguageTarget.metric == body.metric)
-    ).scalar_one_or_none():
-        raise HTTPException(status_code=409, detail="Metric already has a target")
-    target = LanguageTarget(
-        metric=body.metric.strip(),
-        label=body.label.strip(),
-        target=body.target,
-        auto=body.auto,
-    )
-    db.add(target)
-    db.commit()
-    db.refresh(target)
-    return _target_out(db, target, tz_offset)
-
-
-@router.patch("/targets/{target_id}", response_model=TargetOut)
-def update_target(
-    target_id: int, body: TargetUpdate, tz_offset: int = 0, db: Session = Depends(get_db)
-):
-    target = db.get(LanguageTarget, target_id)
-    if target is None:
-        raise HTTPException(status_code=404, detail="Target not found")
-    data = body.model_dump(exclude_unset=True)
-    if "label" in data and data["label"]:
-        target.label = data["label"].strip()
-    if "target" in data and data["target"]:
-        target.target = data["target"]
-    db.commit()
-    db.refresh(target)
-    return _target_out(db, target, tz_offset)
-
-
-@router.post("/targets/{target_id}/tick", response_model=TargetOut)
-def tick_target(
-    target_id: int,
-    delta: int = Query(default=1, ge=-1, le=1),
-    tz_offset: int = 0,
-    db: Session = Depends(get_db),
-):
-    """Bump a manual target's weekly count (resets when the week rolls over)."""
-    target = db.get(LanguageTarget, target_id)
-    if target is None:
-        raise HTTPException(status_code=404, detail="Target not found")
-    if target.auto:
-        raise HTTPException(status_code=400, detail="Auto targets track themselves")
-    week = _week_key(tz_offset)
-    if target.week_key != week:
-        target.week_key = week
-        target.manual_count = 0
-    target.manual_count = max(0, target.manual_count + delta)
-    db.commit()
-    db.refresh(target)
-    return _target_out(db, target, tz_offset)
-
-
-@router.delete("/targets/{target_id}", status_code=204)
-def delete_target(target_id: int, db: Session = Depends(get_db)):
-    target = db.get(LanguageTarget, target_id)
-    if target is None:
-        raise HTTPException(status_code=404, detail="Target not found")
-    db.delete(target)
-    db.commit()
-
-
-# ---------------------------------------------------------------------------
-# dashboard
-# ---------------------------------------------------------------------------
-
-
-@router.get("/dashboard", response_model=LanguageDashboard)
-def dashboard(tz_offset: int = 0, db: Session = Depends(get_db)):
-    now = _now()
-    today = _local_today(tz_offset)
-
-    # --- review-log driven stats (streak, heatmap, retention, guardrail)
-    since = now - timedelta(days=190)
-    logs = db.execute(
-        select(ReviewLog.reviewed_at, ReviewLog.language, ReviewLog.rating, ReviewLog.state)
-        .where(ReviewLog.reviewed_at >= since)
-        .order_by(ReviewLog.reviewed_at)
-    ).all()
-
-    by_day: dict[date, int] = {}
-    for reviewed_at, _, _, _ in logs:
-        day = _local_day(reviewed_at, tz_offset)
-        by_day[day] = by_day.get(day, 0) + 1
-
-    streak = 0
-    cursor = today
-    if cursor not in by_day:
-        cursor -= timedelta(days=1)  # today isn't studied yet — don't break it
-    while cursor in by_day:
-        streak += 1
-        cursor -= timedelta(days=1)
-
-    heatmap = [
-        HeatmapDay(day=d, count=by_day.get(d, 0))
-        for d in (today - timedelta(days=i) for i in range(181, -1, -1))
-    ]
-
-    retention: dict[str, float | None] = {}
-    cutoff_30 = now - timedelta(days=30)
-    for lang in (Language.fr, Language.es):
-        graded = [
-            rating
-            for reviewed_at, language, rating, state in logs
-            if language == lang
-            and reviewed_at >= cutoff_30
-            and state in (ReviewStateName.review, ReviewStateName.relearning)
-        ]
-        retention[lang.value] = (
-            round(sum(1 for r in graded if r > 1) / len(graded), 4) if graded else None
-        )
-
-    week_start, week_end = _week_bounds_utc(tz_offset)
-    es_week = sum(
-        1
-        for reviewed_at, language, _, _ in logs
-        if language == Language.es and week_start <= reviewed_at < week_end
-    )
-    floor_target = db.execute(
-        select(LanguageTarget).where(LanguageTarget.metric == "es_reviews")
-    ).scalar_one_or_none()
-    floor = floor_target.target if floor_target else DEFAULT_ES_FLOOR
-
-    reviews_today = by_day.get(today, 0)
-
-    # --- card counts by language
-    end_of_today_utc = datetime.combine(
-        today + timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc
-    ) + timedelta(minutes=tz_offset)
-    counts = {
-        "due": {"fr": 0, "es": 0},
-        "new": {"fr": 0, "es": 0},
-        "total": {"fr": 0, "es": 0},
-        "mature": {"fr": 0, "es": 0},
-    }
-    rows = db.execute(
-        select(
-            FlashcardDeck.language,
-            func.count(Flashcard.id),
-            func.count(Flashcard.id).filter(
-                FlashcardReview.state != ReviewStateName.new,
-                FlashcardReview.due < end_of_today_utc,
-            ),
-            func.count(Flashcard.id).filter(
-                FlashcardReview.state == ReviewStateName.new
-            ),
-            func.count(Flashcard.id).filter(
-                FlashcardReview.stability >= MATURE_STABILITY_DAYS
-            ),
-        )
-        .select_from(Flashcard)
-        .join(FlashcardDeck, FlashcardDeck.id == Flashcard.deck_id)
-        .join(FlashcardReview, FlashcardReview.card_id == Flashcard.id)
-        .group_by(FlashcardDeck.language)
-    ).all()
-    for lang, total, due, new, mature in rows:
-        code = _lang_code(lang)
-        counts["total"][code] = total
-        counts["due"][code] = due
-        counts["new"][code] = new
-        counts["mature"][code] = mature
-
-    targets = (
-        db.execute(select(LanguageTarget).order_by(LanguageTarget.id)).scalars().all()
-    )
-
-    return LanguageDashboard(
-        streak_days=streak,
-        reviews_today=reviews_today,
-        due_today=LanguageSplit(**counts["due"]),
-        new_cards=LanguageSplit(**counts["new"]),
-        total_cards=LanguageSplit(**counts["total"]),
-        mature_cards=LanguageSplit(**counts["mature"]),
-        retention_30d=RetentionOut(fr=retention["fr"], es=retention["es"]),
-        guardrail=GuardrailOut(es_reviews_this_week=es_week, floor=floor),
-        tasks=[TaskOut.model_validate(t) for t in _today_tasks(db, today)],
-        targets=[_target_out(db, t, tz_offset) for t in targets],
-        heatmap=heatmap,
-        decks=_list_decks(db),
     )
 
 
@@ -1398,6 +1014,131 @@ def create_card_from_annotation(
     db.commit()
     db.refresh(card)
     return _card_out(card)
+
+
+# ---------------------------------------------------------------------------
+# bulk import — paste a word list, or upload a Kobo highlight database
+# ---------------------------------------------------------------------------
+
+
+def _import_item(lookup: TextLookupOut, term: str, book: str = "") -> ImportItem:
+    return ImportItem(
+        selected_text=term,
+        book=book,
+        front=lookup.headword or term,
+        back=lookup.translation,
+        ipa=lookup.ipa,
+        gender=lookup.gender,
+        part_of_speech=lookup.part_of_speech,
+        cognate_note=lookup.cognate_note,
+        is_false_friend=lookup.is_false_friend,
+        is_inflected=lookup.is_inflected,
+        form_note=lookup.form_note,
+        lexeme_id=lookup.lexeme_id,
+        existing_decks=sorted({loc.deck_name for loc in lookup.existing_cards}),
+    )
+
+
+def _split_terms(text: str, limit: int = 500) -> list[str]:
+    """Newline- or comma-separated list → unique, trimmed terms (order kept)."""
+    seen: set[str] = set()
+    terms: list[str] = []
+    for chunk in text.replace(",", "\n").splitlines():
+        term = " ".join(chunk.split())
+        key = term.lower()
+        if term and key not in seen:
+            seen.add(key)
+            terms.append(term)
+        if len(terms) >= limit:
+            break
+    return terms
+
+
+@router.post("/import/kobo", response_model=ImportPreviewOut)
+async def kobo_preview(
+    language: Language = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    """Parse an uploaded KoboReader.sqlite into resolved, deduped card drafts.
+
+    Read-only: nothing is written except the shared lexeme / dictionary caches
+    the resolver already populates. The client approves a subset and posts it
+    back to /import/commit.
+    """
+    data = await file.read()
+    with tempfile.NamedTemporaryFile(suffix=".sqlite") as tmp:
+        tmp.write(data)
+        tmp.flush()
+        try:
+            highlights = kobo.parse_highlights(tmp.name)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    items = [
+        _import_item(_lookup_annotation_text(db, language, hl.text), hl.text, hl.book)
+        for hl in highlights
+    ]
+    return ImportPreviewOut(
+        language=language, total_highlights=len(highlights), items=items
+    )
+
+
+@router.post("/import/paste", response_model=ImportPreviewOut)
+def paste_preview(body: PasteImportIn, db: Session = Depends(get_db)):
+    """Resolve a pasted word/phrase list into deduped card drafts (loop lookup).
+
+    Each newline/comma-separated entry is one term; single words resolve via the
+    dictionary, multi-word phrases fall to the LLM. Same review→/import/commit
+    flow as the Kobo importer.
+    """
+    terms = _split_terms(body.text)
+    items = [
+        _import_item(_lookup_annotation_text(db, body.language, term), term)
+        for term in terms
+    ]
+    return ImportPreviewOut(
+        language=body.language, total_highlights=len(terms), items=items
+    )
+
+
+@router.post("/import/commit", response_model=ImportCommitOut)
+def import_commit(body: ImportCommitIn, db: Session = Depends(get_db)):
+    """Bulk-create the approved terms as cards, skipping deck duplicates."""
+    deck = db.get(FlashcardDeck, body.deck_id)
+    if deck is None:
+        raise HTTPException(status_code=404, detail="Deck not found")
+    language = _lang_code(deck.language)
+    created = skipped = 0
+    for draft in body.cards:
+        card = Flashcard(
+            deck_id=deck.id,
+            card_type=CardType.basic,
+            direction=CardDirection.recognition,
+            front=draft.front.strip(),
+            back=draft.back.strip(),
+            ipa=draft.ipa.strip(),
+            gender=draft.gender.strip(),
+            part_of_speech=draft.part_of_speech.strip(),
+            cognate_note=draft.cognate_note.strip(),
+            is_false_friend=draft.is_false_friend,
+            tags=[body.source.value],
+            source=body.source,
+            source_ref=draft.source_ref.strip()[:100],
+        )
+        enrich.enrich_card(db, card, language)
+        _assign_card_lexeme(db, card, language)
+        if card.lexeme and any(
+            loc["deck_id"] == deck.id
+            for loc in lexemes.card_locations(db, card.lexeme)
+        ):
+            skipped += 1
+            continue
+        card.review = FlashcardReview()
+        db.add(card)
+        created += 1
+    db.commit()
+    return ImportCommitOut(created=created, skipped=skipped)
 
 
 # ---------------------------------------------------------------------------

@@ -23,7 +23,7 @@ export const config = {
     "/blog/:path*",
     "/recipes/:path*",
     "/challenges/:path*",
-    "/language/:path*",
+    "/veteunpoquitoalamierda/:path*",
     "/journal/:path*",
     "/dashboard/:path*",
   ],

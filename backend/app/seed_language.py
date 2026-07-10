@@ -1,5 +1,5 @@
 """Seed the language tool: curated ES↔FR faux-amis, the minimal-pair drill
-deck, starter decks, default daily tasks and weekly targets.
+deck, and starter decks.
 
 Idempotent — run any time with `python -m app.seed_language`.
 """
@@ -15,8 +15,6 @@ from app.models import (
     FlashcardDeck,
     FlashcardReview,
     Language,
-    LanguageTarget,
-    LanguageTask,
 )
 
 # (fr, es, note) — the note teaches the trap via Spanish, per the plan.
@@ -82,21 +80,6 @@ STARTER_DECKS = [
     ("Español · Mantenimiento", Language.es, "C1 maintenance — Kobo imports land here."),
 ]
 
-DAILY_TASKS = [
-    ("20 French reviews", "study:fr:20"),
-    ("10 Spanish reviews", "study:es:10"),
-    ("10 min French listening (music / YouTube)", ""),
-]
-
-TARGETS = [
-    ("reviews", "Total reviews", 150, True),
-    ("fr_reviews", "French reviews", 100, True),
-    ("es_reviews", "Spanish reviews (guardrail)", 50, True),
-    ("new_cards", "New cards added", 20, True),
-    ("lessons", "italki lessons", 2, False),
-    ("input_minutes", "Listening minutes", 120, False),
-]
-
 
 def seed() -> None:
     db = SessionLocal()
@@ -139,20 +122,6 @@ def seed() -> None:
                 )
                 card.review = FlashcardReview()
                 db.add(card)
-
-        for text, action_ref in DAILY_TASKS:
-            if not db.execute(
-                select(LanguageTask).where(
-                    LanguageTask.text == text, LanguageTask.recurrence == "daily"
-                )
-            ).scalar_one_or_none():
-                db.add(LanguageTask(text=text, recurrence="daily", action_ref=action_ref))
-
-        for metric, label, target, auto in TARGETS:
-            if not db.execute(
-                select(LanguageTarget).where(LanguageTarget.metric == metric)
-            ).scalar_one_or_none():
-                db.add(LanguageTarget(metric=metric, label=label, target=target, auto=auto))
 
         db.commit()
         print("language seed complete")
