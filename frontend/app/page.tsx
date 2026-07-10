@@ -204,7 +204,6 @@ function ResumeSnapshot() {
 export default function HomePage() {
   return (
     <div data-section="home" className="relative">
-      <div className="bg-grid absolute inset-x-0 top-0 h-[28rem]" aria-hidden />
 
       {/* hero */}
       <section className="relative mx-auto grid w-full max-w-5xl gap-10 px-4 pt-24 pb-20 sm:px-6 sm:pt-32 lg:grid-cols-[1fr_360px] lg:items-start">

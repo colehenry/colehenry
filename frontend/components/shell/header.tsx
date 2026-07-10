@@ -28,7 +28,13 @@ export function Header() {
   const { me } = useMe();
   const logout = useLogout();
 
-  const navSections = sections.filter((s) => !s.ownerOnly || me);
+  const navSections = sections.filter(
+    (s) =>
+      (!s.ownerOnly || me) &&
+      s.slug !== "blog" &&
+      s.slug !== "journal" &&
+      s.slug !== "dashboard",
+  );
 
   return (
     <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-md">

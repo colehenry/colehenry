@@ -152,11 +152,13 @@
     @apply border-border outline-ring/50;
   }
   html {
-    @apply font-sans antialiased;
+    @apply bg-background font-sans antialiased;
     scroll-behavior: smooth;
   }
+  /* body stays transparent so the fixed constellation canvas (-z-10) shows
+     through the page behind all content */
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
   }
   /* headings share the terminal voice of the ~/colehenry logo */
   h1,

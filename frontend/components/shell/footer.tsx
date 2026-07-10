@@ -14,7 +14,7 @@ const links = [
 
 export function Footer() {
   return (
-    <footer className="border-t">
+    <footer className="relative z-10 border-t bg-background">
       <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-6 sm:px-6">
         <p className="font-mono text-xs text-muted-foreground">
           © {new Date().getFullYear()} cole henry

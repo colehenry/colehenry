@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 
+import { HeroConstellation } from "@/components/portfolio/hero-constellation";
 import { CommandPalette } from "@/components/shell/command-palette";
 import { Footer } from "@/components/shell/footer";
 import { Header } from "@/components/shell/header";
@@ -38,6 +39,7 @@ export default function RootLayout({
       >
         <Providers>
           <Header />
+          <HeroConstellation />
           <main className="flex-1">{children}</main>
           <Footer />
           <CommandPalette />
