@@ -44,7 +44,7 @@ export const sections: Section[] = [
   {
     slug: "challenges",
     path: "/challenges",
-    name: "/25",
+    name: "25",
     accent: "challenges",
     description: "The 25 — a personal challenge log. Owner only.",
     ownerOnly: true,

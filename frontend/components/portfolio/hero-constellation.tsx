@@ -23,12 +23,14 @@ const STEP = 14;
 const GLOW_SIZE = 480;
 /** gravity well radius (px) and max pull (px) — wide and gentle */
 const WELL_R = 420;
-const WELL_PULL = 42;
-/** spring that drags the well after the cursor (overshoot = bounce) */
-const STIFF = 0.085;
-const DAMP = 0.8;
-/** fraction of scroll the field travels (parallax depth) */
-const PARALLAX = 0.4;
+const WELL_PULL = 50;
+/** spring that drags the well after the cursor — stiff and heavily damped so
+    it snaps hard onto the cursor with barely one overshoot: intense gravity */
+const STIFF = 0.22;
+const DAMP = 0.62;
+/** grid scrolls 1:1 with the page (attached); stars lag behind for depth */
+const GRID_PARALLAX = 1;
+const STAR_PARALLAX = 0.4;
 /** base grid line opacity (old blueprint grid was 0.04) */
 const GRID_ALPHA = 0.1;
 /** cursor→star link reach (px) */
@@ -49,6 +51,8 @@ export function HeroConstellation() {
   const pathname = usePathname();
   // catan has its own hex-board backdrop — no spacetime there
   const disabled = pathname.startsWith("/catan");
+  // the carolina cursor glow is a home-page-only flourish
+  const showGlow = pathname === "/";
 
   useEffect(() => {
     if (disabled) return;
@@ -161,7 +165,7 @@ export function HeroConstellation() {
 
     const drawGrid = () => {
       const active = power >= 0.01;
-      const scroll = window.scrollY * PARALLAX;
+      const scroll = window.scrollY * GRID_PARALLAX;
       const offY = CELL - (scroll % CELL);
 
       ctx.lineWidth = 1;
@@ -191,7 +195,7 @@ export function HeroConstellation() {
     };
 
     const drawStars = () => {
-      const scroll = window.scrollY * PARALLAX;
+      const scroll = window.scrollY * STAR_PARALLAX;
       ctx.lineWidth = 1;
       for (const a of stars) {
         // parallax scroll (wrapped), then pulled by the well like the grid
@@ -234,7 +238,7 @@ export function HeroConstellation() {
         wvy = (wvy + (mouse.y - wy) * STIFF) * DAMP;
         wx += wvx;
         wy += wvy;
-        power += (1 - power) * 0.1;
+        power += (1 - power) * 0.2; // gravity engages fast
       } else {
         power += (0 - power) * 0.06;
       }
@@ -330,7 +334,7 @@ export function HeroConstellation() {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("scroll", onScrollStatic);
     };
-  }, [disabled]);
+  }, [disabled, showGlow]);
 
   if (disabled) return null;
 
@@ -349,19 +353,21 @@ export function HeroConstellation() {
         }}
       />
       {/* soft cursor glow above the content (below the z-50 header) so the
-          well stays visible even over opaque cards */}
-      <div
-        ref={glowRef}
-        aria-hidden
-        className="pointer-events-none fixed top-0 left-0 z-40 rounded-full opacity-0"
-        style={{
-          width: GLOW_SIZE,
-          height: GLOW_SIZE,
-          background:
-            "radial-gradient(circle closest-side, hsl(var(--carolina) / 0.06), transparent 70%)",
-          willChange: "transform, opacity",
-        }}
-      />
+          well stays visible even over opaque cards — home page only */}
+      {showGlow && (
+        <div
+          ref={glowRef}
+          aria-hidden
+          className="pointer-events-none fixed top-0 left-0 z-40 rounded-full opacity-0"
+          style={{
+            width: GLOW_SIZE,
+            height: GLOW_SIZE,
+            background:
+              "radial-gradient(circle closest-side, hsl(var(--carolina) / 0.06), transparent 70%)",
+            willChange: "transform, opacity",
+          }}
+        />
+      )}
     </>
   );
 }
