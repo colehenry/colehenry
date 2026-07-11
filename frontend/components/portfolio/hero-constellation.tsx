@@ -49,10 +49,14 @@ export function HeroConstellation() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const glowRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
+  // the spacetime backdrop is a home-page-only flourish: mounting/animating it
+  // site-wide meant every route paid a full-viewport 60fps canvas loop for a
+  // background only the landing page shows
+  const homeOnly = pathname === "/";
   // catan has its own hex-board backdrop — no spacetime there
-  const disabled = pathname.startsWith("/catan");
-  // the carolina cursor glow is a home-page-only flourish
-  const showGlow = pathname === "/";
+  const disabled = pathname.startsWith("/catan") || !homeOnly;
+  // the carolina cursor glow rides above the content on the home page
+  const showGlow = homeOnly;
 
   useEffect(() => {
     if (disabled) return;
@@ -115,7 +119,9 @@ export function HeroConstellation() {
     };
 
     const resize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      // cap DPR below the retina 2× so the full-viewport clear+redraw each
+      // frame moves ~44% fewer pixels — imperceptible on a faint grid
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
       const rect = canvas.getBoundingClientRect();
       rectLeft = rect.left;
       rectTop = rect.top;
