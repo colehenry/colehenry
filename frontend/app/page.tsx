@@ -1,9 +1,11 @@
 "use client";
 
 import { ArrowUpRight, FileText, Mail } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 
 import { AppLogoIcon, GitHubIcon, LinkedInIcon } from "@/components/icons";
+import { QuenoseteolvideShowcase } from "@/components/language/quenoseteolvide-showcase";
 import { ResumeSection } from "@/components/portfolio/resume-section";
 import { resume } from "@/lib/resume";
 import { cn } from "@/lib/utils";
@@ -151,6 +153,87 @@ function LapwiseProjectSection() {
   );
 }
 
+function QuenoseteolvideProjectSection() {
+  return (
+    <section aria-labelledby="quenoseteolvide-project-title">
+      <h2 className="section-label">01 / project</h2>
+      <div className="mt-6 grid gap-6 lg:grid-cols-[1.22fr_0.78fr] lg:items-start">
+        <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+          <div className="flex items-center gap-2 border-b bg-muted px-3 py-2">
+            <span className="flex gap-1.5" aria-hidden>
+              <span className="size-2.5 rounded-full bg-destructive/60" />
+              <span className="size-2.5 rounded-full bg-brand-2/70" />
+              <span className="size-2.5 rounded-full bg-brand/60" />
+            </span>
+            <span className="mx-auto truncate rounded-sm bg-background px-3 py-0.5 font-mono text-[11px] text-muted-foreground">
+              colehenry.dev/quenoseteolvide/showcase
+            </span>
+            <Link
+              href="/quenoseteolvide/showcase"
+              className="text-muted-foreground transition-colors duration-150 hover:text-brand"
+              aria-label="Open the Qué no se te olvide preview"
+            >
+              <ArrowUpRight className="size-4" />
+            </Link>
+          </div>
+          <Link
+            href="/quenoseteolvide/showcase"
+            className="group relative block focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand"
+            aria-label="Explore the full Qué no se te olvide interactive preview"
+          >
+            <QuenoseteolvideShowcase compact />
+            <span className="absolute inset-0 flex items-end justify-end bg-black/0 p-4 transition-colors duration-250 group-hover:bg-black/10 group-focus-visible:bg-black/10">
+              <span className="translate-y-1 rounded-full border border-white/35 bg-black/70 px-3 py-1.5 font-mono text-[10px] text-white opacity-0 shadow-sm transition-all duration-250 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100">
+                Open full preview ↗
+              </span>
+            </span>
+          </Link>
+        </div>
+
+        <div>
+          <h3
+            id="quenoseteolvide-project-title"
+            className="font-heading text-3xl font-medium tracking-tight"
+            lang="es"
+          >
+            <Link
+              href="/quenoseteolvide/showcase"
+              className="transition-colors duration-150 hover:text-brand"
+            >
+              Qué no se te olvide
+            </Link>
+          </h3>
+          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+            A personal language-learning workspace for reading in context,
+            turning unfamiliar phrases into flashcards, and retaining them
+            through spaced review. The public preview uses curated sample data;
+            the working app and personal study history stay private.
+          </p>
+          <div className="mt-5 flex flex-wrap gap-1.5">
+            {["Next.js", "React", "TypeScript", "FastAPI", "PostgreSQL"].map(
+              (tech) => (
+                <span
+                  key={tech}
+                  className="rounded-full border border-brand/25 bg-card px-3 py-1 font-mono text-[11px] text-muted-foreground"
+                >
+                  {tech}
+                </span>
+              ),
+            )}
+          </div>
+          <Link
+            href="/quenoseteolvide/showcase"
+            className="mt-6 inline-flex items-center gap-1.5 font-mono text-xs text-brand underline-offset-4 hover:underline"
+          >
+            Explore the view-only preview
+            <ArrowUpRight className="size-3.5" />
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function ResumeSnapshot() {
   return (
     <aside
@@ -264,6 +347,7 @@ export default function HomePage() {
       {/* content sections */}
       <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-24 px-4 pb-32 sm:px-6">
         <LapwiseProjectSection />
+        <QuenoseteolvideProjectSection />
         <ResumeSection />
       </div>
     </div>

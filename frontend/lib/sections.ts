@@ -50,11 +50,11 @@ export const sections: Section[] = [
     ownerOnly: true,
   },
   {
-    slug: "language",
-    path: "/veteunpoquitoalamierda",
-    name: "veteunpoquitoalamierda",
+    slug: "quenoseteolvide",
+    path: "/quenoseteolvide",
+    name: "Qué no se te olvide",
     accent: "language",
-    description: "Flashcard decks and spaced-repetition study.",
+    description: "Reading, reference, and spaced-repetition study.",
     ownerOnly: true,
   },
   {

@@ -39,7 +39,7 @@ export function ResumeSection() {
   return (
     <section id="resume" className="scroll-mt-20">
       <div className="flex items-center justify-between">
-        <h2 className="section-label">01 / resume</h2>
+        <h2 className="section-label">02 / resume</h2>
         <Button variant="outline" size="sm" asChild>
           <a href={resume.pdf} download>
             <Download className="size-4" />

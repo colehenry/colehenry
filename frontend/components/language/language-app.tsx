@@ -142,7 +142,7 @@ export function LanguageApp() {
   useEffect(() => {
     const onChange = () =>
       setFullscreen(
-        document.fullscreenElement?.id === "language-trainer-app",
+        document.fullscreenElement?.id === "quenoseteolvide-app",
       );
     document.addEventListener("fullscreenchange", onChange);
     return () => document.removeEventListener("fullscreenchange", onChange);
@@ -154,7 +154,7 @@ export function LanguageApp() {
       void document.exitFullscreen().catch(() => {});
     } else {
       void document
-        .getElementById("language-trainer-app")
+        .getElementById("quenoseteolvide-app")
         ?.requestFullscreen()
         .catch(() => {});
     }
@@ -216,38 +216,40 @@ export function LanguageApp() {
   );
 
   return (
-    <div data-section="language" id="language-trainer-app" className="xp-app">
+    <div data-section="language" id="quenoseteolvide-app" className="xp-app">
       <div className="xp-desktop">
         <div className={`xp-window ${wide ? "is-wide" : ""}`}>
           <div className="xp-titlebar">
             <span className="xp-title-text">
-              {titlePhrase ? (
-                <button
-                  type="button"
-                  className="xp-title-phrase"
-                  title={`Look up in wiki (${titlePhrase.language.toUpperCase()})`}
-                  onClick={() => {
-                    setPhrasePoint(null);
-                    setWikiQuery({
-                      language: titlePhrase.language,
-                      word: titlePhrase.text,
-                    });
-                    goWiki("search");
-                  }}
-                  onMouseEnter={(event) => {
-                    cancelPhraseClose();
-                    const box = event.currentTarget.getBoundingClientRect();
-                    setPhrasePoint({
-                      top: box.bottom,
-                      left: box.left + box.width / 2,
-                    });
-                  }}
-                  onMouseLeave={schedulePhraseClose}
-                >
-                  {titlePhrase.text}
-                </button>
-              ) : (
-                "Language Trainer"
+              Qué no se te olvide
+              {titlePhrase && (
+                <>
+                  {" — "}
+                  <button
+                    type="button"
+                    className="xp-title-phrase"
+                    title={`Look up in wiki (${titlePhrase.language.toUpperCase()})`}
+                    onClick={() => {
+                      setPhrasePoint(null);
+                      setWikiQuery({
+                        language: titlePhrase.language,
+                        word: titlePhrase.text,
+                      });
+                      goWiki("search");
+                    }}
+                    onMouseEnter={(event) => {
+                      cancelPhraseClose();
+                      const box = event.currentTarget.getBoundingClientRect();
+                      setPhrasePoint({
+                        top: box.bottom,
+                        left: box.left + box.width / 2,
+                      });
+                    }}
+                    onMouseLeave={schedulePhraseClose}
+                  >
+                    {titlePhrase.text}
+                  </button>
+                </>
               )}
               {dueTotal > 0 ? ` — ${dueTotal} due` : ""}
             </span>
@@ -319,7 +321,7 @@ export function LanguageApp() {
                   "help",
                   "Help",
                   <>
-                    {menuItem("About Language Trainer…", () => {
+                    {menuItem("About Qué no se te olvide…", () => {
                       setAboutOpen(true);
                       setOpenMenu(null);
                     })}
@@ -581,9 +583,13 @@ export function LanguageApp() {
             className="xp-dialog-backdrop cursor-default"
             onClick={() => setAboutOpen(false)}
           />
-          <div className="xp-dialog" role="dialog" aria-label="About Language Trainer">
+          <div
+            className="xp-dialog"
+            role="dialog"
+            aria-label="About Qué no se te olvide"
+          >
             <div className="xp-titlebar">
-              <span className="xp-title-text">About Language Trainer</span>
+              <span className="xp-title-text">About Qué no se te olvide</span>
               <button
                 type="button"
                 className="xp-caption-btn is-close"
@@ -594,7 +600,7 @@ export function LanguageApp() {
               </button>
             </div>
             <div className="xp-dialog-body">
-              <p style={{ fontWeight: 700 }}>Language Trainer</p>
+              <p style={{ fontWeight: 700 }}>Qué no se te olvide</p>
               <p className="xp-muted">Version 1.0 (Build 2006)</p>
               <p className="mt-3">
                 Spaced-repetition flashcards, annotated texts, and French /
