@@ -18,6 +18,7 @@ import {
   type LanguageCode,
 } from "@/lib/api/language";
 import { cardSpeechText, genderLabel, Speak, splitTags } from "./language-shared";
+import { ImportDialog } from "./import-dialog";
 
 const EMPTY_CARD_FORM = {
   front: "",
@@ -34,9 +35,11 @@ const EMPTY_CARD_FORM = {
 
 export function DecksView({
   decks,
+  readOnly = false,
   onStudyDeck,
 }: {
   decks: Deck[];
+  readOnly?: boolean;
   onStudyDeck: (deckId: number) => void;
 }) {
   const queryClient = useQueryClient();
@@ -50,6 +53,7 @@ export function DecksView({
   const [cardForm, setCardForm] = useState(EMPTY_CARD_FORM);
   const [editingCard, setEditingCard] = useState<Card | null>(null);
   const [confirmDeleteDeck, setConfirmDeleteDeck] = useState(false);
+  const [koboOpen, setKoboOpen] = useState(false);
 
   const effectiveSelectedDeckId = selectedDeckId ?? decks[0]?.id ?? null;
   const selectedDeck =
@@ -152,13 +156,24 @@ export function DecksView({
       <aside className="flex w-full flex-col gap-2 lg:w-60 lg:shrink-0">
         <div className="flex items-center justify-between">
           <span style={{ fontWeight: 700 }}>Decks</span>
-          <button
-            type="button"
-            className="xp-link"
-            onClick={() => setNewDeckOpen((open) => !open)}
-          >
-            [new deck]
-          </button>
+          {!readOnly && (
+            <span className="flex gap-2">
+              <button
+                type="button"
+                className="xp-link"
+                onClick={() => setKoboOpen(true)}
+              >
+                [import]
+              </button>
+              <button
+                type="button"
+                className="xp-link"
+                onClick={() => setNewDeckOpen((open) => !open)}
+              >
+                [new deck]
+              </button>
+            </span>
+          )}
         </div>
 
         {newDeckOpen && (
@@ -263,7 +278,7 @@ export function DecksView({
                 Study this deck
               </button>
             )}
-          {selectedDeck && (
+          {selectedDeck && !readOnly && (
             <button
               type="button"
               className="xp-link ml-auto"
@@ -326,7 +341,7 @@ export function DecksView({
           </>
         )}
 
-        {selectedDeck?.is_system ? (
+        {readOnly ? null : selectedDeck?.is_system ? (
           <p className="xp-muted">
             System deck (generated). Add manual cards to a personal deck.
           </p>
@@ -517,34 +532,40 @@ export function DecksView({
                         />{" "}
                       </>
                     )}
-                    <button
-                      type="button"
-                      className="xp-link"
-                      onClick={() => edit(card)}
-                    >
-                      [edit]
-                    </button>{" "}
-                    <button
-                      type="button"
-                      className="xp-link"
-                      onClick={() => enrichMutation.mutate(card.id)}
-                    >
-                      [enrich]
-                    </button>{" "}
-                    <button
-                      type="button"
-                      className="xp-link"
-                      onClick={() => deleteCardMutation.mutate(card.id)}
-                    >
-                      [delete]
-                    </button>
+                    {!readOnly && (
+                      <>
+                        <button
+                          type="button"
+                          className="xp-link"
+                          onClick={() => edit(card)}
+                        >
+                          [edit]
+                        </button>{" "}
+                        <button
+                          type="button"
+                          className="xp-link"
+                          onClick={() => enrichMutation.mutate(card.id)}
+                        >
+                          [enrich]
+                        </button>{" "}
+                        <button
+                          type="button"
+                          className="xp-link"
+                          onClick={() => deleteCardMutation.mutate(card.id)}
+                        >
+                          [delete]
+                        </button>
+                      </>
+                    )}
                   </td>
                 </tr>
               ))}
               {cards.data?.length === 0 && (
                 <tr>
                   <td colSpan={5} className="xp-muted">
-                    This deck is empty. Add a card above.
+                    {readOnly
+                      ? "This deck is empty."
+                      : "This deck is empty. Add a card above."}
                   </td>
                 </tr>
               )}
@@ -552,6 +573,17 @@ export function DecksView({
           </table>
         </div>
       </main>
+
+      {koboOpen && (
+        <ImportDialog
+          decks={decks}
+          onClose={() => setKoboOpen(false)}
+          onImported={(deckId) => {
+            setKoboOpen(false);
+            setSelectedDeckId(deckId);
+          }}
+        />
+      )}
     </div>
   );
 }

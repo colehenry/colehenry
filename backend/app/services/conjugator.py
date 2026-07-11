@@ -60,6 +60,15 @@ _REGULAR_TEMPLATES = {
 
 _GROUPS = {"fr": ("-er", "-ir", "-re"), "es": ("-ar", "-er", "-ir")}
 
+_FR_REFLEXIVE_CLITICS = {
+    "1s": "me",
+    "2s": "te",
+    "3s": "se",
+    "1p": "nous",
+    "2p": "vous",
+    "3p": "se",
+}
+
 SLOT_KEYS = {
     "fr": {
         ("indicatif", "présent"): ("indicative", "present"),
@@ -136,14 +145,41 @@ def _usable(form: str) -> bool:
     return bool(form) and form != "-" and not form.startswith("-")
 
 
+def _is_french_reflexive(infinitive: str, language: str) -> bool:
+    return language == "fr" and infinitive.startswith(("se ", "s'"))
+
+
+def _personalize_french_reflexive(form: str, person: str) -> str:
+    """Replace verbecc's generic ``se`` with the clitic for ``person``.
+
+    With subject pronouns disabled, verbecc keeps an invariant ``se``/``s'``
+    on French pronominal verbs. The UI supplies the subject separately, so a
+    row must contain ``me balade`` (not ``se balade`` or ``je me balade``).
+    """
+    clitic = _FR_REFLEXIVE_CLITICS.get(person)
+    if not clitic:
+        return form
+    if form.startswith("se "):
+        return f"{clitic} {form[3:]}"
+    if form.startswith("s'"):
+        rest = form[2:]
+        if clitic in ("me", "te", "se"):
+            return f"{clitic[0]}'{rest}"
+        return f"{clitic} {rest}"
+    return form
+
+
 def conjugate(infinitive: str, language: str = "fr") -> dict | None:
     """Return {infinitive, group, is_irregular, predicted, forms} or None.
 
     forms: [{mood, tense, person, form}], same shape as saved Conjugation rows.
     """
     infinitive = infinitive.strip().lower()
+    if language == "fr" and infinitive.startswith("s’"):
+        infinitive = f"s'{infinitive[2:]}"
     if not infinitive or language not in TENSE_MAPS or not available():
         return None
+    french_reflexive = _is_french_reflexive(infinitive, language)
     try:
         conj = _conjugator(language).conjugate(infinitive, conjugate_pronouns=False)
         data = conj.get_data() if hasattr(conj, "get_data") else conj
@@ -170,6 +206,8 @@ def conjugate(infinitive: str, language: str = "fr") -> dict | None:
         )
         for person, form in zip(persons, _forms_for(data, mood, verbecc_tense, persons)):
             form = form.strip()
+            if french_reflexive and mood != "imperatif":
+                form = _personalize_french_reflexive(form, person)
             if _usable(form):
                 slot_mood, slot_tense = SLOT_KEYS[language][(mood, our_tense)]
                 forms.append(
@@ -187,12 +225,17 @@ def conjugate(infinitive: str, language: str = "fr") -> dict | None:
     near_mood, near_tense, helpers, particle = _NEAR_FUTURE[language]
     for person, helper in zip(PERSONS_6, helpers):
         slot_mood, slot_tense = SLOT_KEYS[language][(near_mood, near_tense)]
+        near_infinitive = (
+            _personalize_french_reflexive(infinitive, person)
+            if french_reflexive
+            else infinitive
+        )
         forms.append(
             {
                 "mood": near_mood,
                 "tense": near_tense,
                 "person": person,
-                "form": f"{helper} {particle}{infinitive}",
+                "form": f"{helper} {particle}{near_infinitive}",
                 "slot_key": f"{slot_mood}:{slot_tense}:{person}",
             }
         )

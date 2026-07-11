@@ -12,8 +12,6 @@ from app.models.language import (
     FlashcardReview,
     Language,
     LanguageLexeme,
-    LanguageTarget,
-    LanguageTask,
     LanguageText,
     LanguageTextAnnotation,
     LexiqueEntry,
@@ -28,6 +26,7 @@ from app.models.language import (
     WikiEntry,
 )
 from app.models.project import Project, Visibility
+from app.models.recipe import Recipe
 from app.models.user import User
 
 __all__ = [
@@ -47,12 +46,11 @@ __all__ = [
     "FlashcardReview",
     "Language",
     "LanguageLexeme",
-    "LanguageTarget",
-    "LanguageTask",
     "LanguageText",
     "LanguageTextAnnotation",
     "LexiqueEntry",
     "Project",
+    "Recipe",
     "ReviewLog",
     "ReviewStateName",
     "SupportedLanguage",

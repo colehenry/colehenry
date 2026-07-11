@@ -198,110 +198,6 @@ export function reviewCard(cardId: number, rating: number): Promise<ReviewOut> {
 }
 
 // ---------------------------------------------------------------------------
-// tasks + targets
-// ---------------------------------------------------------------------------
-
-export const taskSchema = z.object({
-  id: z.number(),
-  text: z.string(),
-  done: z.boolean(),
-  task_date: z.string().nullable(),
-  recurrence: z.string(),
-  template_id: z.number().nullable(),
-  action_ref: z.string(),
-});
-export type Task = z.infer<typeof taskSchema>;
-
-export function createTask(body: {
-  text: string;
-  task_date?: string | null;
-  recurrence?: string;
-  action_ref?: string;
-}): Promise<Task> {
-  return apiFetch("/language/tasks", taskSchema, {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
-}
-
-export function updateTask(
-  id: number,
-  body: { text?: string; done?: boolean },
-): Promise<Task> {
-  return apiFetch(`/language/tasks/${id}`, taskSchema, {
-    method: "PATCH",
-    body: JSON.stringify(body),
-  });
-}
-
-export async function deleteTask(id: number): Promise<void> {
-  const res = await fetch(`${API_URL}/language/tasks/${id}`, {
-    method: "DELETE",
-    credentials: "include",
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new ApiError(res.status, body || res.statusText);
-  }
-}
-
-export const targetSchema = z.object({
-  id: z.number(),
-  metric: z.string(),
-  label: z.string(),
-  target: z.number(),
-  auto: z.boolean(),
-  current: z.number(),
-});
-export type Target = z.infer<typeof targetSchema>;
-
-export function tickTarget(id: number, delta: 1 | -1 = 1): Promise<Target> {
-  return apiFetch(
-    `/language/targets/${id}/tick?delta=${delta}&tz_offset=${tzOffset()}`,
-    targetSchema,
-    { method: "POST" },
-  );
-}
-
-// ---------------------------------------------------------------------------
-// dashboard
-// ---------------------------------------------------------------------------
-
-const splitSchema = z.object({ fr: z.number(), es: z.number() });
-export type LanguageSplit = z.infer<typeof splitSchema>;
-
-export const dashboardSchema = z.object({
-  streak_days: z.number(),
-  reviews_today: z.number(),
-  due_today: splitSchema,
-  new_cards: splitSchema,
-  total_cards: splitSchema,
-  mature_cards: splitSchema,
-  retention_30d: z.object({
-    fr: z.number().nullable(),
-    es: z.number().nullable(),
-  }),
-  guardrail: z.object({
-    es_reviews_this_week: z.number(),
-    floor: z.number(),
-  }),
-  tasks: z.array(taskSchema),
-  targets: z.array(targetSchema),
-  heatmap: z.array(z.object({ day: z.string(), count: z.number() })),
-  decks: z.array(deckSchema),
-});
-export type LanguageDashboard = z.infer<typeof dashboardSchema>;
-
-/** Minutes behind UTC (JS convention) — lets the API bucket days locally. */
-export function tzOffset(): number {
-  return new Date().getTimezoneOffset();
-}
-
-export function getLanguageDashboard(): Promise<LanguageDashboard> {
-  return apiFetch(`/language/dashboard?tz_offset=${tzOffset()}`, dashboardSchema);
-}
-
-// ---------------------------------------------------------------------------
 // text library + annotations
 // ---------------------------------------------------------------------------
 
@@ -712,4 +608,93 @@ export async function removeVerbFromSet(
     { method: "DELETE", credentials: "include" },
   );
   if (!res.ok) throw new ApiError(res.status, await res.text());
+}
+
+// ---------------------------------------------------------------------------
+// bulk import — paste a word list, or upload a Kobo highlight database
+// ---------------------------------------------------------------------------
+
+export const importItemSchema = z.object({
+  selected_text: z.string(),
+  book: z.string(),
+  front: z.string(),
+  back: z.string(),
+  ipa: z.string(),
+  gender: z.string(),
+  part_of_speech: z.string(),
+  cognate_note: z.string(),
+  is_false_friend: z.boolean(),
+  is_inflected: z.boolean(),
+  form_note: z.string(),
+  lexeme_id: z.number().nullable(),
+  existing_decks: z.array(z.string()),
+});
+export type ImportItem = z.infer<typeof importItemSchema>;
+
+export const importPreviewSchema = z.object({
+  language: languageCodeSchema,
+  total_highlights: z.number(),
+  items: z.array(importItemSchema),
+});
+export type ImportPreview = z.infer<typeof importPreviewSchema>;
+
+export type ImportSource = "paste" | "kobo";
+
+/** Resolve a pasted newline/comma-separated word list into card drafts. */
+export function pasteImportPreview(
+  language: LanguageCode,
+  text: string,
+): Promise<ImportPreview> {
+  return apiFetch("/language/import/paste", importPreviewSchema, {
+    method: "POST",
+    body: JSON.stringify({ language, text }),
+  });
+}
+
+/** Upload a KoboReader.sqlite; get back resolved, deduped card drafts. */
+export async function koboImportPreview(
+  language: LanguageCode,
+  file: File,
+): Promise<ImportPreview> {
+  const form = new FormData();
+  form.append("language", language);
+  form.append("file", file);
+  const res = await fetch(`${API_URL}/language/import/kobo`, {
+    method: "POST",
+    credentials: "include",
+    body: form,
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new ApiError(res.status, body || res.statusText);
+  }
+  return importPreviewSchema.parse(await res.json());
+}
+
+export type ImportCommitCard = {
+  front: string;
+  back?: string;
+  ipa?: string;
+  gender?: string;
+  part_of_speech?: string;
+  cognate_note?: string;
+  is_false_friend?: boolean;
+  source_ref?: string;
+};
+
+export const importCommitSchema = z.object({
+  created: z.number(),
+  skipped: z.number(),
+});
+export type ImportCommitResult = z.infer<typeof importCommitSchema>;
+
+export function importCommit(
+  deckId: number,
+  source: ImportSource,
+  cards: ImportCommitCard[],
+): Promise<ImportCommitResult> {
+  return apiFetch("/language/import/commit", importCommitSchema, {
+    method: "POST",
+    body: JSON.stringify({ deck_id: deckId, source, cards }),
+  });
 }

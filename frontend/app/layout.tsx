@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 
+import { HeroConstellation } from "@/components/portfolio/hero-constellation";
 import { CommandPalette } from "@/components/shell/command-palette";
 import { Footer } from "@/components/shell/footer";
 import { Header } from "@/components/shell/header";
@@ -34,13 +35,16 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${inter.variable} ${jetbrainsMono.variable} noise flex min-h-svh flex-col antialiased`}
+        className={`${inter.variable} ${jetbrainsMono.variable} bg-background noise flex min-h-svh flex-col antialiased`}
       >
         <Providers>
-          <Header />
-          <main className="flex-1">{children}</main>
-          <Footer />
-          <CommandPalette />
+          <div className="relative isolate flex min-h-svh flex-col">
+            <Header />
+            <HeroConstellation />
+            <main className="relative z-10 flex-1">{children}</main>
+            <Footer />
+            <CommandPalette />
+          </div>
         </Providers>
       </body>
     </html>

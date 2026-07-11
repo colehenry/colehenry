@@ -10,29 +10,24 @@ import {
   type Deck,
   type LanguageCode,
 } from "@/lib/api/language";
-import { cardSpeechText, genderLabel, Speak } from "./language-shared";
+import { cardSpeechText, genderLabel, Speak, speakText } from "./language-shared";
 
-const GRADES: [number, string, string][] = [
-  [1, "Again", "←"],
-  [2, "Hard", "↓"],
-  [3, "Good", "→"],
-  [4, "Easy", "↑"],
+const GRADES: [number, string][] = [
+  [1, "Again"],
+  [2, "Hard"],
+  [3, "Good"],
+  [4, "Easy"],
 ];
-
-const ARROW_GRADES: Record<string, number> = {
-  ArrowLeft: 1,
-  ArrowDown: 2,
-  ArrowRight: 3,
-  ArrowUp: 4,
-};
 
 export function StudyView({
   decks,
+  readOnly = false,
   initialLanguage,
   initialDeckId,
   initialVerbSetId,
 }: {
   decks: Deck[];
+  readOnly?: boolean;
   initialLanguage?: LanguageCode;
   initialDeckId?: number | null;
   initialVerbSetId?: number | null;
@@ -64,20 +59,24 @@ export function StudyView({
       listVerbSets(language === "all" ? undefined : language),
   });
 
+  const advance = useCallback(() => {
+    const cards = queue.data?.cards ?? [];
+    if (index + 1 < cards.length) {
+      setIndex((current) => current + 1);
+      setRevealed(false);
+    } else {
+      setIndex(0);
+      setRevealed(false);
+      queue.refetch();
+    }
+  }, [index, queue]);
+
   const reviewMutation = useMutation({
     mutationFn: ({ cardId, rating }: { cardId: number; rating: number }) =>
       reviewCard(cardId, rating),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["language", "decks"] });
-      const cards = queue.data?.cards ?? [];
-      if (index + 1 < cards.length) {
-        setIndex((current) => current + 1);
-        setRevealed(false);
-      } else {
-        setIndex(0);
-        setRevealed(false);
-        queue.refetch();
-      }
+      advance();
     },
   });
 
@@ -89,20 +88,46 @@ export function StudyView({
 
   const grade = useCallback(
     (rating: number) => {
-      if (!card || reviewMutation.isPending) return;
+      if (!card) return;
+      // The preview flips through the queue without writing review history.
+      if (readOnly) {
+        advance();
+        return;
+      }
+      if (reviewMutation.isPending) return;
       reviewMutation.mutate({ cardId: card.id, rating });
     },
-    [card, reviewMutation],
+    [card, readOnly, advance, reviewMutation],
   );
+
+  useEffect(() => {
+    // Production-card audio is the answer, so never autoplay it. The public
+    // preview never autoplays — audio only on an explicit button press.
+    if (!card || card.direction === "production" || readOnly) return;
+    void speakText(
+      cardLanguage,
+      cardSpeechText(card),
+      card.audio_url || undefined,
+    );
+  }, [card, cardLanguage, readOnly]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (!card) return;
       const target = event.target as HTMLElement | null;
       if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+      if (event.key.toLowerCase() === "p") {
+        if (card.direction === "production" && !revealed) return;
+        event.preventDefault();
+        void speakText(
+          cardLanguage,
+          cardSpeechText(card),
+          card.audio_url || undefined,
+        );
+        return;
+      }
       if (!revealed) {
-        // Space or any arrow flips the card.
-        if (event.key === " " || event.key in ARROW_GRADES) {
+        if (event.key === " ") {
           event.preventDefault();
           setRevealed(true);
         }
@@ -112,14 +137,10 @@ export function StudyView({
         event.preventDefault();
         grade(Number(event.key));
       }
-      if (event.key in ARROW_GRADES) {
-        event.preventDefault();
-        grade(ARROW_GRADES[event.key]);
-      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [card, grade, revealed]);
+  }, [card, cardLanguage, grade, revealed]);
 
   return (
     <div className="flex flex-col gap-2">
@@ -238,26 +259,21 @@ export function StudyView({
                 language={cardLanguage}
                 text={cardSpeechText(card)}
                 url={card.audio_url || undefined}
-                label="► Play audio"
-                className="xp-btn"
+                label="Play audio (P)"
+                className="xp-btn text-base"
               />
             ) : (
               <>
                 <p style={{ fontSize: "30px", lineHeight: 1.3 }}>{card.front}</p>
-                {card.ipa && (
-                  <p className="xp-ipa xp-muted mt-1" style={{ fontSize: "14px" }}>
-                    {card.ipa}
-                  </p>
-                )}
-                {/* Production cards would leak the answer — listen after reveal. */}
+                {/* A production card's audio is the answer. */}
                 {(card.direction !== "production" || revealed) && (
-                  <div className="mt-2">
+                  <div className="mt-5 flex justify-center">
                     <Speak
                       language={cardLanguage}
                       text={cardSpeechText(card)}
                       url={card.audio_url || undefined}
-                      label="► listen"
-                      className="xp-link"
+                      label="Play audio (P)"
+                      className="xp-btn text-base"
                     />
                   </div>
                 )}
@@ -305,19 +321,34 @@ export function StudyView({
           </div>
 
           {revealed ? (
-            <div className="flex flex-wrap justify-center gap-2">
-              {GRADES.map(([rating, label, arrow]) => (
+            readOnly ? (
+              <div className="flex flex-col items-center gap-1">
                 <button
-                  key={rating}
                   type="button"
-                  className={`xp-btn ${rating === 3 ? "is-default" : ""}`}
-                  disabled={reviewMutation.isPending}
-                  onClick={() => grade(rating)}
+                  className="xp-btn is-default"
+                  onClick={advance}
                 >
-                  {label} ({rating} {arrow})
+                  Next card
                 </button>
-              ))}
-            </div>
+                <p className="xp-muted">
+                  Read-only preview — reviews aren&apos;t saved.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-wrap justify-center gap-2">
+                {GRADES.map(([rating, label]) => (
+                  <button
+                    key={rating}
+                    type="button"
+                    className={`xp-btn ${rating === 3 ? "is-default" : ""}`}
+                    disabled={reviewMutation.isPending}
+                    onClick={() => grade(rating)}
+                  >
+                    {label} ({rating})
+                  </button>
+                ))}
+              </div>
+            )
           ) : (
             <div className="flex justify-center">
               <button
@@ -325,7 +356,7 @@ export function StudyView({
                 className="xp-btn is-default"
                 onClick={() => setRevealed(true)}
               >
-                Reveal (Space / arrows)
+                Reveal (Space)
               </button>
             </div>
           )}

@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -141,100 +141,6 @@ class ReviewOut(BaseModel):
     due: datetime
     # True when the card comes back later in this same session (learning steps)
     again_soon: bool
-
-
-# ---------------------------------------------------------------------------
-# dashboard
-# ---------------------------------------------------------------------------
-
-
-class LanguageSplit(BaseModel):
-    fr: int
-    es: int
-
-
-class RetentionOut(BaseModel):
-    fr: float | None
-    es: float | None
-
-
-class GuardrailOut(BaseModel):
-    es_reviews_this_week: int
-    floor: int
-
-
-class HeatmapDay(BaseModel):
-    day: date
-    count: int
-
-
-class TaskOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    text: str
-    done: bool
-    task_date: date | None
-    recurrence: str
-    template_id: int | None
-    action_ref: str
-
-
-class TaskCreate(BaseModel):
-    text: str
-    task_date: date | None = None
-    recurrence: str = ""  # "" | "daily"
-    action_ref: str = ""
-
-    @field_validator("text")
-    @classmethod
-    def text_not_blank(cls, value: str) -> str:
-        value = value.strip()
-        if not value:
-            raise ValueError("task text is required")
-        return value
-
-
-class TaskUpdate(BaseModel):
-    text: str | None = None
-    done: bool | None = None
-    action_ref: str | None = None
-
-
-class TargetOut(BaseModel):
-    id: int
-    metric: str
-    label: str
-    target: int
-    auto: bool
-    current: int
-
-
-class TargetCreate(BaseModel):
-    metric: str
-    label: str
-    target: int = Field(gt=0)
-    auto: bool = True
-
-
-class TargetUpdate(BaseModel):
-    label: str | None = None
-    target: int | None = Field(default=None, gt=0)
-
-
-class LanguageDashboard(BaseModel):
-    streak_days: int
-    reviews_today: int
-    due_today: LanguageSplit
-    new_cards: LanguageSplit
-    total_cards: LanguageSplit
-    mature_cards: LanguageSplit
-    retention_30d: RetentionOut
-    guardrail: GuardrailOut
-    tasks: list[TaskOut]
-    targets: list[TargetOut]
-    heatmap: list[HeatmapDay]
-    decks: list[DeckOut]
 
 
 # ---------------------------------------------------------------------------
@@ -394,6 +300,70 @@ class AnnotationCardCreate(BaseModel):
     direction: CardDirection = CardDirection.recognition
     tags: list[str] = Field(default_factory=list)
     enrich: bool = True
+
+
+# ---------------------------------------------------------------------------
+# bulk import (paste a word list, or upload a Kobo highlight database)
+# ---------------------------------------------------------------------------
+
+
+class ImportItem(BaseModel):
+    """One resolved term, ready to become a card (or already exists)."""
+
+    selected_text: str
+    book: str  # source label — book title for Kobo, "" for pasted lists
+    front: str  # canonical headword when resolved, else the term
+    back: str  # translation
+    ipa: str
+    gender: str
+    part_of_speech: str
+    cognate_note: str
+    is_false_friend: bool
+    is_inflected: bool
+    form_note: str
+    lexeme_id: int | None
+    existing_decks: list[str]  # deck names already holding this lexeme
+
+
+class ImportPreviewOut(BaseModel):
+    language: Language
+    total_highlights: int  # count of unique terms found in the source
+    items: list[ImportItem]
+
+
+class PasteImportIn(BaseModel):
+    language: Language
+    text: str  # newline- or comma-separated words / phrases
+
+
+class ImportCommitCard(BaseModel):
+    front: str
+    back: str = ""
+    ipa: str = ""
+    gender: str = ""
+    part_of_speech: str = ""
+    cognate_note: str = ""
+    is_false_friend: bool = False
+    source_ref: str = ""  # e.g. book title, kept for provenance
+
+    @field_validator("front")
+    @classmethod
+    def front_not_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("card front is required")
+        return value
+
+
+class ImportCommitIn(BaseModel):
+    deck_id: int
+    source: CardSource = CardSource.paste
+    cards: list[ImportCommitCard]
+
+
+class ImportCommitOut(BaseModel):
+    created: int
+    skipped: int  # duplicates already in the target deck
 
 
 # ---------------------------------------------------------------------------

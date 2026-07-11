@@ -10,6 +10,14 @@ const SESSION_COOKIE = "ch_session";
  * protected endpoint, so a forged cookie gets an empty page, not data.
  */
 export function proxy(request: NextRequest) {
+  // The curated showcase contains no owner data and is intentionally public.
+  if (
+    request.nextUrl.pathname === "/quenoseteolvide/showcase" ||
+    request.nextUrl.pathname.startsWith("/quenoseteolvide/showcase/")
+  ) {
+    return NextResponse.next();
+  }
+
   if (!request.cookies.has(SESSION_COOKIE)) {
     const login = new URL("/login", request.url);
     return NextResponse.redirect(login);
@@ -21,9 +29,8 @@ export const config = {
   // Keep in sync with ownerOnlyPaths in lib/sections.ts.
   matcher: [
     "/blog/:path*",
-    "/recipes/:path*",
     "/challenges/:path*",
-    "/language/:path*",
+    "/quenoseteolvide/:path*",
     "/journal/:path*",
     "/dashboard/:path*",
   ],

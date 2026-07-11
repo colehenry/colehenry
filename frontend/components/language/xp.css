@@ -1,5 +1,5 @@
 /* ---------------------------------------------------------------------------
- * "Language Trainer" — faux Windows-XP chrome for /language.
+ * "Qué no se te olvide" — faux Windows-XP application chrome.
  *
  * One application window on a teal desktop: Luna-ish title bar, menu bar,
  * tree panel, sunken wells, beveled buttons, status bar. Tahoma 11–12px,
@@ -658,4 +658,388 @@
 [data-section="language"] h4 {
   font-family: var(--xp-font);
   letter-spacing: 0;
+}
+
+/* --- public showcase ------------------------------------------------------ */
+
+.qnst-window {
+  max-width: 1120px;
+}
+
+.qnst-menubar {
+  min-height: 25px;
+}
+
+.qnst-preview-pill {
+  margin-left: auto;
+  margin-right: 5px;
+  padding: 2px 7px;
+  border: 1px solid var(--xp-face-lo);
+  background: var(--xp-tooltip-bg);
+  color: var(--xp-tooltip-text);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.qnst-tree-label {
+  margin: 8px 5px 3px;
+  color: var(--xp-text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.qnst-tree-label:first-child {
+  margin-top: 3px;
+}
+
+.qnst-view {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.qnst-view-heading {
+  display: flex;
+  min-height: 27px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.qnst-readonly-badge {
+  flex-shrink: 0;
+  padding: 2px 7px;
+  border: 1px solid var(--xp-face-lo);
+  background: var(--xp-face);
+  color: var(--xp-text-muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.qnst-reader-grid {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: 8px;
+}
+
+.qnst-document {
+  min-height: 390px;
+}
+
+.qnst-document p + p {
+  margin-top: 1em;
+}
+
+.qnst-inspector {
+  min-width: 0;
+  align-self: start;
+  padding: 14px 14px 16px;
+}
+
+.qnst-phrase {
+  font-family: var(--xp-doc-font);
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.qnst-translation {
+  margin-top: 4px;
+  font-weight: 700;
+}
+
+.qnst-note {
+  margin-top: 10px;
+  line-height: 1.5;
+}
+
+.qnst-tag {
+  display: inline-block;
+  margin-top: 12px;
+  padding: 2px 6px;
+  border: 1px solid var(--xp-well-border);
+  background: var(--xp-well);
+  color: var(--xp-text-muted);
+  font-size: 10px;
+}
+
+.qnst-preview-note {
+  margin-top: 18px;
+  padding-top: 10px;
+  border-top: 1px solid var(--xp-face-lo);
+  line-height: 1.45;
+}
+
+.qnst-study-view {
+  justify-content: flex-start;
+}
+
+.qnst-study-card {
+  width: min(600px, 100%);
+  margin: 24px auto 0;
+  padding: 26px;
+  text-align: center;
+}
+
+.qnst-study-front {
+  font-family: var(--xp-doc-font);
+  font-size: clamp(28px, 5vw, 42px);
+}
+
+.qnst-answer {
+  margin-top: 18px;
+  padding: 12px;
+  border: 1px solid var(--xp-well-border);
+  background: var(--xp-well);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.qnst-study-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 24px;
+}
+
+.qnst-local-note {
+  text-align: center;
+}
+
+.qnst-deck-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.qnst-deck-summary > div {
+  display: flex;
+  flex-direction: column;
+  padding: 14px;
+  border: 1px solid var(--xp-face-lo);
+  background: var(--xp-face);
+}
+
+.qnst-deck-summary b {
+  font-family: var(--xp-doc-font);
+  font-size: 24px;
+}
+
+.qnst-deck-summary span {
+  color: var(--xp-text-muted);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.qnst-wiki-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(280px, 1.2fr);
+  gap: 8px;
+}
+
+.qnst-wiki-grid .xp-group {
+  padding: 16px;
+}
+
+.qnst-wiki-word {
+  font-family: var(--xp-doc-font);
+  font-size: 34px;
+  font-weight: 700;
+}
+
+.qnst-conjugations {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px 16px;
+}
+
+.qnst-conjugations div {
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr);
+  gap: 6px;
+  padding-bottom: 3px;
+  border-bottom: 1px dotted var(--xp-face-lo);
+}
+
+.qnst-conjugations dt {
+  color: var(--xp-text-muted);
+}
+
+.qnst-conjugations dd {
+  font-weight: 700;
+}
+
+@media (max-width: 700px) {
+  .qnst-reader-grid,
+  .qnst-wiki-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .qnst-document {
+    min-height: 280px;
+    padding: 16px;
+    font-size: 15px;
+  }
+
+  .qnst-deck-summary {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* The portfolio card renders the same surface at miniature scale. */
+.qnst-showcase.is-compact {
+  height: 340px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.qnst-showcase.is-compact .xp-desktop {
+  height: 340px;
+  min-height: 0;
+  padding: 8px;
+}
+
+.qnst-showcase.is-compact .xp-window {
+  height: 100%;
+  min-height: 0;
+}
+
+.qnst-showcase.is-compact .xp-titlebar {
+  gap: 4px;
+  padding: 3px 3px 3px 7px;
+}
+
+.qnst-showcase.is-compact .xp-caption-btn {
+  width: 17px;
+  height: 17px;
+}
+
+.qnst-showcase.is-compact .xp-menubar {
+  min-height: 21px;
+  font-size: 9px;
+}
+
+.qnst-showcase.is-compact .xp-main {
+  min-height: 0;
+  overflow: hidden;
+  font-size: 10px;
+}
+
+.qnst-showcase.is-compact .xp-menubar-item {
+  padding: 2px 5px;
+}
+
+.qnst-showcase.is-compact .qnst-preview-pill {
+  max-width: 125px;
+  overflow: hidden;
+  padding: 1px 4px;
+  font-size: 8px;
+  text-overflow: ellipsis;
+}
+
+.qnst-showcase.is-compact .xp-mobile-nav {
+  display: none;
+}
+
+.qnst-showcase.is-compact .xp-body {
+  min-height: 0;
+  flex: 1;
+  gap: 4px;
+  overflow: hidden;
+  padding: 4px;
+}
+
+.qnst-showcase.is-compact .xp-tree-panel {
+  display: block;
+  width: 104px;
+}
+
+.qnst-showcase.is-compact .xp-tree {
+  overflow: hidden;
+  font-size: 9px;
+}
+
+.qnst-showcase.is-compact .xp-tree-item {
+  gap: 3px;
+  padding: 1px 3px;
+}
+
+.qnst-showcase.is-compact .xp-tree-item.is-child {
+  padding-left: 15px;
+}
+
+.qnst-showcase.is-compact .xp-tree-glyph {
+  width: 9px;
+  height: 9px;
+  font-size: 7px;
+}
+
+.qnst-showcase.is-compact .qnst-tree-label {
+  margin: 5px 3px 2px;
+  font-size: 7px;
+}
+
+.qnst-showcase.is-compact .qnst-view {
+  gap: 4px;
+}
+
+.qnst-showcase.is-compact .qnst-view-heading {
+  min-height: 19px;
+  gap: 4px;
+  font-size: 8px;
+}
+
+.qnst-showcase.is-compact .qnst-readonly-badge {
+  padding: 1px 3px;
+  font-size: 6px;
+}
+
+.qnst-showcase.is-compact .qnst-reader-grid {
+  min-height: 0;
+  grid-template-columns: minmax(0, 1fr) 112px;
+  gap: 4px;
+}
+
+.qnst-showcase.is-compact .qnst-document {
+  min-height: 0;
+  overflow: hidden;
+  padding: 9px;
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.qnst-showcase.is-compact .qnst-inspector {
+  overflow: hidden;
+  padding: 6px;
+  font-size: 8px;
+}
+
+.qnst-showcase.is-compact .qnst-phrase {
+  font-size: 14px;
+}
+
+.qnst-showcase.is-compact .qnst-translation,
+.qnst-showcase.is-compact .qnst-note {
+  margin-top: 3px;
+}
+
+.qnst-showcase.is-compact .qnst-tag {
+  margin-top: 5px;
+  padding: 1px 3px;
+  font-size: 7px;
+}
+
+.qnst-showcase.is-compact .xp-statusbar {
+  font-size: 8px;
+}
+
+.qnst-showcase.is-compact .xp-status-cell {
+  padding: 1px 4px;
 }

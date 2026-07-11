@@ -30,7 +30,16 @@ export function genderLabel(gender: string): string {
   return gender;
 }
 
-/** "je" + "aime" → "j'aime"; "il/elle" → "il". Mirrors the backend rule. */
+const FR_SUBJECTS: Record<string, string> = {
+  "1s": "je",
+  "2s": "tu",
+  "3s": "il",
+  "1p": "nous",
+  "2p": "vous",
+  "3p": "ils",
+};
+
+/** "je" + "aime" → "j'aime"; "il/elle" → "il" for speech. */
 export function joinSubject(person: string, form: string): string {
   const subject = person.startsWith("ils") ? "ils" : person.startsWith("il") ? "il" : person;
   if (subject === "je" && /^[aeiouyàâäéèêëîïôöùûüh]/i.test(form)) {
@@ -61,7 +70,8 @@ export function spokenConjugation(
     const phrase = `${subject} ${form}`;
     return mood === "subjuntivo" ? `que ${phrase}` : phrase;
   }
-  const phrase = joinSubject(person, form);
+  const subject = FR_SUBJECTS[person] ?? person;
+  const phrase = joinSubject(subject, form);
   if (mood === "subjonctif") {
     return /^[iî]/i.test(phrase) ? `qu'${phrase}` : `que ${phrase}`;
   }

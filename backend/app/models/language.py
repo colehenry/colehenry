@@ -1,9 +1,8 @@
 import enum
-from datetime import date, datetime
+from datetime import datetime
 
 from sqlalchemy import (
     Boolean,
-    Date,
     DateTime,
     Enum,
     Float,
@@ -237,44 +236,6 @@ class FalseFriend(Base):
     fr: Mapped[str] = mapped_column(String(80), nullable=False, unique=True)
     es: Mapped[str] = mapped_column(String(80), nullable=False)
     note: Mapped[str] = mapped_column(Text, nullable=False)
-
-
-class LanguageTask(Base):
-    """Daily checklist. Rows with a recurrence are templates (no date);
-    dated instances are generated from them on dashboard load."""
-
-    __tablename__ = "language_tasks"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    text: Mapped[str] = mapped_column(String(300), nullable=False)
-    done: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    task_date: Mapped[date | None] = mapped_column(Date, index=True)
-    recurrence: Mapped[str] = mapped_column(String(20), default="", nullable=False)  # ""|daily
-    template_id: Mapped[int | None] = mapped_column(
-        ForeignKey("language_tasks.id", ondelete="CASCADE")
-    )
-    # e.g. "study:fr:20" — makes the task startable in-app and auto-checkable
-    action_ref: Mapped[str] = mapped_column(String(100), default="", nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-
-    __table_args__ = (UniqueConstraint("template_id", "task_date"),)
-
-
-class LanguageTarget(Base):
-    """Weekly targets. Auto metrics are computed from review logs/cards;
-    manual ones are ticked by hand (count resets when week_key rolls over)."""
-
-    __tablename__ = "language_targets"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    metric: Mapped[str] = mapped_column(String(40), nullable=False, unique=True)
-    label: Mapped[str] = mapped_column(String(120), nullable=False)
-    target: Mapped[int] = mapped_column(Integer, nullable=False)
-    auto: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    manual_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    week_key: Mapped[str] = mapped_column(String(10), default="", nullable=False)
 
 
 class LanguageText(Base):

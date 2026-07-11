@@ -1,16 +1,16 @@
+"use client";
+
 import { Download } from "lucide-react";
 import Image from "next/image";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { resume } from "@/lib/resume";
+import { localizeDate, useLocale } from "@/lib/i18n/locale";
+import { ui } from "@/lib/i18n/ui";
+import { resume, type Bullet } from "@/lib/resume";
 
-function HighlightedBullet({
-  bullet,
-}: {
-  bullet: string | { text: string; highlights: string[] };
-}) {
-  if (typeof bullet === "string") return <>{bullet}</>;
+function HighlightedBullet({ bullet }: { bullet: Bullet }) {
+  if (!bullet.highlights?.length) return <>{bullet.text}</>;
 
   const parts: React.ReactNode[] = [];
   let remaining = bullet.text;
@@ -36,14 +36,18 @@ function HighlightedBullet({
 }
 
 export function ResumeSection() {
+  const { locale, t } = useLocale();
+  const strings = ui[locale].resume;
+  const labels = ui[locale].home;
+
   return (
     <section id="resume" className="scroll-mt-20">
       <div className="flex items-center justify-between">
-        <h2 className="section-label">01 / resume</h2>
+        <h2 className="section-label">01 / {labels.resumeWord}</h2>
         <Button variant="outline" size="sm" asChild>
           <a href={resume.pdf} download>
             <Download className="size-4" />
-            Download PDF
+            {strings.downloadPdf}
           </a>
         </Button>
       </div>
@@ -58,30 +62,31 @@ export function ResumeSection() {
                 aria-hidden
               />
               <p className="font-mono text-xs text-muted-foreground">
-                {job.start} — {job.end}
-                {job.location ? ` · ${job.location}` : ""}
+                {localizeDate(job.start, locale)} —{" "}
+                {localizeDate(job.end, locale)}
+                {job.location ? ` · ${t(job.location)}` : ""}
               </p>
               <h3 className="mt-1 font-sans text-lg font-semibold tracking-normal">
-                {job.role}{" "}
+                {t(job.role)}{" "}
                 <span className="font-medium text-muted-foreground">
                   @ {job.company}
                 </span>
               </h3>
               <ul className="mt-2 list-disc space-y-1 pl-4 text-sm leading-relaxed text-muted-foreground marker:text-brand">
                 {job.bullets.map((b) => (
-                  <li key={typeof b === "string" ? b : b.text}>
-                    <HighlightedBullet bullet={b} />
+                  <li key={b.en.text}>
+                    <HighlightedBullet bullet={t(b)} />
                   </li>
                 ))}
               </ul>
               <div className="mt-3 flex flex-wrap gap-1.5">
-                {job.tech.map((t) => (
+                {job.tech.map((tech) => (
                   <Badge
-                    key={t}
+                    key={tech}
                     variant="outline"
                     className="border-brand/25 font-mono text-[11px] font-normal text-muted-foreground"
                   >
-                    {t}
+                    {tech}
                   </Badge>
                 ))}
               </div>
@@ -93,7 +98,7 @@ export function ResumeSection() {
         <div className="flex flex-col gap-10">
           <div className="rounded-lg border bg-card p-5">
             <h3 className="font-mono text-xs tracking-[0.15em] text-muted-foreground uppercase">
-              Education
+              {strings.education}
             </h3>
             {resume.education.map((edu) => (
               <div key={edu.school} className="mt-4">
@@ -111,7 +116,7 @@ export function ResumeSection() {
                   {edu.school}
                 </p>
                 <div className="mt-3 space-y-1.5">
-                  {edu.degrees.map((degree) => (
+                  {t(edu.degrees).map((degree) => (
                     <p key={degree} className="text-sm font-semibold text-foreground">
                       {degree}
                     </p>
@@ -125,17 +130,17 @@ export function ResumeSection() {
           </div>
           <div>
             <h3 className="font-mono text-xs tracking-[0.15em] text-muted-foreground uppercase">
-              Languages
+              {strings.languages}
             </h3>
             <div className="mt-3 grid gap-2">
               {resume.languages.map((item) => (
                 <div
-                  key={item.language}
+                  key={item.language.en}
                   className="flex items-center justify-between border-b pb-2 text-sm last:border-b-0"
                 >
-                  <span className="font-medium">{item.language}</span>
+                  <span className="font-medium">{t(item.language)}</span>
                   <span className="font-mono text-xs text-muted-foreground">
-                    {item.level}
+                    {t(item.level)}
                   </span>
                 </div>
               ))}
@@ -143,20 +148,22 @@ export function ResumeSection() {
           </div>
           <div>
             <h3 className="font-mono text-xs tracking-[0.15em] text-muted-foreground uppercase">
-              Skills
+              {strings.skills}
             </h3>
             <div className="mt-3 flex flex-col gap-4">
               {resume.skills.map((group) => (
-                <div key={group.label}>
-                  <p className="text-xs text-muted-foreground">{group.label}</p>
+                <div key={group.label.en}>
+                  <p className="text-xs text-muted-foreground">
+                    {t(group.label)}
+                  </p>
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
-                    {group.skills.map((s) => (
+                    {group.skills.map((skill) => (
                       <Badge
-                        key={s}
+                        key={skill}
                         variant="secondary"
                         className="font-mono text-[11px] font-normal"
                       >
-                        {s}
+                        {skill}
                       </Badge>
                     ))}
                   </div>

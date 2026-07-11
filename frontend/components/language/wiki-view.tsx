@@ -27,6 +27,10 @@ import {
   type WikiResult,
 } from "@/lib/api/language";
 import {
+  conjugationSoundKey,
+  displayConjugation,
+} from "@/lib/conjugation";
+import {
   genderLabel,
   playAudio,
   Speak,
@@ -49,13 +53,13 @@ const TENSES = [
   { mood: "indicatif", tense: "passé-simple", label: "Passé simple" },
 ] as const;
 
-const PERSON_LABELS: Record<string, string> = {
-  "1s": "je",
-  "2s": "tu",
-  "3s": "il/elle",
-  "1p": "nous",
-  "2p": "vous",
-  "3p": "ils/elles",
+const PERSON_SLOT_LABELS: Record<string, string> = {
+  "1s": "1st singular",
+  "2s": "2nd singular",
+  "3s": "3rd singular",
+  "1p": "1st plural",
+  "2p": "2nd plural",
+  "3p": "3rd plural",
 };
 
 const ES_TENSES = [
@@ -78,23 +82,6 @@ const ES_TENSES = [
   { mood: "imperativo", tense: "afirmativo", label: "Imperativo" },
 ] as const;
 
-const PERSON_LABELS_ES: Record<string, string> = {
-  "1s": "yo",
-  "2s": "tú",
-  "3s": "él/ella",
-  "1p": "nosotros",
-  "2p": "vosotros",
-  "3p": "ellos/ellas",
-};
-
-const ES_IMPERATIVE_LABELS: Record<string, string> = {
-  "2s": "tú",
-  "3s": "usted",
-  "1p": "nosotros",
-  "2p": "vosotros",
-  "3p": "ustedes",
-};
-
 function freqLabel(freq: number): string {
   if (freq >= 100) return "very common";
   if (freq >= 10) return "common";
@@ -102,21 +89,24 @@ function freqLabel(freq: number): string {
   return "rare";
 }
 
-function personLabel(
-  person: string,
-  mood: string,
-  language: LanguageCode,
-): string {
-  if (language === "es") {
-    const labels =
-      mood === "imperativo" ? ES_IMPERATIVE_LABELS : PERSON_LABELS_ES;
-    return labels[person] ?? person;
+function personSlotLabel(person: string): string {
+  return PERSON_SLOT_LABELS[person] ?? person;
+}
+
+function localizedMood(slotKey: string, language: LanguageCode): string {
+  const mood = slotKey.split(":", 1)[0];
+  if (mood === "imperative") {
+    return language === "fr" ? "imperatif" : "imperativo";
   }
-  return PERSON_LABELS[person] ?? person;
+  if (mood === "subjunctive") {
+    return language === "fr" ? "subjonctif" : "subjuntivo";
+  }
+  return mood;
 }
 
 export function WikiView({
   decks,
+  readOnly = false,
   initialTab = "search",
   initialQuery = null,
   onTabChange,
@@ -125,6 +115,7 @@ export function WikiView({
   onDrillsCreated,
 }: {
   decks: Deck[];
+  readOnly?: boolean;
   initialTab?: WikiTab;
   initialQuery?: WikiQuery | null;
   onTabChange?: (tab: WikiTab) => void;
@@ -175,6 +166,7 @@ export function WikiView({
         {tab === "search" && (
           <WikiSearch
             decks={decks}
+            readOnly={readOnly}
             initialQuery={initialQuery}
             onOpenVerb={(verbId, language) => {
               setConjugationVerbId(verbId);
@@ -185,6 +177,7 @@ export function WikiView({
         )}
         {tab === "conjugation" && (
           <Conjugation
+            readOnly={readOnly}
             initialVerbId={conjugationVerbId}
             initialLanguage={conjugationLanguage}
             onDrillsCreated={onDrillsCreated}
@@ -205,10 +198,12 @@ export function WikiView({
 
 function WikiSearch({
   decks,
+  readOnly,
   initialQuery,
   onOpenVerb,
 }: {
   decks: Deck[];
+  readOnly: boolean;
   initialQuery?: WikiQuery | null;
   onOpenVerb: (verbId: number, language: LanguageCode) => void;
 }) {
@@ -234,16 +229,33 @@ function WikiSearch({
     }
   }
 
+  // Live lookups can hit external dictionaries and the LLM, so the endpoint
+  // is owner-only and the preview never calls it.
   const result = useQuery({
     queryKey: ["language", "wiki", query?.language, query?.word, defs],
     queryFn: () => wikiLookup(query!.language, query!.word, defs),
-    enabled: query != null,
+    enabled: query != null && !readOnly,
   });
 
   const search = (word: string, lang: LanguageCode = language) => {
     const cleaned = word.trim().toLowerCase();
     if (cleaned) setQuery({ language: lang, word: cleaned });
   };
+
+  if (readOnly) {
+    return (
+      <div className="flex flex-col gap-2 pt-4 text-center">
+        <p className="xp-muted">
+          Dictionary search runs live lookups (external dictionaries and an
+          LLM fallback), so it stays owner-only.
+        </p>
+        <p className="xp-muted">
+          The <b>Conjugations</b> and <b>Pronunciation</b> tabs are fully
+          browsable.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-3">
@@ -705,10 +717,17 @@ function ConjugationPanel({
           {rows.map((conj) => (
             <tr key={`${conj.person}-${conj.form}`}>
               <td className="xp-muted" style={{ width: "35%" }}>
-                {personLabel(conj.person, conj.mood, language)}
+                {personSlotLabel(conj.person)}
               </td>
               <td>
-                <b>{conj.form}</b>
+                <b>
+                  {displayConjugation(
+                    conj.person,
+                    conj.form,
+                    conj.mood,
+                    language,
+                  )}
+                </b>
               </td>
               <td style={{ width: 1 }}>
                 <Speak
@@ -1040,9 +1059,11 @@ function Pronunciation({
 function ConjugationTable({
   verb,
   showEquivalent,
+  readOnly,
 }: {
   verb: VerbDetail;
   showEquivalent: boolean;
+  readOnly: boolean;
 }) {
   const queryClient = useQueryClient();
   const audioMutation = useMutation({
@@ -1079,14 +1100,6 @@ function ConjugationTable({
     },
   });
 
-  const formCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const conj of verb.conjugations) {
-      counts.set(conj.form, (counts.get(conj.form) ?? 0) + 1);
-    }
-    return counts;
-  }, [verb.conjugations]);
-
   return (
     <div className="flex flex-col gap-3">
       {(verb.language === "es" ? ES_TENSES : TENSES).map(
@@ -1095,6 +1108,15 @@ function ConjugationTable({
           (conj) => conj.mood === mood && conj.tense === tense,
         );
         if (!rows.length) return null;
+        const soundCounts = new Map<string, number>();
+        for (const row of rows) {
+          const key = conjugationSoundKey(
+            row.form,
+            row.person,
+            verb.language,
+          );
+          soundCounts.set(key, (soundCounts.get(key) ?? 0) + 1);
+        }
         return (
           <fieldset key={`${mood}-${tense}`} className="xp-group">
             <legend>
@@ -1119,27 +1141,70 @@ function ConjugationTable({
                   {rows.map((conj) => (
                     <tr key={conj.id}>
                       <td className="xp-muted">
-                        {personLabel(conj.person, conj.mood, verb.language)}
+                        {personSlotLabel(conj.person)}
                       </td>
                       <td>
-                        <b>{conj.form}</b>
-                        {(formCounts.get(conj.form) ?? 0) > 1 && (
-                          <span className="xp-muted"> (homophone)</span>
+                        <b>
+                          {displayConjugation(
+                            conj.person,
+                            conj.form,
+                            conj.mood,
+                            verb.language,
+                          )}
+                        </b>
+                        {(soundCounts.get(
+                          conjugationSoundKey(
+                            conj.form,
+                            conj.person,
+                            verb.language,
+                          ),
+                        ) ?? 0) > 1 && (
+                          <span className="xp-muted">
+                            {" "}(same verb sound)
+                          </span>
                         )}
                       </td>
                       {showEquivalent && verb.equivalent_language && (
-                        <td>{conj.equivalent_form || "—"}</td>
+                        <td>
+                          {conj.equivalent_form &&
+                          (verb.equivalent_language === "fr" ||
+                            verb.equivalent_language === "es")
+                            ? displayConjugation(
+                                conj.person,
+                                conj.equivalent_form,
+                                localizedMood(
+                                  conj.slot_key,
+                                  verb.equivalent_language,
+                                ),
+                                verb.equivalent_language,
+                              )
+                            : "—"}
+                        </td>
                       )}
                       <td>
                         <button
                           type="button"
                           className="xp-link"
                           title={`Listen: ${spokenConjugation(conj.person, conj.form, conj.mood, verb.language)}`}
-                          onClick={() =>
-                            conj.audio_url
-                              ? playAudio(conj.audio_url)
-                              : audioMutation.mutate(conj)
-                          }
+                          onClick={() => {
+                            if (conj.audio_url) {
+                              playAudio(conj.audio_url);
+                            } else if (readOnly) {
+                              // Generating server TTS is owner-only; the
+                              // preview falls back to browser speech.
+                              void speakText(
+                                verb.language,
+                                spokenConjugation(
+                                  conj.person,
+                                  conj.form,
+                                  conj.mood,
+                                  verb.language,
+                                ),
+                              );
+                            } else {
+                              audioMutation.mutate(conj);
+                            }
+                          }}
                         >
                           [listen]
                         </button>
@@ -1158,11 +1223,13 @@ function ConjugationTable({
 }
 
 function Conjugation({
+  readOnly,
   initialVerbId,
   initialLanguage,
   onDrillsCreated,
   onStudyVerbSet,
 }: {
+  readOnly: boolean;
   initialVerbId?: number | null;
   initialLanguage?: LanguageCode;
   onDrillsCreated: () => void;
@@ -1345,6 +1412,7 @@ function Conjugation({
           ))}
         </div>
 
+        {!readOnly && (
         <form
           onSubmit={(event) => {
             event.preventDefault();
@@ -1448,7 +1516,9 @@ function Conjugation({
             </div>
           </fieldset>
         </form>
+        )}
 
+        {!readOnly && (
         <fieldset className="xp-group flex flex-col gap-2">
           <legend>Verb sets</legend>
           {selectedVerb &&
@@ -1487,6 +1557,7 @@ function Conjugation({
             </button>
           </div>
         </fieldset>
+        )}
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col gap-2">
@@ -1522,6 +1593,7 @@ function Conjugation({
           <ConjugationTable
             verb={detail.data}
             showEquivalent={showEquivalent}
+            readOnly={readOnly}
           />
         )}
         {verbs.data?.length === 0 && (

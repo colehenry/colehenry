@@ -1,10 +1,13 @@
-import { ComingSoon } from "@/components/coming-soon";
-import { sections } from "@/lib/sections";
+import { RecipeBox } from "@/components/recipes/recipe-box";
 
-const section = sections.find((s) => s.slug === "recipes")!;
+const description =
+  "colehenry@kitchen:~$ — recipes I actually cook, rated out of 5.";
 
-export const metadata = { title: section.name };
+export const metadata = {
+  title: "Recipes",
+  description,
+};
 
 export default function RecipesPage() {
-  return <ComingSoon section={section} />;
+  return <RecipeBox />;
 }

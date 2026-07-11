@@ -65,7 +65,13 @@ const TITLE_PHRASES: { text: string; language: LanguageCode }[] = [
   { text: "¿Qué tal?", language: "es" },
 ];
 
-export function LanguageApp() {
+/**
+ * `readOnly` renders the public showcase: same app, live data, but every
+ * mutation affordance is hidden and owner-only endpoints are never called.
+ * The backend enforces this too (see /backend routers/language.py — the
+ * `public` router) — this flag is UX, not security.
+ */
+export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
   const router = useRouter();
   const [section, setSection] = useState<SectionId>("study");
   const [wikiTab, setWikiTab] = useState<WikiTab>("search");
@@ -142,7 +148,7 @@ export function LanguageApp() {
   useEffect(() => {
     const onChange = () =>
       setFullscreen(
-        document.fullscreenElement?.id === "language-trainer-app",
+        document.fullscreenElement?.id === "quenoseteolvide-app",
       );
     document.addEventListener("fullscreenchange", onChange);
     return () => document.removeEventListener("fullscreenchange", onChange);
@@ -154,7 +160,7 @@ export function LanguageApp() {
       void document.exitFullscreen().catch(() => {});
     } else {
       void document
-        .getElementById("language-trainer-app")
+        .getElementById("quenoseteolvide-app")
         ?.requestFullscreen()
         .catch(() => {});
     }
@@ -216,38 +222,41 @@ export function LanguageApp() {
   );
 
   return (
-    <div data-section="language" id="language-trainer-app" className="xp-app">
+    <div data-section="language" id="quenoseteolvide-app" className="xp-app">
       <div className="xp-desktop">
         <div className={`xp-window ${wide ? "is-wide" : ""}`}>
           <div className="xp-titlebar">
             <span className="xp-title-text">
-              {titlePhrase ? (
-                <button
-                  type="button"
-                  className="xp-title-phrase"
-                  title={`Look up in wiki (${titlePhrase.language.toUpperCase()})`}
-                  onClick={() => {
-                    setPhrasePoint(null);
-                    setWikiQuery({
-                      language: titlePhrase.language,
-                      word: titlePhrase.text,
-                    });
-                    goWiki("search");
-                  }}
-                  onMouseEnter={(event) => {
-                    cancelPhraseClose();
-                    const box = event.currentTarget.getBoundingClientRect();
-                    setPhrasePoint({
-                      top: box.bottom,
-                      left: box.left + box.width / 2,
-                    });
-                  }}
-                  onMouseLeave={schedulePhraseClose}
-                >
-                  {titlePhrase.text}
-                </button>
-              ) : (
-                "Language Trainer"
+              Qué no se te olvide
+              {titlePhrase && readOnly && <> — {titlePhrase.text}</>}
+              {titlePhrase && !readOnly && (
+                <>
+                  {" — "}
+                  <button
+                    type="button"
+                    className="xp-title-phrase"
+                    title={`Look up in wiki (${titlePhrase.language.toUpperCase()})`}
+                    onClick={() => {
+                      setPhrasePoint(null);
+                      setWikiQuery({
+                        language: titlePhrase.language,
+                        word: titlePhrase.text,
+                      });
+                      goWiki("search");
+                    }}
+                    onMouseEnter={(event) => {
+                      cancelPhraseClose();
+                      const box = event.currentTarget.getBoundingClientRect();
+                      setPhrasePoint({
+                        top: box.bottom,
+                        left: box.left + box.width / 2,
+                      });
+                    }}
+                    onMouseLeave={schedulePhraseClose}
+                  >
+                    {titlePhrase.text}
+                  </button>
+                </>
               )}
               {dueTotal > 0 ? ` — ${dueTotal} due` : ""}
             </span>
@@ -284,10 +293,14 @@ export function LanguageApp() {
                   "file",
                   "File",
                   <>
-                    {menuItem("New card…", () => go("decks"))}
-                    {menuItem("New deck…", () => go("decks"))}
-                    {menuItem("New text…", () => go("texts"))}
-                    <hr className="xp-menu-sep" />
+                    {!readOnly && (
+                      <>
+                        {menuItem("New card…", () => go("decks"))}
+                        {menuItem("New deck…", () => go("decks"))}
+                        {menuItem("New text…", () => go("texts"))}
+                        <hr className="xp-menu-sep" />
+                      </>
+                    )}
                     {menuItem("Exit", () => router.push("/"))}
                   </>,
                 )}
@@ -319,11 +332,16 @@ export function LanguageApp() {
                   "help",
                   "Help",
                   <>
-                    {menuItem("About Language Trainer…", () => {
+                    {menuItem("About Qué no se te olvide…", () => {
                       setAboutOpen(true);
                       setOpenMenu(null);
                     })}
                   </>,
+                )}
+                {readOnly && (
+                  <span className="qnst-preview-pill">
+                    Read-only preview · live data
+                  </span>
                 )}
               </div>
               {openMenu && (
@@ -423,6 +441,7 @@ export function LanguageApp() {
                         <StudyView
                           key={studyInit.key}
                           decks={decks}
+                          readOnly={readOnly}
                           initialLanguage={studyInit.language}
                           initialDeckId={studyInit.deckId ?? null}
                           initialVerbSetId={studyInit.verbSetId ?? null}
@@ -431,13 +450,17 @@ export function LanguageApp() {
                       {section === "decks" && (
                         <DecksView
                           decks={decks}
+                          readOnly={readOnly}
                           onStudyDeck={(deckId) => goStudy({ deckId })}
                         />
                       )}
-                      {section === "texts" && <TextsView decks={decks} />}
+                      {section === "texts" && (
+                        <TextsView decks={decks} readOnly={readOnly} />
+                      )}
                       {section === "wiki" && (
                         <WikiView
                           decks={decks}
+                          readOnly={readOnly}
                           initialTab={wikiTab}
                           initialQuery={wikiQuery}
                           onTabChange={setWikiTab}
@@ -581,9 +604,13 @@ export function LanguageApp() {
             className="xp-dialog-backdrop cursor-default"
             onClick={() => setAboutOpen(false)}
           />
-          <div className="xp-dialog" role="dialog" aria-label="About Language Trainer">
+          <div
+            className="xp-dialog"
+            role="dialog"
+            aria-label="About Qué no se te olvide"
+          >
             <div className="xp-titlebar">
-              <span className="xp-title-text">About Language Trainer</span>
+              <span className="xp-title-text">About Qué no se te olvide</span>
               <button
                 type="button"
                 className="xp-caption-btn is-close"
@@ -594,7 +621,7 @@ export function LanguageApp() {
               </button>
             </div>
             <div className="xp-dialog-body">
-              <p style={{ fontWeight: 700 }}>Language Trainer</p>
+              <p style={{ fontWeight: 700 }}>Qué no se te olvide</p>
               <p className="xp-muted">Version 1.0 (Build 2006)</p>
               <p className="mt-3">
                 Spaced-repetition flashcards, annotated texts, and French /
