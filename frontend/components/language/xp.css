@@ -906,7 +906,7 @@
   padding: 8px;
 }
 
-.qnst-showcase.is-compact .qnst-window {
+.qnst-showcase.is-compact .xp-window {
   height: 100%;
   min-height: 0;
 }
@@ -921,9 +921,15 @@
   height: 17px;
 }
 
-.qnst-showcase.is-compact .qnst-menubar {
+.qnst-showcase.is-compact .xp-menubar {
   min-height: 21px;
   font-size: 9px;
+}
+
+.qnst-showcase.is-compact .xp-main {
+  min-height: 0;
+  overflow: hidden;
+  font-size: 10px;
 }
 
 .qnst-showcase.is-compact .xp-menubar-item {

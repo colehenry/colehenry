@@ -37,9 +37,8 @@ export const sections: Section[] = [
     path: "/recipes",
     name: "Recipes",
     accent: "recipes",
-    description: "Things I cook, with photos and honest notes.",
-    ownerOnly: true,
-    comingSoon: true,
+    description:
+      "colehenry@kitchen:~$ — recipes I actually cook, rated out of 5.",
   },
   {
     slug: "challenges",

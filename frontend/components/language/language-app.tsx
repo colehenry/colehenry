@@ -65,7 +65,13 @@ const TITLE_PHRASES: { text: string; language: LanguageCode }[] = [
   { text: "¿Qué tal?", language: "es" },
 ];
 
-export function LanguageApp() {
+/**
+ * `readOnly` renders the public showcase: same app, live data, but every
+ * mutation affordance is hidden and owner-only endpoints are never called.
+ * The backend enforces this too (see /backend routers/language.py — the
+ * `public` router) — this flag is UX, not security.
+ */
+export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
   const router = useRouter();
   const [section, setSection] = useState<SectionId>("study");
   const [wikiTab, setWikiTab] = useState<WikiTab>("search");
@@ -222,7 +228,8 @@ export function LanguageApp() {
           <div className="xp-titlebar">
             <span className="xp-title-text">
               Qué no se te olvide
-              {titlePhrase && (
+              {titlePhrase && readOnly && <> — {titlePhrase.text}</>}
+              {titlePhrase && !readOnly && (
                 <>
                   {" — "}
                   <button
@@ -286,10 +293,14 @@ export function LanguageApp() {
                   "file",
                   "File",
                   <>
-                    {menuItem("New card…", () => go("decks"))}
-                    {menuItem("New deck…", () => go("decks"))}
-                    {menuItem("New text…", () => go("texts"))}
-                    <hr className="xp-menu-sep" />
+                    {!readOnly && (
+                      <>
+                        {menuItem("New card…", () => go("decks"))}
+                        {menuItem("New deck…", () => go("decks"))}
+                        {menuItem("New text…", () => go("texts"))}
+                        <hr className="xp-menu-sep" />
+                      </>
+                    )}
                     {menuItem("Exit", () => router.push("/"))}
                   </>,
                 )}
@@ -326,6 +337,11 @@ export function LanguageApp() {
                       setOpenMenu(null);
                     })}
                   </>,
+                )}
+                {readOnly && (
+                  <span className="qnst-preview-pill">
+                    Read-only preview · live data
+                  </span>
                 )}
               </div>
               {openMenu && (
@@ -425,6 +441,7 @@ export function LanguageApp() {
                         <StudyView
                           key={studyInit.key}
                           decks={decks}
+                          readOnly={readOnly}
                           initialLanguage={studyInit.language}
                           initialDeckId={studyInit.deckId ?? null}
                           initialVerbSetId={studyInit.verbSetId ?? null}
@@ -433,13 +450,17 @@ export function LanguageApp() {
                       {section === "decks" && (
                         <DecksView
                           decks={decks}
+                          readOnly={readOnly}
                           onStudyDeck={(deckId) => goStudy({ deckId })}
                         />
                       )}
-                      {section === "texts" && <TextsView decks={decks} />}
+                      {section === "texts" && (
+                        <TextsView decks={decks} readOnly={readOnly} />
+                      )}
                       {section === "wiki" && (
                         <WikiView
                           decks={decks}
+                          readOnly={readOnly}
                           initialTab={wikiTab}
                           initialQuery={wikiQuery}
                           onTabChange={setWikiTab}

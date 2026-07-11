@@ -74,10 +74,15 @@ from app.schemas.language import (
 from app.services import conjugator, dictionary, enrich, kobo, lexemes, llm, translate, tts
 from app.services.fsrs_engine import grade
 
-# The whole tool is owner-only — one dependency gates every route.
+# Owner-only by default — one dependency gates every route, so anything new
+# is private unless deliberately moved to `public` below.
 router = APIRouter(
     prefix="/language", tags=["language"], dependencies=[Depends(require_owner)]
 )
+
+# Pure reads exposed for the public read-only showcase (/quenoseteolvide/
+# showcase). Nothing here may write, call an LLM, or trigger TTS.
+public = APIRouter(prefix="/language", tags=["language"])
 
 
 PERSON_LABELS = {
@@ -211,7 +216,7 @@ def _list_decks(db: Session) -> list[DeckOut]:
     return [_deck_out(d, counts) for d in decks]
 
 
-@router.get("/decks", response_model=list[DeckOut])
+@public.get("/decks", response_model=list[DeckOut])
 def list_decks(db: Session = Depends(get_db)):
     return _list_decks(db)
 
@@ -298,7 +303,7 @@ def _assign_card_lexeme(db: Session, card: Flashcard, language: str) -> None:
         card.lexeme = lexemes.maybe_get_or_create(db, language, target)
 
 
-@router.get("/decks/{deck_id}/cards", response_model=list[CardOut])
+@public.get("/decks/{deck_id}/cards", response_model=list[CardOut])
 def list_cards(deck_id: int, db: Session = Depends(get_db)):
     if db.get(FlashcardDeck, deck_id) is None:
         raise HTTPException(status_code=404, detail="Deck not found")
@@ -408,7 +413,7 @@ def delete_card(card_id: int, db: Session = Depends(get_db)):
 # ---------------------------------------------------------------------------
 
 
-@router.get("/study/queue", response_model=StudyQueue)
+@public.get("/study/queue", response_model=StudyQueue)
 def study_queue(
     deck_id: int | None = None,
     verb_set_id: int | None = None,
@@ -715,7 +720,7 @@ def _dedupe_tags(*groups: list[str]) -> list[str]:
     return result
 
 
-@router.get("/texts", response_model=list[LanguageTextOut])
+@public.get("/texts", response_model=list[LanguageTextOut])
 def list_texts(
     language: Language | None = None,
     db: Session = Depends(get_db),
@@ -755,7 +760,7 @@ def create_text(body: LanguageTextCreate, db: Session = Depends(get_db)):
     return _text_detail(text)
 
 
-@router.get("/texts/{text_id}", response_model=LanguageTextDetail)
+@public.get("/texts/{text_id}", response_model=LanguageTextDetail)
 def get_text(text_id: int, db: Session = Depends(get_db)):
     text = db.get(
         LanguageText,
@@ -1575,7 +1580,7 @@ def create_verb(body: VerbCreate, db: Session = Depends(get_db)):
     return _verb_detail(db, verb)
 
 
-@router.get("/verbs", response_model=list[VerbOut])
+@public.get("/verbs", response_model=list[VerbOut])
 def list_verbs(
     language: Language = Language.fr,
     db: Session = Depends(get_db),
@@ -1588,7 +1593,7 @@ def list_verbs(
     return [_verb_out(db, verb) for verb in verbs]
 
 
-@router.get("/verbs/{verb_id}", response_model=VerbDetail)
+@public.get("/verbs/{verb_id}", response_model=VerbDetail)
 def get_verb(verb_id: int, db: Session = Depends(get_db)):
     verb = db.get(Verb, verb_id)
     if verb is None:
@@ -1612,7 +1617,7 @@ def _verb_set_out(db: Session, verb_set: VerbSet) -> VerbSetOut:
     )
 
 
-@router.get("/verb-sets", response_model=list[VerbSetOut])
+@public.get("/verb-sets", response_model=list[VerbSetOut])
 def list_verb_sets(
     language: Language | None = None,
     db: Session = Depends(get_db),

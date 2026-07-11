@@ -29,7 +29,6 @@ export const config = {
   // Keep in sync with ownerOnlyPaths in lib/sections.ts.
   matcher: [
     "/blog/:path*",
-    "/recipes/:path*",
     "/challenges/:path*",
     "/quenoseteolvide/:path*",
     "/journal/:path*",

@@ -63,17 +63,24 @@ function toDraft(a: TextAnnotation): AnnotationDraft {
   };
 }
 
-export function TextsView({ decks }: { decks: Deck[] }) {
+export function TextsView({
+  decks,
+  readOnly = false,
+}: {
+  decks: Deck[];
+  readOnly?: boolean;
+}) {
   const [openTextId, setOpenTextId] = useState<number | null>(null);
 
   if (openTextId == null) {
-    return <Library onOpen={setOpenTextId} />;
+    return <Library readOnly={readOnly} onOpen={setOpenTextId} />;
   }
   return (
     <Reader
       key={openTextId}
       textId={openTextId}
       decks={decks}
+      readOnly={readOnly}
       onBack={() => setOpenTextId(null)}
     />
   );
@@ -83,7 +90,13 @@ export function TextsView({ decks }: { decks: Deck[] }) {
 /* Library — Explorer details view                                             */
 /* -------------------------------------------------------------------------- */
 
-function Library({ onOpen }: { onOpen: (id: number) => void }) {
+function Library({
+  readOnly,
+  onOpen,
+}: {
+  readOnly: boolean;
+  onOpen: (id: number) => void;
+}) {
   const queryClient = useQueryClient();
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState(EMPTY_TEXT_FORM);
@@ -121,13 +134,15 @@ function Library({ onOpen }: { onOpen: (id: number) => void }) {
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
         <span style={{ fontWeight: 700 }}>Texts</span>
-        <button
-          type="button"
-          className="xp-link"
-          onClick={() => setCreating((open) => !open)}
-        >
-          {creating ? "[cancel]" : "[new text]"}
-        </button>
+        {!readOnly && (
+          <button
+            type="button"
+            className="xp-link"
+            onClick={() => setCreating((open) => !open)}
+          >
+            {creating ? "[cancel]" : "[new text]"}
+          </button>
+        )}
       </div>
 
       {creating && (
@@ -188,25 +203,28 @@ function Library({ onOpen }: { onOpen: (id: number) => void }) {
                 <td>{item.annotation_count}</td>
                 <td className="xp-muted">{shortDate(item.updated_at)}</td>
                 <td>
-                  <button
-                    type="button"
-                    className="xp-link"
-                    disabled={deleteMutation.isPending}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      deleteMutation.mutate(item.id);
-                    }}
-                  >
-                    [delete]
-                  </button>
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      className="xp-link"
+                      disabled={deleteMutation.isPending}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        deleteMutation.mutate(item.id);
+                      }}
+                    >
+                      [delete]
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
             {texts.data?.length === 0 && !creating && (
               <tr>
                 <td colSpan={6} className="xp-muted">
-                  No texts. Use [new text] to paste lyrics, a poem, or an
-                  article.
+                  {readOnly
+                    ? "No texts yet."
+                    : "No texts. Use [new text] to paste lyrics, a poem, or an article."}
                 </td>
               </tr>
             )}
@@ -331,10 +349,12 @@ function TextFormFields({
 function Reader({
   textId,
   decks,
+  readOnly,
   onBack,
 }: {
   textId: number;
   decks: Deck[];
+  readOnly: boolean;
   onBack: () => void;
 }) {
   const queryClient = useQueryClient();
@@ -653,7 +673,7 @@ function Reader({
             {text.annotations.length} notes
           </span>
         )}
-        {text && !editing && (
+        {text && !editing && !readOnly && (
           <span className="ml-auto flex gap-2">
             <button type="button" className="xp-link" onClick={startEditing}>
               [edit]
@@ -709,7 +729,7 @@ function Reader({
             ref={readerRef}
             role="document"
             className="xp-well xp-doc"
-            onMouseUp={captureSelection}
+            onMouseUp={readOnly ? undefined : captureSelection}
           >
             <AnnotatedText
               text={text}
@@ -730,7 +750,9 @@ function Reader({
           </div>
           {text.annotations.length === 0 && (
             <p className="xp-muted text-center">
-              Select a word or phrase to add a note.
+              {readOnly
+                ? "No notes on this text yet."
+                : "Select a word or phrase to add a note."}
             </p>
           )}
         </>
@@ -751,16 +773,18 @@ function Reader({
           }}
         >
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="xp-link"
-              onClick={() => {
-                setPopover(null);
-                setEditId(popoverAnnotation.id);
-              }}
-            >
-              [edit]
-            </button>
+            {!readOnly && (
+              <button
+                type="button"
+                className="xp-link"
+                onClick={() => {
+                  setPopover(null);
+                  setEditId(popoverAnnotation.id);
+                }}
+              >
+                [edit]
+              </button>
+            )}
             <Speak
               language={text.language}
               text={popoverAnnotation.selected_text}

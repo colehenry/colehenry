@@ -30,6 +30,8 @@ import {
 import { Command } from "@/components/ui/command";
 import { googleLoginUrl } from "@/lib/api/auth";
 import { useLogout, useMe } from "@/lib/hooks/use-me";
+import { useLocale } from "@/lib/i18n/locale";
+import { ui } from "@/lib/i18n/ui";
 import { sections } from "@/lib/sections";
 
 const EMAIL = "crhenry81@gmail.com";
@@ -44,6 +46,9 @@ export function CommandPalette() {
   const { resolvedTheme, setTheme } = useTheme();
   const { me } = useMe();
   const logout = useLogout();
+  const { locale } = useLocale();
+  const p = ui[locale].palette;
+  const nav = ui[locale].nav;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -69,23 +74,23 @@ export function CommandPalette() {
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
       <Command className="font-mono">
-        <CommandInput placeholder="Type a command or search…" />
+        <CommandInput placeholder={p.placeholder} />
         <CommandList>
-          <CommandEmpty>No results found.</CommandEmpty>
+          <CommandEmpty>{p.noResults}</CommandEmpty>
 
-          <CommandGroup heading="Navigate">
+          <CommandGroup heading={p.navigate}>
             <CommandItem onSelect={() => run(() => router.push("/"))}>
               <Home />
-              Home
+              {nav.home}
               <CommandShortcut>/</CommandShortcut>
             </CommandItem>
             <CommandItem onSelect={() => run(() => router.push("/#projects"))}>
               <FolderGit2 />
-              Projects
+              {nav.projects}
             </CommandItem>
             <CommandItem onSelect={() => run(() => router.push("/#resume"))}>
               <FileText />
-              Resume
+              {nav.resume}
             </CommandItem>
             {sections
               .filter((s) => !s.ownerOnly || me)
@@ -106,7 +111,7 @@ export function CommandPalette() {
 
           <CommandSeparator />
 
-          <CommandGroup heading="Actions">
+          <CommandGroup heading={p.actions}>
             <CommandItem
               onSelect={() =>
                 run(() =>
@@ -115,7 +120,7 @@ export function CommandPalette() {
               }
             >
               {resolvedTheme === "dark" ? <Sun /> : <Moon />}
-              Toggle theme
+              {p.toggleTheme}
             </CommandItem>
             <CommandItem
               onSelect={() =>
@@ -123,7 +128,7 @@ export function CommandPalette() {
               }
             >
               <Copy />
-              Copy email
+              {p.copyEmail}
             </CommandItem>
             <CommandItem
               onSelect={() =>
@@ -131,24 +136,24 @@ export function CommandPalette() {
               }
             >
               <GitHubIcon className="size-4" />
-              Open GitHub
+              {p.openGithub}
             </CommandItem>
           </CommandGroup>
 
           <CommandSeparator />
 
-          <CommandGroup heading="Owner">
+          <CommandGroup heading={p.owner}>
             {me ? (
               <>
                 {/* TODO Build 2+: quick actions (log catan game, new post…) */}
                 <CommandItem disabled>
                   <PenLine />
-                  New post
-                  <CommandShortcut>soon</CommandShortcut>
+                  {p.newPost}
+                  <CommandShortcut>{p.soon}</CommandShortcut>
                 </CommandItem>
                 <CommandItem onSelect={() => run(() => logout.mutate())}>
                   <LogOut />
-                  Log out
+                  {p.logout}
                 </CommandItem>
               </>
             ) : (
@@ -156,7 +161,7 @@ export function CommandPalette() {
                 onSelect={() => run(() => (window.location.href = googleLoginUrl))}
               >
                 <LogIn />
-                Log in with Google
+                {p.loginGoogle}
               </CommandItem>
             )}
           </CommandGroup>

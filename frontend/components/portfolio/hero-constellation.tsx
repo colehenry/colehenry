@@ -345,7 +345,7 @@ export function HeroConstellation() {
         aria-hidden
         // canvas is a replaced element: `inset` doesn't stretch it, so width
         // and height must be explicit or it collapses to its 300×150 intrinsic
-        className="pointer-events-none fixed left-0 -z-10"
+        className="pointer-events-none fixed left-0 z-0"
         style={{
           top: HEADER_OFFSET,
           width: "100vw",

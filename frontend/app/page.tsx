@@ -7,14 +7,36 @@ import { useState } from "react";
 import { AppLogoIcon, GitHubIcon, LinkedInIcon } from "@/components/icons";
 import { QuenoseteolvideShowcase } from "@/components/language/quenoseteolvide-showcase";
 import { ResumeSection } from "@/components/portfolio/resume-section";
+import { useLocale, type Localized } from "@/lib/i18n/locale";
+import { ui } from "@/lib/i18n/ui";
 import { resume } from "@/lib/resume";
 import { cn } from "@/lib/utils";
 
-const heroLinks = [
-  { href: resume.github, label: "GitHub", icon: GitHubIcon },
-  { href: resume.linkedin, label: "LinkedIn", icon: LinkedInIcon },
-  { href: `mailto:${resume.email}`, label: "Email", icon: Mail },
-  { href: "#resume", label: "Resume", icon: FileText },
+const heroLinks: Array<{
+  href: string;
+  label: Localized<string>;
+  icon: React.ComponentType<{ className?: string }>;
+}> = [
+  {
+    href: resume.github,
+    label: { en: "GitHub", es: "GitHub" },
+    icon: GitHubIcon,
+  },
+  {
+    href: resume.linkedin,
+    label: { en: "LinkedIn", es: "LinkedIn" },
+    icon: LinkedInIcon,
+  },
+  {
+    href: `mailto:${resume.email}`,
+    label: { en: "Email", es: "Correo" },
+    icon: Mail,
+  },
+  {
+    href: "#resume",
+    label: { en: "Resume", es: "Currículum" },
+    icon: FileText,
+  },
 ];
 
 function reveal(i: number) {
@@ -23,10 +45,16 @@ function reveal(i: number) {
 
 const heroSkills = ["LLM agents", "RAG", "React", "Python"];
 
-const heroResumeHighlights = [
-  "Build production LLM data analysis agents and RAG systems for 150+ internal daily users.",
-  "Ship React and TypeScript data tools backed by Python services, GCP, and large-scale streaming/social data pipelines.",
-];
+const heroResumeHighlights: Localized<string[]> = {
+  en: [
+    "Build production LLM data analysis agents and RAG systems for 150+ internal daily users.",
+    "Ship React and TypeScript data tools backed by Python services, GCP, and large-scale streaming/social data pipelines.",
+  ],
+  es: [
+    "Construyo agentes LLM de análisis de datos y sistemas RAG en producción para más de 150 usuarios internos diarios.",
+    "Desarrollo herramientas de datos en React y TypeScript respaldadas por servicios en Python, GCP y pipelines de datos de streaming y redes sociales a gran escala.",
+  ],
+};
 
 const heroResumeSkills = [
   "Python",
@@ -39,41 +67,71 @@ const heroResumeSkills = [
   "FastAPI",
 ];
 
-const lapwiseViews = [
+const lapwiseDescription: Localized<string> = {
+  en: "A Formula 1 analytics platform with race results, season standings, telemetry replay, driver pages, discussion threads, and an AI data analyst. Built with Next.js, React, FastAPI, PostgreSQL, and Python data pipelines.",
+  es: "Una plataforma de analítica de Fórmula 1 con resultados de carreras, clasificaciones de temporada, repetición de telemetría, páginas de pilotos, hilos de discusión y un analista de datos con IA. Construida con Next.js, React, FastAPI, PostgreSQL y pipelines de datos en Python.",
+};
+
+const lapwiseViews: Array<{
+  url: string;
+  label: Localized<string>;
+  description: Localized<string>;
+}> = [
   {
-    label: "Results",
     url: "https://lapwise.dev/results/2026",
-    description: "Season standings, race results, and championship charts.",
+    label: { en: "Results", es: "Resultados" },
+    description: {
+      en: "Season standings, race results, and championship charts.",
+      es: "Clasificaciones de temporada, resultados de carreras y gráficos del campeonato.",
+    },
   },
   {
-    label: "Replay",
     url: "https://lapwise.dev/replay",
-    description:
-      "Lap by lap race replays visualized with telemetry and comparison tools.",
+    label: { en: "Replay", es: "Repetición" },
+    description: {
+      en: "Lap by lap race replays visualized with telemetry and comparison tools.",
+      es: "Repeticiones de carreras vuelta a vuelta visualizadas con telemetría y herramientas de comparación.",
+    },
   },
   {
-    label: "Home",
     url: "https://lapwise.dev",
-    description: "Homepage with latest race data.",
+    label: { en: "Home", es: "Inicio" },
+    description: {
+      en: "Homepage with latest race data.",
+      es: "Página de inicio con los últimos datos de carreras.",
+    },
   },
 ];
 
+const quenoseteolvideDescription: Localized<string> = {
+  en: "A language app I built for personal use. I speak Spanish (C1) and have been using it as a bridge into French —> side-by-side FR/ES conjugation tables, Spanish cognate notes on cards and annotations, and faux-ami warnings. This preview is the real app with my live data, read-only.",
+  es: "Una aplicación de idiomas que construí para uso personal. Hablo español (C1) y lo uso como puente hacia el francés —> tablas de conjugación FR/ES en paralelo, notas de cognados en tarjetas y anotaciones, y avisos de falsos amigos. Esta vista previa es la aplicación real con mis datos en vivo, en modo de solo lectura.",
+};
+
+const quenoseteolvideOpenPreview: Localized<string> = {
+  en: "Open the live preview ↗",
+  es: "Abrir la vista previa en vivo ↗",
+};
+
+const quenoseteolvideExplore: Localized<string> = {
+  en: "Explore the live app (read-only)",
+  es: "Explora la aplicación real (solo lectura)",
+};
+
 function LapwiseProjectSection() {
+  const { locale, t } = useLocale();
   const [activeView, setActiveView] = useState(lapwiseViews[0]);
 
   return (
     <section id="projects" className="scroll-mt-20">
-      <h2 className="section-label">00 / project</h2>
+      <h2 className="section-label">00 / {ui[locale].home.projectWord}</h2>
       <div className="mt-6 grid gap-6 lg:grid-cols-[0.78fr_1.22fr] lg:items-start">
         <div>
           <h3 className="font-heading text-3xl font-medium tracking-tight">
             Lapwise
           </h3>
           <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-            A Formula 1 analytics platform with race results, season standings,
-            telemetry replay, driver pages, discussion threads, and an AI data
-            analyst. Built with Next.js, React, FastAPI, PostgreSQL, and Python
-            data pipelines.
+            {t(lapwiseDescription)}
           </p>
           <div className="mt-5 flex flex-wrap gap-1.5">
             {["Next.js", "React", "FastAPI", "PostgreSQL", "Python"].map(
@@ -112,17 +170,17 @@ function LapwiseProjectSection() {
             <div className="flex gap-1.5">
               {lapwiseViews.map((view) => (
                 <button
-                  key={view.label}
+                  key={view.url}
                   type="button"
                   onClick={() => setActiveView(view)}
                   className={cn(
                     "rounded-md px-2.5 py-1.5 font-mono text-[11px] transition-colors duration-150",
-                    activeView.label === view.label
+                    activeView.url === view.url
                       ? "bg-brand text-brand-contrast"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground",
                   )}
                 >
-                  {view.label}
+                  {t(view.label)}
                 </button>
               ))}
             </div>
@@ -131,7 +189,7 @@ function LapwiseProjectSection() {
             <iframe
               key={activeView.url}
               src={activeView.url}
-              title={`Lapwise production site: ${activeView.label}`}
+              title={`Lapwise production site: ${activeView.label.en}`}
               className="h-full w-full border-0 bg-[#11111a]"
               loading="lazy"
               sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
@@ -140,10 +198,10 @@ function LapwiseProjectSection() {
           <div className="border-t p-4">
             <div>
               <p className="font-mono text-[11px] tracking-[0.16em] text-brand uppercase">
-                {activeView.label}
+                {t(activeView.label)}
               </p>
               <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                {activeView.description}
+                {t(activeView.description)}
               </p>
             </div>
           </div>
@@ -154,9 +212,10 @@ function LapwiseProjectSection() {
 }
 
 function QuenoseteolvideProjectSection() {
+  const { t } = useLocale();
+
   return (
     <section aria-labelledby="quenoseteolvide-project-title">
-      <h2 className="section-label">01 / project</h2>
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.22fr_0.78fr] lg:items-start">
         <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
           <div className="flex items-center gap-2 border-b bg-muted px-3 py-2">
@@ -184,7 +243,7 @@ function QuenoseteolvideProjectSection() {
             <QuenoseteolvideShowcase compact />
             <span className="absolute inset-0 flex items-end justify-end bg-black/0 p-4 transition-colors duration-250 group-hover:bg-black/10 group-focus-visible:bg-black/10">
               <span className="translate-y-1 rounded-full border border-white/35 bg-black/70 px-3 py-1.5 font-mono text-[10px] text-white opacity-0 shadow-sm transition-all duration-250 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100">
-                Open full preview ↗
+                {t(quenoseteolvideOpenPreview)}
               </span>
             </span>
           </Link>
@@ -204,10 +263,7 @@ function QuenoseteolvideProjectSection() {
             </Link>
           </h3>
           <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-            A personal language-learning workspace for reading in context,
-            turning unfamiliar phrases into flashcards, and retaining them
-            through spaced review. The public preview uses curated sample data;
-            the working app and personal study history stay private.
+            {t(quenoseteolvideDescription)}
           </p>
           <div className="mt-5 flex flex-wrap gap-1.5">
             {["Next.js", "React", "TypeScript", "FastAPI", "PostgreSQL"].map(
@@ -225,7 +281,7 @@ function QuenoseteolvideProjectSection() {
             href="/quenoseteolvide/showcase"
             className="mt-6 inline-flex items-center gap-1.5 font-mono text-xs text-brand underline-offset-4 hover:underline"
           >
-            Explore the view-only preview
+            {t(quenoseteolvideExplore)}
             <ArrowUpRight className="size-3.5" />
           </Link>
         </div>
@@ -235,21 +291,23 @@ function QuenoseteolvideProjectSection() {
 }
 
 function ResumeSnapshot() {
+  const { locale, t } = useLocale();
+
   return (
     <aside
       className="reveal rounded-xl border bg-card p-5 shadow-sm"
       style={reveal(2)}
-      aria-label="Resume highlights"
+      aria-label={ui[locale].home.resumeAside}
     >
       <div>
         <p className="font-sans text-xl font-semibold leading-tight">
-          AI Software Engineer{" "}
+          {t(resume.experience[0].role)}{" "}
           <span className="font-medium text-muted-foreground">
             @ Interscope Records
           </span>
         </p>
         <ul className="mt-3 list-disc space-y-2 pl-4 text-sm leading-relaxed text-muted-foreground marker:text-brand">
-          {heroResumeHighlights.map((highlight) => (
+          {t(heroResumeHighlights).map((highlight) => (
             <li key={highlight}>{highlight}</li>
           ))}
         </ul>
@@ -263,7 +321,10 @@ function ResumeSnapshot() {
             </span>
             <span className="text-muted-foreground">
               {" "}
-              Computer Science, Statistics & Analytics
+              {t({
+                en: "Computer Science, Statistics & Analytics",
+                es: "Ciencias de la Computación, Estadística y Analítica",
+              })}
             </span>
           </p>
         </div>
@@ -285,9 +346,11 @@ function ResumeSnapshot() {
 }
 
 export default function HomePage() {
+  const { locale, t } = useLocale();
+  const home = ui[locale].home;
+
   return (
     <div data-section="home" className="relative">
-
       {/* hero */}
       <section className="relative mx-auto grid w-full max-w-5xl gap-10 px-4 pt-24 pb-20 sm:px-6 sm:pt-32 lg:grid-cols-[1fr_360px] lg:items-start">
         <div>
@@ -302,7 +365,7 @@ export default function HomePage() {
             className="reveal mt-6 max-w-xl text-xl leading-relaxed text-muted-foreground text-balance"
             style={reveal(1)}
           >
-            {resume.tagline}
+            {t(resume.tagline)}
           </p>
           <div className="reveal mt-7 flex flex-wrap gap-2" style={reveal(2)}>
             {heroSkills.map((skill) => (
@@ -317,7 +380,7 @@ export default function HomePage() {
           <div className="reveal mt-8 flex flex-wrap gap-2" style={reveal(3)}>
             {heroLinks.map(({ href, label, icon: Icon }) => (
               <a
-                key={label}
+                key={label.en}
                 href={href}
                 {...(href.startsWith("http")
                   ? { target: "_blank", rel: "noreferrer" }
@@ -325,7 +388,7 @@ export default function HomePage() {
                 className="inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm transition-colors duration-150 hover:border-brand/50 hover:text-brand"
               >
                 <Icon className="size-3.5" />
-                {label}
+                {t(label)}
                 {href.startsWith("http") && (
                   <ArrowUpRight className="size-3 text-muted-foreground" />
                 )}
@@ -336,9 +399,9 @@ export default function HomePage() {
             className="reveal mt-10 font-mono text-xs text-muted-foreground"
             style={reveal(4)}
           >
-            press{" "}
+            {home.kbdBefore}{" "}
             <kbd className="rounded-sm border bg-muted px-1.5 py-0.5">⌘K</kbd>{" "}
-            to look around
+            {home.kbdAfter}
           </p>
         </div>
         <ResumeSnapshot />

@@ -21,11 +21,13 @@ const GRADES: [number, string][] = [
 
 export function StudyView({
   decks,
+  readOnly = false,
   initialLanguage,
   initialDeckId,
   initialVerbSetId,
 }: {
   decks: Deck[];
+  readOnly?: boolean;
   initialLanguage?: LanguageCode;
   initialDeckId?: number | null;
   initialVerbSetId?: number | null;
@@ -57,20 +59,24 @@ export function StudyView({
       listVerbSets(language === "all" ? undefined : language),
   });
 
+  const advance = useCallback(() => {
+    const cards = queue.data?.cards ?? [];
+    if (index + 1 < cards.length) {
+      setIndex((current) => current + 1);
+      setRevealed(false);
+    } else {
+      setIndex(0);
+      setRevealed(false);
+      queue.refetch();
+    }
+  }, [index, queue]);
+
   const reviewMutation = useMutation({
     mutationFn: ({ cardId, rating }: { cardId: number; rating: number }) =>
       reviewCard(cardId, rating),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["language", "decks"] });
-      const cards = queue.data?.cards ?? [];
-      if (index + 1 < cards.length) {
-        setIndex((current) => current + 1);
-        setRevealed(false);
-      } else {
-        setIndex(0);
-        setRevealed(false);
-        queue.refetch();
-      }
+      advance();
     },
   });
 
@@ -82,21 +88,28 @@ export function StudyView({
 
   const grade = useCallback(
     (rating: number) => {
-      if (!card || reviewMutation.isPending) return;
+      if (!card) return;
+      // The preview flips through the queue without writing review history.
+      if (readOnly) {
+        advance();
+        return;
+      }
+      if (reviewMutation.isPending) return;
       reviewMutation.mutate({ cardId: card.id, rating });
     },
-    [card, reviewMutation],
+    [card, readOnly, advance, reviewMutation],
   );
 
   useEffect(() => {
-    // Production-card audio is the answer, so never autoplay it.
-    if (!card || card.direction === "production") return;
+    // Production-card audio is the answer, so never autoplay it. The public
+    // preview never autoplays — audio only on an explicit button press.
+    if (!card || card.direction === "production" || readOnly) return;
     void speakText(
       cardLanguage,
       cardSpeechText(card),
       card.audio_url || undefined,
     );
-  }, [card, cardLanguage]);
+  }, [card, cardLanguage, readOnly]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -308,19 +321,34 @@ export function StudyView({
           </div>
 
           {revealed ? (
-            <div className="flex flex-wrap justify-center gap-2">
-              {GRADES.map(([rating, label]) => (
+            readOnly ? (
+              <div className="flex flex-col items-center gap-1">
                 <button
-                  key={rating}
                   type="button"
-                  className={`xp-btn ${rating === 3 ? "is-default" : ""}`}
-                  disabled={reviewMutation.isPending}
-                  onClick={() => grade(rating)}
+                  className="xp-btn is-default"
+                  onClick={advance}
                 >
-                  {label} ({rating})
+                  Next card
                 </button>
-              ))}
-            </div>
+                <p className="xp-muted">
+                  Read-only preview — reviews aren&apos;t saved.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-wrap justify-center gap-2">
+                {GRADES.map(([rating, label]) => (
+                  <button
+                    key={rating}
+                    type="button"
+                    className={`xp-btn ${rating === 3 ? "is-default" : ""}`}
+                    disabled={reviewMutation.isPending}
+                    onClick={() => grade(rating)}
+                  >
+                    {label} ({rating})
+                  </button>
+                ))}
+              </div>
+            )
           ) : (
             <div className="flex justify-center">
               <button

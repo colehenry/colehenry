@@ -76,6 +76,11 @@
   --accent: 178 56% 34%; /* teal */
   --accent-contrast: 0 0% 100%;
 }
+
+[data-section="recipes"] {
+  --accent: 150 40% 34%; /* herb green */
+  --accent-contrast: 0 0% 100%;
+}
 /* all other sections inherit the site-wide Carolina blue */
 
 .dark {
@@ -103,6 +108,11 @@
 .dark [data-section="language"] {
   --accent: 178 58% 48%;
   --accent-contrast: 190 35% 8%;
+}
+
+.dark [data-section="recipes"] {
+  --accent: 150 38% 52%;
+  --accent-contrast: 152 40% 8%;
 }
 
 @theme inline {
@@ -178,6 +188,24 @@
 }
 
 @layer components {
+  /* Solid caps revealed only by rubber-band scrolling past the page edges. */
+  .overscroll-cap-top::before,
+  .overscroll-cap-bottom::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    height: 1px;
+    pointer-events: none;
+  }
+  .overscroll-cap-top::before {
+    top: -1px;
+    box-shadow: 0 -100vmax 0 100vmax var(--background);
+  }
+  .overscroll-cap-bottom::after {
+    bottom: -1px;
+    box-shadow: 0 100vmax 0 100vmax var(--background);
+  }
+
   /* mono section label — "01 / projects" */
   .section-label {
     @apply font-mono text-xs uppercase tracking-[0.2em] text-brand;
