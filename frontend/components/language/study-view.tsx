@@ -10,21 +10,14 @@ import {
   type Deck,
   type LanguageCode,
 } from "@/lib/api/language";
-import { cardSpeechText, genderLabel, Speak } from "./language-shared";
+import { cardSpeechText, genderLabel, Speak, speakText } from "./language-shared";
 
-const GRADES: [number, string, string][] = [
-  [1, "Again", "←"],
-  [2, "Hard", "↓"],
-  [3, "Good", "→"],
-  [4, "Easy", "↑"],
+const GRADES: [number, string][] = [
+  [1, "Again"],
+  [2, "Hard"],
+  [3, "Good"],
+  [4, "Easy"],
 ];
-
-const ARROW_GRADES: Record<string, number> = {
-  ArrowLeft: 1,
-  ArrowDown: 2,
-  ArrowRight: 3,
-  ArrowUp: 4,
-};
 
 export function StudyView({
   decks,
@@ -96,13 +89,32 @@ export function StudyView({
   );
 
   useEffect(() => {
+    // Production-card audio is the answer, so never autoplay it.
+    if (!card || card.direction === "production") return;
+    void speakText(
+      cardLanguage,
+      cardSpeechText(card),
+      card.audio_url || undefined,
+    );
+  }, [card, cardLanguage]);
+
+  useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (!card) return;
       const target = event.target as HTMLElement | null;
       if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+      if (event.key.toLowerCase() === "p") {
+        if (card.direction === "production" && !revealed) return;
+        event.preventDefault();
+        void speakText(
+          cardLanguage,
+          cardSpeechText(card),
+          card.audio_url || undefined,
+        );
+        return;
+      }
       if (!revealed) {
-        // Space or any arrow flips the card.
-        if (event.key === " " || event.key in ARROW_GRADES) {
+        if (event.key === " ") {
           event.preventDefault();
           setRevealed(true);
         }
@@ -112,14 +124,10 @@ export function StudyView({
         event.preventDefault();
         grade(Number(event.key));
       }
-      if (event.key in ARROW_GRADES) {
-        event.preventDefault();
-        grade(ARROW_GRADES[event.key]);
-      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [card, grade, revealed]);
+  }, [card, cardLanguage, grade, revealed]);
 
   return (
     <div className="flex flex-col gap-2">
@@ -238,26 +246,21 @@ export function StudyView({
                 language={cardLanguage}
                 text={cardSpeechText(card)}
                 url={card.audio_url || undefined}
-                label="► Play audio"
-                className="xp-btn"
+                label="Play audio (P)"
+                className="xp-btn text-base"
               />
             ) : (
               <>
                 <p style={{ fontSize: "30px", lineHeight: 1.3 }}>{card.front}</p>
-                {card.ipa && (
-                  <p className="xp-ipa xp-muted mt-1" style={{ fontSize: "14px" }}>
-                    {card.ipa}
-                  </p>
-                )}
-                {/* Production cards would leak the answer — listen after reveal. */}
+                {/* A production card's audio is the answer. */}
                 {(card.direction !== "production" || revealed) && (
-                  <div className="mt-2">
+                  <div className="mt-5 flex justify-center">
                     <Speak
                       language={cardLanguage}
                       text={cardSpeechText(card)}
                       url={card.audio_url || undefined}
-                      label="► listen"
-                      className="xp-link"
+                      label="Play audio (P)"
+                      className="xp-btn text-base"
                     />
                   </div>
                 )}
@@ -306,7 +309,7 @@ export function StudyView({
 
           {revealed ? (
             <div className="flex flex-wrap justify-center gap-2">
-              {GRADES.map(([rating, label, arrow]) => (
+              {GRADES.map(([rating, label]) => (
                 <button
                   key={rating}
                   type="button"
@@ -314,7 +317,7 @@ export function StudyView({
                   disabled={reviewMutation.isPending}
                   onClick={() => grade(rating)}
                 >
-                  {label} ({rating} {arrow})
+                  {label} ({rating})
                 </button>
               ))}
             </div>
@@ -325,7 +328,7 @@ export function StudyView({
                 className="xp-btn is-default"
                 onClick={() => setRevealed(true)}
               >
-                Reveal (Space / arrows)
+                Reveal (Space)
               </button>
             </div>
           )}
