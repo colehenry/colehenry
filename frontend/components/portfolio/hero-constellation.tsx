@@ -37,6 +37,9 @@ const STAR_PARALLAX = 0.4;
 const GRID_ALPHA = 0.1;
 /** cursor→star link reach (px) */
 const MOUSE_DIST = 190;
+/** maximum stars and approximate area allotted to each star */
+const MAX_STARS = 180;
+const STAR_AREA = 9000;
 
 /**
  * Full-page "spacetime" background. A square grid mesh is bent by a gravity
@@ -133,7 +136,7 @@ export function HeroConstellation() {
       canvas.height = Math.floor(height * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-      const count = Math.min(90, Math.floor((width * height) / 14000));
+      const count = Math.min(MAX_STARS, Math.floor((width * height) / STAR_AREA));
       stars = Array.from({ length: count }, () => ({
         x: Math.random() * width,
         y: Math.random() * height,
