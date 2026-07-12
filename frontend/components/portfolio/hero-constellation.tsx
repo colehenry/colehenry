@@ -24,6 +24,8 @@ const GLOW_SIZE = 480;
 /** gravity well radius (px) and max pull (px) — wide and gentle */
 const WELL_R = 420;
 const WELL_PULL = 50;
+/** extra geometry beyond the canvas so edge warps have room to enter */
+const GRID_PAD = WELL_R + WELL_PULL + CELL;
 /** spring that drags the well after the cursor — stiff and heavily damped so
     it snaps hard onto the cursor with barely one overshoot: intense gravity */
 const STIFF = 0.22;
@@ -177,15 +179,22 @@ export function HeroConstellation() {
       ctx.lineWidth = 1;
       ctx.strokeStyle = `hsl(${fgHsl} / ${GRID_ALPHA})`;
 
+      // Draw well beyond the viewport. The canvas clips the excess, while the
+      // off-screen geometry keeps a near-edge warp from exposing a hard end.
+      const gridStart = -Math.ceil(GRID_PAD / CELL) * CELL;
+      const gridEndX = width + GRID_PAD;
+      const gridEndY = height + GRID_PAD;
+
       // vertical lines
-      for (let x = 0; x <= width + CELL; x += CELL) {
+      for (let x = gridStart; x <= gridEndX; x += CELL) {
         const near = active && Math.abs(x - wx) < WELL_R + WELL_PULL;
-        gridLine(x, -CELL, x, height + CELL, near);
+        gridLine(x, -GRID_PAD, x, gridEndY, near);
       }
       // horizontal lines, shifted by parallax scroll
-      for (let y = offY - CELL * 2; y <= height + CELL; y += CELL) {
+      const horizontalStart = offY - GRID_PAD;
+      for (let y = horizontalStart; y <= gridEndY; y += CELL) {
         const near = active && Math.abs(y - wy) < WELL_R + WELL_PULL;
-        gridLine(-CELL, y, width + CELL, y, near);
+        gridLine(-GRID_PAD, y, width + GRID_PAD, y, near);
       }
 
       // soft-fade the grid toward the cursor: warped lines dissolve and blur
