@@ -298,9 +298,16 @@ export function HeroConstellation() {
         raf = requestAnimationFrame(step);
       }
     };
+    // The canvas is document-sized rather than viewport-fixed, so keep its
+    // viewport-relative top current for cursor coordinates while scrolling.
+    const onScrollGeometry = () => {
+      rectTop = canvas.getBoundingClientRect().top;
+    };
+
     // reduced-motion: no loop, but still track scroll for the parallax
     let staticRaf = 0;
     const onScrollStatic = () => {
+      onScrollGeometry();
       if (staticRaf) return;
       staticRaf = requestAnimationFrame(() => {
         staticRaf = 0;
@@ -319,6 +326,7 @@ export function HeroConstellation() {
 
     resize();
     window.addEventListener("resize", resize);
+    window.addEventListener("scroll", onScrollGeometry, { passive: true });
     window.addEventListener("mousemove", onMove);
     document.addEventListener("mouseleave", onLeave);
     document.addEventListener("visibilitychange", onVisibility);
@@ -335,6 +343,7 @@ export function HeroConstellation() {
       cancelAnimationFrame(staticRaf);
       themeObserver.disconnect();
       window.removeEventListener("resize", resize);
+      window.removeEventListener("scroll", onScrollGeometry);
       window.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseleave", onLeave);
       document.removeEventListener("visibilitychange", onVisibility);
@@ -351,11 +360,10 @@ export function HeroConstellation() {
         aria-hidden
         // canvas is a replaced element: `inset` doesn't stretch it, so width
         // and height must be explicit or it collapses to its 300×150 intrinsic
-        className="pointer-events-none fixed left-0 z-0"
+        className="pointer-events-none absolute top-14 left-0 z-0"
         style={{
-          top: HEADER_OFFSET,
           width: "100vw",
-          height: `calc(100vh - ${HEADER_OFFSET}px)`,
+          height: `calc(100% - ${HEADER_OFFSET}px)`,
         }}
       />
       {/* soft cursor glow above the content (below the z-50 header) so the

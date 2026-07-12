@@ -188,7 +188,8 @@
 }
 
 @layer components {
-  /* Solid caps revealed only by rubber-band scrolling past the page edges. */
+  /* Keep native rubber-band overscroll on the theme-colored side of the page
+     without adding extra scrollable document height. */
   .overscroll-cap-top::before,
   .overscroll-cap-bottom::after {
     content: "";
@@ -196,6 +197,7 @@
     inset-inline: 0;
     height: 1px;
     pointer-events: none;
+    z-index: 1;
   }
   .overscroll-cap-top::before {
     top: -1px;
