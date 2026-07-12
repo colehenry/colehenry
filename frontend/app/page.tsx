@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowUpRight, FileText, Mail } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -74,11 +75,13 @@ const lapwiseDescription: Localized<string> = {
 
 const lapwiseViews: Array<{
   url: string;
+  image: string;
   label: Localized<string>;
   description: Localized<string>;
 }> = [
   {
     url: "https://lapwise.dev/results/2026",
+    image: "/lapwise/results.png",
     label: { en: "Results", es: "Resultados" },
     description: {
       en: "Season standings, race results, and championship charts.",
@@ -87,6 +90,7 @@ const lapwiseViews: Array<{
   },
   {
     url: "https://lapwise.dev/replay",
+    image: "/lapwise/replay.png",
     label: { en: "Replay", es: "Repetición" },
     description: {
       en: "Lap by lap race replays visualized with telemetry and comparison tools.",
@@ -94,11 +98,12 @@ const lapwiseViews: Array<{
     },
   },
   {
-    url: "https://lapwise.dev",
-    label: { en: "Home", es: "Inicio" },
+    url: "https://lapwise.dev/ask",
+    image: "/lapwise/ai.png",
+    label: { en: "AI", es: "IA" },
     description: {
-      en: "Homepage with latest race data.",
-      es: "Página de inicio con los últimos datos de carreras.",
+      en: "Ask an AI data analyst natural-language questions about race results, standings, and telemetry.",
+      es: "Hazle preguntas en lenguaje natural a un analista de datos con IA sobre resultados de carreras, clasificaciones y telemetría.",
     },
   },
 ];
@@ -185,16 +190,23 @@ function LapwiseProjectSection() {
               ))}
             </div>
           </div>
-          <div className="relative h-[260px] overflow-hidden bg-[#11111a] sm:h-[300px]">
-            <iframe
+          <a
+            href={activeView.url}
+            target="_blank"
+            rel="noreferrer"
+            className="group relative block h-[260px] overflow-hidden bg-[#11111a] sm:h-[300px]"
+            aria-label={`Open Lapwise production site: ${activeView.label.en}`}
+          >
+            <Image
               key={activeView.url}
-              src={activeView.url}
-              title={`Lapwise production site: ${activeView.label.en}`}
-              className="h-full w-full border-0 bg-[#11111a]"
-              loading="lazy"
-              sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+              src={activeView.image}
+              alt={`Lapwise ${activeView.label.en} screenshot`}
+              fill
+              quality={100}
+              sizes="(min-width: 1024px) 60vw, 100vw"
+              className="object-cover object-top transition-transform duration-300 group-hover:scale-[1.02]"
             />
-          </div>
+          </a>
           <div className="border-t p-4">
             <div>
               <p className="font-mono text-[11px] tracking-[0.16em] text-brand uppercase">
