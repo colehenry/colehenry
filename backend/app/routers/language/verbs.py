@@ -65,8 +65,41 @@ def _verb_set_ids(db: Session, verb_id: int) -> list[int]:
     )
 
 
-def _verb_out(db: Session, verb: Verb) -> VerbOut:
-    equivalent = _related_verb(db, verb)
+def _related_verb_map(db: Session, verb_ids: list[int]) -> dict[int, Verb]:
+    """Batched _related_verb: source verb id -> its translation equivalent."""
+    if not verb_ids:
+        return {}
+    rows = db.execute(
+        select(VerbRelation.source_verb_id, Verb)
+        .join(Verb, VerbRelation.target_verb_id == Verb.id)
+        .where(
+            VerbRelation.source_verb_id.in_(verb_ids),
+            VerbRelation.relation_type == "translation",
+        )
+        .order_by(Verb.language)
+    ).all()
+    mapping: dict[int, Verb] = {}
+    for source_id, equivalent in rows:
+        mapping.setdefault(source_id, equivalent)  # first by language, as above
+    return mapping
+
+
+def _set_ids_map(db: Session, verb_ids: list[int]) -> dict[int, list[int]]:
+    """Batched _verb_set_ids: verb id -> its set ids, ascending."""
+    if not verb_ids:
+        return {}
+    rows = db.execute(
+        select(VerbSetMember.verb_id, VerbSetMember.set_id)
+        .where(VerbSetMember.verb_id.in_(verb_ids))
+        .order_by(VerbSetMember.set_id)
+    ).all()
+    mapping: dict[int, list[int]] = {}
+    for verb_id, set_id in rows:
+        mapping.setdefault(verb_id, []).append(set_id)
+    return mapping
+
+
+def _build_verb_out(verb: Verb, equivalent: Verb | None, set_ids: list[int]) -> VerbOut:
     return VerbOut(
         id=verb.id,
         language=verb.language,
@@ -79,7 +112,13 @@ def _verb_out(db: Session, verb: Verb) -> VerbOut:
         equivalent_verb_id=equivalent.id if equivalent else None,
         equivalent_language=equivalent.language if equivalent else "",
         equivalent_infinitive=equivalent.infinitive if equivalent else "",
-        set_ids=_verb_set_ids(db, verb.id),
+        set_ids=set_ids,
+    )
+
+
+def _verb_out(db: Session, verb: Verb) -> VerbOut:
+    return _build_verb_out(
+        verb, _related_verb(db, verb), _verb_set_ids(db, verb.id)
     )
 
 
@@ -255,7 +294,15 @@ def list_verbs(
         .where(Verb.language == language.value)
         .order_by(Verb.frequency_rank, Verb.infinitive)
     ).scalars().all()
-    return [_verb_out(db, verb) for verb in verbs]
+    # Three queries total. The per-verb helpers here were an N+1 that took
+    # ~17s for 100 verbs against remote Postgres.
+    ids = [verb.id for verb in verbs]
+    equivalents = _related_verb_map(db, ids)
+    set_ids = _set_ids_map(db, ids)
+    return [
+        _build_verb_out(verb, equivalents.get(verb.id), set_ids.get(verb.id, []))
+        for verb in verbs
+    ]
 
 
 @public.get("/verbs/{verb_id}", response_model=VerbDetail)
