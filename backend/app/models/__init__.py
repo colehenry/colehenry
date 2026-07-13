@@ -1,4 +1,5 @@
 from app.models.base import Base
+from app.models.brain import BrainConversation, BrainLink, BrainMessage, BrainNote
 from app.models.catan import CatanGame, CatanPlayer, CatanResult
 from app.models.challenge import ChallengeCompletion, ChallengeState
 from app.models.language import (
@@ -31,6 +32,10 @@ from app.models.user import User
 
 __all__ = [
     "Base",
+    "BrainConversation",
+    "BrainLink",
+    "BrainMessage",
+    "BrainNote",
     "CardDirection",
     "CardSource",
     "CardType",

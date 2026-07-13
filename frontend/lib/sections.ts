@@ -74,6 +74,14 @@ export const sections: Section[] = [
     ownerOnly: true,
     comingSoon: true,
   },
+  {
+    slug: "brain",
+    path: "/brain",
+    name: "Brain",
+    accent: "brain",
+    description: "Second-brain vault — read, search, and chat over my notes.",
+    ownerOnly: true,
+  },
 ];
 
 /** Paths gated by the auth proxy (see /web/proxy.ts). */

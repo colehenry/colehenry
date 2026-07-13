@@ -81,6 +81,11 @@
   --accent: 150 40% 34%; /* herb green */
   --accent-contrast: 0 0% 100%;
 }
+
+[data-section="brain"] {
+  --accent: 262 52% 52%; /* violet — the second brain */
+  --accent-contrast: 0 0% 100%;
+}
 /* all other sections inherit the site-wide Carolina blue */
 
 .dark {
@@ -113,6 +118,11 @@
 .dark [data-section="recipes"] {
   --accent: 150 38% 52%;
   --accent-contrast: 152 40% 8%;
+}
+
+.dark [data-section="brain"] {
+  --accent: 262 66% 72%;
+  --accent-contrast: 262 40% 10%;
 }
 
 @theme inline {
@@ -188,7 +198,8 @@
 }
 
 @layer components {
-  /* Solid caps revealed only by rubber-band scrolling past the page edges. */
+  /* Keep native rubber-band overscroll on the theme-colored side of the page
+     without adding extra scrollable document height. */
   .overscroll-cap-top::before,
   .overscroll-cap-bottom::after {
     content: "";
@@ -196,6 +207,7 @@
     inset-inline: 0;
     height: 1px;
     pointer-events: none;
+    z-index: 1;
   }
   .overscroll-cap-top::before {
     top: -1px;

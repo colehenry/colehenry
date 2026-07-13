@@ -26,6 +26,18 @@ class Settings(BaseSettings):
     multilingual_model: str = ""
     fallback_model: str = ""
 
+    # Brain (/brain) — private Obsidian vault synced from a GitHub repo.
+    # All optional so local dev degrades gracefully when unset.
+    brain_repo: str = ""  # "owner/name" of the private vault repo
+    brain_github_token: str = ""  # fine-grained PAT, contents:read on that repo
+    brain_webhook_secret: str = ""  # GitHub webhook HMAC secret (X-Hub-Signature-256)
+    brain_chat_model: str = ""  # default OpenRouter slug; UI picker overrides per request
+    # Tiny, non-streaming model used only to name a new Brain chat from its opener.
+    brain_title_model: str = "mistralai/mistral-nemo"
+    # Web search tool (Tavily, LLM-oriented). Set the key to offer web_search
+    # to the agent. Free tier ~1,000 searches/month.
+    brain_tavily_key: str = ""  # Tavily API key (tvly-...)
+
     cookie_name: str = "ch_session"
     jwt_expires_days: int = 30
 

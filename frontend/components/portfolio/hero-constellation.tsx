@@ -24,6 +24,8 @@ const GLOW_SIZE = 480;
 /** gravity well radius (px) and max pull (px) — wide and gentle */
 const WELL_R = 420;
 const WELL_PULL = 50;
+/** extra geometry beyond the canvas so edge warps have room to enter */
+const GRID_PAD = WELL_R + WELL_PULL + CELL;
 /** spring that drags the well after the cursor — stiff and heavily damped so
     it snaps hard onto the cursor with barely one overshoot: intense gravity */
 const STIFF = 0.22;
@@ -35,6 +37,9 @@ const STAR_PARALLAX = 0.4;
 const GRID_ALPHA = 0.1;
 /** cursor→star link reach (px) */
 const MOUSE_DIST = 190;
+/** maximum stars and approximate area allotted to each star */
+const MAX_STARS = 180;
+const STAR_AREA = 9000;
 
 /**
  * Full-page "spacetime" background. A square grid mesh is bent by a gravity
@@ -131,7 +136,7 @@ export function HeroConstellation() {
       canvas.height = Math.floor(height * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-      const count = Math.min(90, Math.floor((width * height) / 14000));
+      const count = Math.min(MAX_STARS, Math.floor((width * height) / STAR_AREA));
       stars = Array.from({ length: count }, () => ({
         x: Math.random() * width,
         y: Math.random() * height,
@@ -177,15 +182,22 @@ export function HeroConstellation() {
       ctx.lineWidth = 1;
       ctx.strokeStyle = `hsl(${fgHsl} / ${GRID_ALPHA})`;
 
+      // Draw well beyond the viewport. The canvas clips the excess, while the
+      // off-screen geometry keeps a near-edge warp from exposing a hard end.
+      const gridStart = -Math.ceil(GRID_PAD / CELL) * CELL;
+      const gridEndX = width + GRID_PAD;
+      const gridEndY = height + GRID_PAD;
+
       // vertical lines
-      for (let x = 0; x <= width + CELL; x += CELL) {
+      for (let x = gridStart; x <= gridEndX; x += CELL) {
         const near = active && Math.abs(x - wx) < WELL_R + WELL_PULL;
-        gridLine(x, -CELL, x, height + CELL, near);
+        gridLine(x, -GRID_PAD, x, gridEndY, near);
       }
       // horizontal lines, shifted by parallax scroll
-      for (let y = offY - CELL * 2; y <= height + CELL; y += CELL) {
+      const horizontalStart = offY - GRID_PAD;
+      for (let y = horizontalStart; y <= gridEndY; y += CELL) {
         const near = active && Math.abs(y - wy) < WELL_R + WELL_PULL;
-        gridLine(-CELL, y, width + CELL, y, near);
+        gridLine(-GRID_PAD, y, width + GRID_PAD, y, near);
       }
 
       // soft-fade the grid toward the cursor: warped lines dissolve and blur
@@ -298,9 +310,16 @@ export function HeroConstellation() {
         raf = requestAnimationFrame(step);
       }
     };
+    // The canvas is document-sized rather than viewport-fixed, so keep its
+    // viewport-relative top current for cursor coordinates while scrolling.
+    const onScrollGeometry = () => {
+      rectTop = canvas.getBoundingClientRect().top;
+    };
+
     // reduced-motion: no loop, but still track scroll for the parallax
     let staticRaf = 0;
     const onScrollStatic = () => {
+      onScrollGeometry();
       if (staticRaf) return;
       staticRaf = requestAnimationFrame(() => {
         staticRaf = 0;
@@ -319,6 +338,7 @@ export function HeroConstellation() {
 
     resize();
     window.addEventListener("resize", resize);
+    window.addEventListener("scroll", onScrollGeometry, { passive: true });
     window.addEventListener("mousemove", onMove);
     document.addEventListener("mouseleave", onLeave);
     document.addEventListener("visibilitychange", onVisibility);
@@ -335,6 +355,7 @@ export function HeroConstellation() {
       cancelAnimationFrame(staticRaf);
       themeObserver.disconnect();
       window.removeEventListener("resize", resize);
+      window.removeEventListener("scroll", onScrollGeometry);
       window.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseleave", onLeave);
       document.removeEventListener("visibilitychange", onVisibility);
@@ -351,11 +372,10 @@ export function HeroConstellation() {
         aria-hidden
         // canvas is a replaced element: `inset` doesn't stretch it, so width
         // and height must be explicit or it collapses to its 300×150 intrinsic
-        className="pointer-events-none fixed left-0 z-0"
+        className="pointer-events-none absolute top-14 left-0 z-0"
         style={{
-          top: HEADER_OFFSET,
           width: "100vw",
-          height: `calc(100vh - ${HEADER_OFFSET}px)`,
+          height: `calc(100% - ${HEADER_OFFSET}px)`,
         }}
       />
       {/* soft cursor glow above the content (below the z-50 header) so the
