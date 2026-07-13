@@ -138,6 +138,7 @@ async function* readSSE(res: Response): AsyncGenerator<ChatEvent> {
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let receivedDone = false;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -173,8 +174,14 @@ async function* readSSE(res: Response): AsyncGenerator<ChatEvent> {
       else if (event === "error")
         yield { type: "error", message: String(parsed.message ?? "error") };
       else if (event === "reset") yield { type: "reset" };
-      else if (event === "done") yield { type: "done" };
+      else if (event === "done") {
+        receivedDone = true;
+        yield { type: "done" };
+      }
     }
+  }
+  if (!receivedDone) {
+    yield { type: "error", message: "connection closed before Brain finished; please try again" };
   }
 }
 
@@ -216,22 +223,28 @@ export async function* streamConversationMessage(
 }
 
 // Model picker options (valid OpenRouter slugs). Provider drives the logo.
-export type ModelProvider = "anthropic" | "openai" | "google" | "deepseek" | "mistral";
+export type ModelProvider = "anthropic" | "openai" | "google" | "deepseek" | "mistral" | "meta" | "qwen";
 export type ChatModel = {
   label: string;
   slug: string;
   provider: ModelProvider;
   hint?: string;
+  price: { input: string; output: string };
 };
 
 export const CHAT_MODELS: ChatModel[] = [
-  { label: "Claude Sonnet 4.6", slug: "anthropic/claude-sonnet-4.6", provider: "anthropic", hint: "balanced" },
-  { label: "Claude Opus 4.8", slug: "anthropic/claude-opus-4.8", provider: "anthropic", hint: "flagship" },
-  { label: "Claude Haiku 4.5", slug: "anthropic/claude-haiku-4.5", provider: "anthropic", hint: "fast · cheap" },
-  { label: "GPT-5.2", slug: "openai/gpt-5.2", provider: "openai", hint: "flagship" },
-  { label: "GPT-5 mini", slug: "openai/gpt-5-mini", provider: "openai", hint: "cheap" },
-  { label: "Gemini 2.5 Pro", slug: "google/gemini-2.5-pro", provider: "google" },
-  { label: "Gemini 2.5 Flash", slug: "google/gemini-2.5-flash", provider: "google", hint: "fast" },
-  { label: "DeepSeek V3.2", slug: "deepseek/deepseek-v3.2", provider: "deepseek", hint: "cheap" },
-  { label: "Mistral Nemo", slug: "mistralai/mistral-nemo", provider: "mistral", hint: "language · cheapest" },
+  { label: "Claude Sonnet 4.6", slug: "anthropic/claude-sonnet-4.6", provider: "anthropic", hint: "balanced", price: { input: "$3", output: "$15" } },
+  { label: "Claude Opus 4.8", slug: "anthropic/claude-opus-4.8", provider: "anthropic", hint: "frontier", price: { input: "$5", output: "$25" } },
+  { label: "Claude Haiku 4.5", slug: "anthropic/claude-haiku-4.5", provider: "anthropic", hint: "fast", price: { input: "$1", output: "$5" } },
+  { label: "GPT-5.2", slug: "openai/gpt-5.2", provider: "openai", hint: "frontier", price: { input: "$1.75", output: "$14" } },
+  { label: "GPT-5 mini", slug: "openai/gpt-5-mini", provider: "openai", hint: "compact", price: { input: "$0.25", output: "$2" } },
+  { label: "gpt-oss 20B", slug: "openai/gpt-oss-20b", provider: "openai", hint: "open · fast", price: { input: "$0.03", output: "$0.14" } },
+  { label: "Gemini 2.5 Pro", slug: "google/gemini-2.5-pro", provider: "google", hint: "reasoning", price: { input: "$1.25", output: "$10" } },
+  { label: "Gemini 2.5 Flash", slug: "google/gemini-2.5-flash", provider: "google", hint: "fast", price: { input: "$0.30", output: "$2.50" } },
+  { label: "Gemini 2.5 Flash-Lite", slug: "google/gemini-2.5-flash-lite", provider: "google", hint: "low latency", price: { input: "$0.10", output: "$0.40" } },
+  { label: "DeepSeek V3.2", slug: "deepseek/deepseek-v3.2", provider: "deepseek", hint: "agentic", price: { input: "$0.23", output: "$0.34" } },
+  { label: "Qwen3 30B Instruct", slug: "qwen/qwen3-30b-a3b-instruct-2507", provider: "qwen", hint: "open · capable", price: { input: "$0.05", output: "$0.19" } },
+  { label: "Mistral Small 3.2", slug: "mistralai/mistral-small-3.2-24b-instruct", provider: "mistral", hint: "tool use", price: { input: "$0.08", output: "$0.20" } },
+  { label: "Mistral Nemo", slug: "mistralai/mistral-nemo", provider: "mistral", hint: "ultra-cheap", price: { input: "$0.02", output: "$0.03" } },
+  { label: "Llama 4 Scout", slug: "meta-llama/llama-4-scout", provider: "meta", hint: "huge context", price: { input: "$0.10", output: "$0.30" } },
 ];

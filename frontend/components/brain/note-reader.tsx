@@ -34,11 +34,11 @@ export function NoteReader({
 
   return (
     <article>
-      <header className="mb-4 border-b pb-3">
-        <h1 className="font-heading text-2xl font-semibold tracking-tight">
+      <header className="mb-4 border-b border-[var(--term-line)] pb-3">
+        <h1 className="font-heading text-2xl font-semibold tracking-tight text-[var(--term-strong)]">
           {note.title}
         </h1>
-        <p className="mt-1 font-mono text-xs text-muted-foreground">{note.path}</p>
+        <p className="mt-1 font-mono text-xs text-[var(--term-dim)]">{note.path}</p>
       </header>
       <div className="brain-prose">
         <ReactMarkdown
@@ -64,7 +64,7 @@ export function NoteReader({
                   return (
                     <button
                       type="button"
-                      className="text-brand underline underline-offset-[3px] hover:opacity-80"
+                      className="text-[var(--term-accent)] underline underline-offset-[3px] hover:opacity-80"
                       onClick={() => onOpen(path)}
                     >
                       {children}

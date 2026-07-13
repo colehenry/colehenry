@@ -58,5 +58,18 @@ export function ProviderLogo({
           <rect x="3" y="16.25" width="18" height="3.3" fill="#FA500F" />
         </svg>
       );
+    case "meta":
+      return (
+        <svg viewBox="0 0 24 24" className={className} aria-hidden>
+          <path fill="none" stroke="#4B7BEC" strokeWidth="2.1" strokeLinecap="round" d="M3.4 15.7c2.7-6.8 4.7-9.4 6.1-9.4 2.2 0 2.3 8.2 4.7 8.2 1.3 0 2.8-2.4 6.4-7.4M3.4 15.7c2.1 2.4 4 3.4 5.7 2.8 1.9-.7 3-3.3 5.1-3.3 2 0 3.7 1.1 6.4 3.2" />
+        </svg>
+      );
+    case "qwen":
+      return (
+        <svg viewBox="0 0 24 24" className={className} aria-hidden>
+          <path fill="#6E4DF5" d="M12 3.2a8.8 8.8 0 1 0 5.9 15.3l2.1 2.1 1.5-1.5-2.1-2.1A8.8 8.8 0 0 0 12 3.2Zm0 2.4a6.4 6.4 0 1 1 0 12.8 6.4 6.4 0 0 1 0-12.8Z" />
+          <path fill="#6E4DF5" d="M9.1 9.2h2.2l1.1 2.2 1.1-2.2h2.2l-2.2 4.1 2.1 3.5h-2.2l-1-1.9-1 1.9H9.2l2.1-3.5z" />
+        </svg>
+      );
   }
 }

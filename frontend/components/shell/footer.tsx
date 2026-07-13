@@ -1,4 +1,7 @@
+"use client";
+
 import { Mail } from "lucide-react";
+import { usePathname } from "next/navigation";
 
 import { GitHubIcon, LinkedInIcon } from "@/components/icons";
 
@@ -13,6 +16,9 @@ const links = [
 ];
 
 export function Footer() {
+  const pathname = usePathname();
+  if (pathname === "/brain" || pathname.startsWith("/brain/")) return null;
+
   return (
     <footer className="overscroll-cap-bottom relative z-10 border-t bg-background">
       <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-6 sm:px-6">

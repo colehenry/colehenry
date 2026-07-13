@@ -41,7 +41,7 @@ export default function RootLayout({
           <div className="relative isolate flex min-h-svh flex-col">
             <Header />
             <HeroConstellation />
-            <main className="relative z-10 flex-1">{children}</main>
+            <main className="relative z-10 min-h-0 flex-1">{children}</main>
             <Footer />
             <CommandPalette />
           </div>

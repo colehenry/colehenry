@@ -36,6 +36,12 @@ WIKILINK_RE = re.compile(r"\[\[([^\]]+)\]\]")
 MDLINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 HEADING_RE = re.compile(r"^#\s+(.+)$", re.MULTILINE)
 PRIVATE_PREFIX = "_private/"
+MAX_TOOL_ROUNDS = 15
+TITLE_MAX_CHARS = 42
+
+TITLE_SYSTEM = """Write a concise, specific title for this chat prompt.
+Return only a natural 2-5 word title: no quotes, punctuation, markdown, or preamble.
+Do not copy the opening words verbatim unless they are already a good title."""
 
 CHAT_SYSTEM = """You are "brain", a personal assistant that only ever talks to one person: its owner. \
 Always address them directly as "you"/"your" — never in the third person, never by name.
@@ -602,7 +608,8 @@ def _chat_events(db, messages: list[dict], model: str | None):
 
     active_tools = _active_tools()
     try:
-        for _ in range(6):  # tool-loop guard
+        empty_response_retries = 0
+        for _ in range(MAX_TOOL_ROUNDS):
             content_parts: list[str] = []
             tool_calls: dict[int, dict] = {}
 
@@ -640,7 +647,17 @@ def _chat_events(db, messages: list[dict], model: str | None):
                         if fn.get("arguments"):
                             slot["args"] += fn["arguments"]
 
+            if not tool_calls and content_parts:
+                break
             if not tool_calls:
+                if empty_response_retries == 0:
+                    empty_response_retries += 1
+                    log.warning("brain: model returned an empty completion; retrying once")
+                    continue
+                yield (
+                    "error",
+                    {"message": "model returned an empty reply; try again or switch models"},
+                )
                 break
 
             # Drop any "let me check…" chatter emitted before the tool calls, so
@@ -676,10 +693,19 @@ def _chat_events(db, messages: list[dict], model: str | None):
                 convo.append(
                     {"role": "tool", "tool_call_id": t["id"], "name": t["name"], "content": output}
                 )
+        else:
+            yield (
+                "error",
+                {"message": "research limit reached before Brain could finish; try a narrower follow-up"},
+            )
         yield ("done", {})
     except httpx.HTTPError as exc:
         log.warning("brain: chat stream failed: %s", exc)
         yield ("error", {"message": "model request failed"})
+        yield ("done", {})
+    except Exception:  # noqa: BLE001 — the browser must never see a silent SSE close
+        log.exception("brain: chat stream interrupted")
+        yield ("error", {"message": "reply interrupted; please try again"})
         yield ("done", {})
 
 
@@ -692,6 +718,51 @@ def chat_stream(messages: list[dict], model: str | None):
             yield _sse(name, data)
     finally:
         db.close()
+
+
+def _fallback_conversation_title(first_message: str) -> str:
+    """Keep chat creation usable if the optional title model is unavailable."""
+    normalized = " ".join(first_message.split())
+    if not normalized:
+        return "New chat"
+    first_sentence = re.split(r"(?<=[.!?])\s+", normalized, maxsplit=1)[0]
+    words = first_sentence.split(" ")
+    summary = " ".join(words[:5])
+    clipped = summary[:TITLE_MAX_CHARS].rstrip()
+    return f"{clipped}…" if len(clipped) < len(first_sentence) else clipped
+
+
+def _conversation_title(first_message: str) -> str:
+    """Generate a small semantic chat title without delaying or risking chat."""
+    settings = get_settings()
+    if not settings.open_router_api_key or not settings.brain_title_model:
+        return _fallback_conversation_title(first_message)
+    try:
+        response = httpx.post(
+            f"{settings.llm_base_url.rstrip('/')}/chat/completions",
+            headers={"Authorization": f"Bearer {settings.open_router_api_key}"},
+            json={
+                "model": settings.brain_title_model,
+                "max_tokens": 18,
+                "temperature": 0.2,
+                "messages": [
+                    {"role": "system", "content": TITLE_SYSTEM},
+                    {"role": "user", "content": first_message},
+                ],
+            },
+            timeout=12,
+        )
+        response.raise_for_status()
+        title = response.json()["choices"][0]["message"]["content"] or ""
+    except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as exc:
+        log.warning("brain: title generation failed: %s", exc)
+        return _fallback_conversation_title(first_message)
+
+    title = re.sub(r"\s+", " ", str(title)).strip().strip("`\"'")
+    title = re.sub(r"[.!?]+$", "", title).strip()
+    if not title:
+        return _fallback_conversation_title(first_message)
+    return " ".join(title.split(" ")[:5])[:TITLE_MAX_CHARS].rstrip()
 
 
 def converse(conversation_id: int, user_content: str, model: str | None):
@@ -707,8 +778,7 @@ def converse(conversation_id: int, user_content: str, model: str | None):
             return
 
         db.add(BrainMessage(conversation_id=conv.id, role="user", content=user_content))
-        if not conv.title.strip():
-            conv.title = user_content.strip()[:60] or "New chat"
+        needs_title = not conv.title.strip()
         db.commit()
 
         history = [
@@ -721,6 +791,7 @@ def converse(conversation_id: int, user_content: str, model: str | None):
 
         acc: list[str] = []
         tools_used: list[dict] = []
+        error_message = ""
         for name, data in _chat_events(db, history, model):
             if name == "token":
                 acc.append(data["text"])
@@ -728,16 +799,23 @@ def converse(conversation_id: int, user_content: str, model: str | None):
                 acc.clear()  # discard pre-tool chatter from the saved answer
             elif name == "tool":
                 tools_used.append(data)
+            elif name == "error":
+                error_message = str(data.get("message") or "reply interrupted")
             yield _sse(name, data)
 
+        assistant_content = "".join(acc) or (
+            f"⚠ {error_message}" if error_message else "⚠ Reply ended before Brain produced an answer."
+        )
         db.add(
             BrainMessage(
                 conversation_id=conv.id,
                 role="assistant",
-                content="".join(acc),
+                content=assistant_content,
                 tool_calls=tools_used or None,
             )
         )
+        if needs_title:
+            conv.title = _conversation_title(user_content)
         conv.updated_at = datetime.now(timezone.utc)
         db.commit()
     finally:
