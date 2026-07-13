@@ -1,0 +1,27 @@
+{
+  "name": "@colehenry/coding-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "cole-agent": "dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js start",
+    "service:install": "npm run build && node dist/index.js service install",
+    "service:uninstall": "npm run build && node dist/index.js service uninstall",
+    "service:status": "npm run build && node dist/index.js service status",
+    "test": "node --import tsx --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.9",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3"
+  }
+}

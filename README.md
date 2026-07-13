@@ -7,6 +7,7 @@ the portfolio wired end to end.
 ```
 /frontend    Next.js 16 (App Router) · TypeScript · Tailwind v4 · shadcn/ui · TanStack Query · cmdk
 /backend    FastAPI · SQLAlchemy 2.0 · Alembic · Authlib (Google OAuth) · PyJWT · psycopg
+/agent      Local TypeScript coding-agent executor · OpenRouter · Git worktrees
 ```
 
 ---
@@ -49,6 +50,76 @@ npm run dev
 ```
 
 Open http://localhost:3000. `⌘K` opens the palette.
+
+### Coding agent (`/agent`)
+
+The coding UI has two modes:
+
+- **Local:** the browser talks directly to the Mac companion on
+  `127.0.0.1:7331`. Only the frontend and companion are required; FastAPI is
+  not involved.
+- **Remote:** the hosted browser talks through FastAPI/Railway to the same Mac
+  companion. See [`agent/README.md`](agent/README.md) for pairing.
+
+#### Recommended macOS setup (background service)
+
+Configure the companion once from the repository root. This repository is not
+itself an npm package, so the commands use `--prefix agent` to target the
+agent's `package.json`. `key set` stores the OpenRouter key in macOS Keychain,
+not in the repository.
+
+```bash
+npm --prefix agent install
+npm --prefix agent run dev -- workspace add .. colehenry.dev
+npm --prefix agent run dev -- workspace add ../../lapwise/lapwise.dev lapwise.dev
+npm --prefix agent run dev -- key set
+npm --prefix agent run dev -- doctor
+npm --prefix agent run service:install
+npm --prefix agent run service:status
+```
+
+Stop any foreground `npm run dev -- start` process before installing, because
+only one companion can use port `7331`. The installer builds the agent, writes
+`~/Library/LaunchAgents/dev.colehenry.coding-agent.plist`, starts it immediately,
+and configures macOS to start it at login and restart it after a failure.
+
+For normal local use after installation, open a new terminal at the repository
+root and start only the web app:
+
+```bash
+npm --prefix frontend run dev
+```
+
+Then open `http://localhost:3000/coding` and leave the connection set to
+**local**. The companion continues running in the background. Check it or read
+its logs with:
+
+```bash
+npm --prefix agent run service:status
+npm --prefix agent run dev -- doctor
+tail -f ~/.cole-agent/agent.log
+tail -f ~/.cole-agent/agent.error.log
+```
+
+After changing the agent source, rerun
+`npm --prefix agent run service:install` from the repository root to rebuild
+and reload it. To remove the background service, run
+`npm --prefix agent run service:uninstall`. The configuration remains at
+`~/.cole-agent/config.json`; remove it separately only if you also want to
+forget registered workspaces and remote pairing.
+
+#### Foreground alternative
+
+For debugging, skip the service and run the companion in a terminal instead:
+
+```bash
+npm --prefix agent run dev -- start
+```
+
+Do not run the foreground and background versions together. The local agent
+runs model/tool loops and touches files; the web app supplies task tabs, up to
+four split panes, diffs, approvals, terminal output, and
+completion/attention notifications.
 
 ---
 

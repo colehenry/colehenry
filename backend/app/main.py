@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import get_settings
-from app.routers import auth, brain, catan, challenges, language, projects, recipes
+from app.routers import auth, brain, catan, challenges, coding, language, projects, recipes
 
 settings = get_settings()
 
@@ -29,6 +29,7 @@ app.include_router(auth.router)
 app.include_router(brain.router)
 app.include_router(catan.router)
 app.include_router(challenges.router)
+app.include_router(coding.router)
 app.include_router(language.router)
 app.include_router(language.public)
 app.include_router(projects.router)
