@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     google_client_id: str
     google_client_secret: str
     oauth_redirect_uri: str
+    # Fernet key used only for persisted Google OAuth refresh tokens. Keep it
+    # independent from JWT_SECRET so either credential can rotate separately.
+    google_token_encryption_key: str = ""
     cookie_domain: str = ""  # empty for localhost (host-only cookie)
     frontend_origin: str = "http://localhost:3000"
 

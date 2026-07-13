@@ -34,6 +34,7 @@ uvicorn app.main:app --reload --port 8000
 | `JWT_SECRET` | `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
 | `OWNER_EMAIL` | your Google email — the entire allowlist |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | from Google Cloud (below) |
+| `GOOGLE_TOKEN_ENCRYPTION_KEY` | dedicated Fernet key; generate with the command in `.env.example` |
 | `OAUTH_REDIRECT_URI` | `http://localhost:8000/auth/google/callback` |
 | `COOKIE_DOMAIN` | empty (host-only cookie on localhost) |
 | `FRONTEND_ORIGIN` | `http://localhost:3000` |
@@ -84,6 +85,20 @@ Open http://localhost:3000. `⌘K` opens the palette.
   deployment, and read bounded/redacted build or runtime logs. The connector
   verifies each deployment belongs to its configured project, environment, and
   service; it exposes no mutations, environment variables, or configuration.
+  Optional Google Calendar tools list calendars, read/search bounded event
+  ranges, and inspect free/busy intervals. Calendar uses incremental OAuth with
+  the `calendar.readonly` scope, stores only an encrypted refresh token, and
+  exposes no event write operations.
+  Optional Gmail tools search bounded message metadata/snippets and retrieve a
+  full body only after a second explicit tool call. Gmail uses a separate
+  encrypted refresh token with `gmail.readonly`; attachments are inaccessible,
+  email content is treated as untrusted, and no mailbox write methods exist.
+  Calendar/Gmail model calls require an OpenRouter provider with prompt
+  collection denied and zero-data retention enabled. Gmail content is redacted
+  for common credentials, one-time codes, sensitive links, and financial
+  identifiers; full reads are rate-limited and audited without message IDs,
+  queries, or content. Replies based on Gmail are shown live but replaced by a
+  privacy placeholder in durable Brain chat history.
 
 ---
 
@@ -124,6 +139,28 @@ with zod; secrets stay server-side.
 2. Authorized redirect URIs: `https://api.colehenry.dev/auth/google/callback`
    (add `http://localhost:8000/auth/google/callback` for dev).
 3. Note the client ID + secret for the API env vars.
+4. In OAuth consent-screen branding, use
+   `https://api.colehenry.dev/auth/google/privacy` as the privacy-policy URL and
+   add `colehenry.dev` as an authorized domain. The integration-specific consent
+   page appears before Google OAuth as a separate acknowledgement.
+5. Enable the Google Calendar API for the project. Add the read-only Calendar
+   scope to the OAuth consent screen if Google requires it for the app's
+   publishing mode.
+6. For Gmail, also enable the Gmail API and add
+   `https://www.googleapis.com/auth/gmail.readonly` to the consent screen. This
+   is a Google restricted scope. For development, keep the app in Testing and
+   add the owner email as a test user. A published app must stay single-owner or
+   complete the applicable Google verification before broader use.
+7. Generate one dedicated token-encryption key and set the same stable value in
+   local and production environments. Rotating it invalidates stored Google
+   credentials and requires reconnecting both integrations.
+8. After logging in, connect Calendar once at
+   `/auth/google/calendar/connect`. The callback returns to `/brain`; status is
+   available at `/auth/google/calendar/status`, and `DELETE
+   /auth/google/calendar` removes the stored credential.
+9. Connect Gmail separately at `/auth/google/gmail/connect`. Status is at
+   `/auth/google/gmail/status`; `DELETE /auth/google/gmail` removes only the
+   Gmail credential.
 
 ### 2. Neon
 
@@ -140,17 +177,26 @@ with zod; secrets stay server-side.
    (migrations run on every deploy).
 3. Set all `.env` vars with production values
    (`COOKIE_DOMAIN=.colehenry.dev`, `FRONTEND_ORIGIN=https://colehenry.dev`,
-   `OAUTH_REDIRECT_URI=https://api.colehenry.dev/auth/google/callback`).
+   `OAUTH_REDIRECT_URI=https://api.colehenry.dev/auth/google/callback`, and the
+   stable `GOOGLE_TOKEN_ENCRYPTION_KEY`).
 4. Custom domain `api.colehenry.dev` → add the CNAME Railway gives you.
 
-### 4. Netlify (`/frontend` → colehenry.dev)
+### 4. OpenRouter privacy
+
+Brain enforces `data_collection: deny` and `zdr: true` on every model request
+after Calendar or Gmail data enters context. Also disable prompt logging in the
+OpenRouter account privacy settings as defense in depth. If the selected model
+has no eligible zero-data-retention provider, the answer fails closed instead
+of sending the Google data through a less private route.
+
+### 5. Netlify (`/frontend` → colehenry.dev)
 
 1. New site from this repo, base directory `/frontend` (Netlify's Next.js runtime
    picks up the rest).
 2. Env var: `NEXT_PUBLIC_API_URL=https://api.colehenry.dev`.
 3. Domains: `colehenry.dev` + `www.colehenry.dev`.
 
-### 5. Verify
+### 6. Verify
 
 - `https://api.colehenry.dev/health` returns `{"ok": true}`.
 - Log in on the site; DevTools → the `ch_session` cookie has

@@ -28,7 +28,7 @@ from app.models.language import (
 )
 from app.models.project import Project, Visibility
 from app.models.recipe import Recipe
-from app.models.user import User
+from app.models.user import GoogleCalendarCredential, GoogleGmailCredential, User
 
 __all__ = [
     "Base",
@@ -49,6 +49,8 @@ __all__ = [
     "Flashcard",
     "FlashcardDeck",
     "FlashcardReview",
+    "GoogleCalendarCredential",
+    "GoogleGmailCredential",
     "Language",
     "LanguageLexeme",
     "LanguageText",
