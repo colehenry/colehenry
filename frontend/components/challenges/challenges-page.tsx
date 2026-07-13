@@ -39,6 +39,11 @@ type DragGeometry = {
 
 const LIFT = "scale(1.03)";
 
+/** Toggle text selection globally while a row is being dragged. */
+function setBodyUserSelect(value: string) {
+  document.body.style.userSelect = value;
+}
+
 export function ChallengesPage() {
   const queryClient = useQueryClient();
   const dashboard = useQuery({ queryKey: QUERY_KEY, queryFn: getChallengeDashboard });
@@ -51,8 +56,13 @@ export function ChallengesPage() {
   const [dragId, setDragId] = useState<number | null>(null);
   const rowRefs = useRef<Record<number, HTMLLIElement | null>>({});
   const draftRef = useRef<number[] | null>(null);
-  draftRef.current = draftOrder;
   const geom = useRef<DragGeometry | null>(null);
+
+  // The pointer handlers registered while dragging read the latest draft from
+  // this ref; a layout effect keeps it in sync without writing refs in render.
+  useLayoutEffect(() => {
+    draftRef.current = draftOrder;
+  }, [draftOrder]);
 
   const applyServer = (data: ChallengeDashboard) =>
     queryClient.setQueryData(QUERY_KEY, data);
@@ -135,7 +145,7 @@ export function ChallengesPage() {
       }
       geom.current = null;
       setDragId(null);
-      document.body.style.userSelect = "";
+      setBodyUserSelect("");
       const final = draftRef.current;
       if (final) orderMutation.mutate(final);
     };
@@ -181,8 +191,6 @@ export function ChallengesPage() {
         );
     }
     positionDragged(dragId);
-    // positionDragged reads refs only
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftOrder, dragId]);
 
   const data = dashboard.data;
@@ -190,7 +198,7 @@ export function ChallengesPage() {
 
   const startDrag = (e: React.PointerEvent, id: number) => {
     e.preventDefault();
-    document.body.style.userSelect = "none";
+    setBodyUserSelect("none");
     setDraftOrder(ordering);
     const tops = new Map<number, number>();
     const heights = new Map<number, number>();
@@ -294,8 +302,14 @@ export function ChallengesPage() {
                     className="flex w-9 shrink-0 cursor-grab touch-none items-center justify-center border-r text-muted-foreground/50 hover:text-muted-foreground active:cursor-grabbing"
                     onPointerDown={(e) => startDrag(e, id)}
                     onKeyDown={(e) => {
-                      if (e.key === "ArrowUp") (e.preventDefault(), nudge(id, -1));
-                      if (e.key === "ArrowDown") (e.preventDefault(), nudge(id, 1));
+                      if (e.key === "ArrowUp") {
+                        e.preventDefault();
+                        nudge(id, -1);
+                      }
+                      if (e.key === "ArrowDown") {
+                        e.preventDefault();
+                        nudge(id, 1);
+                      }
                     }}
                   >
                     <GripVertical className="size-4" />

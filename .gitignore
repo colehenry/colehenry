@@ -13,6 +13,7 @@ node_modules/
 out/
 
 # misc
+*.log
 .DS_Store
 .claude/
 /context

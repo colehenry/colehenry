@@ -1,11 +1,11 @@
 from datetime import datetime
 
-from sqlalchemy import ARRAY, DateTime, Enum, Integer, Numeric, String, Text, func
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import DateTime, Enum, Integer, Numeric, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
 from app.models.project import Visibility
+from app.models.types import PortableJSONB, PortableStringArray
 
 
 class Recipe(Base):
@@ -31,16 +31,16 @@ class Recipe(Base):
     rating: Mapped[float] = mapped_column(
         Numeric(3, 1), default=0, nullable=False
     )  # 0–5, half steps
-    ingredients: Mapped[list] = mapped_column(JSONB, default=list, nullable=False)
-    steps: Mapped[list] = mapped_column(JSONB, default=list, nullable=False)
-    photo_urls: Mapped[list] = mapped_column(JSONB, default=list, nullable=False)
-    tags: Mapped[list[str]] = mapped_column(ARRAY(String), default=list, nullable=False)
+    ingredients: Mapped[list] = mapped_column(PortableJSONB, default=list, nullable=False)
+    steps: Mapped[list] = mapped_column(PortableJSONB, default=list, nullable=False)
+    photo_urls: Mapped[list] = mapped_column(PortableJSONB, default=list, nullable=False)
+    tags: Mapped[list[str]] = mapped_column(PortableStringArray, default=list, nullable=False)
     servings: Mapped[int | None] = mapped_column(Integer)
     cook_minutes: Mapped[int | None] = mapped_column(Integer)
     source_name: Mapped[str] = mapped_column(String(200), default="", nullable=False)
     source_url: Mapped[str] = mapped_column(String(500), default="", nullable=False)
     language: Mapped[str] = mapped_column(String(5), default="en", nullable=False)
-    translations: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+    translations: Mapped[dict] = mapped_column(PortableJSONB, default=dict, nullable=False)
     visibility: Mapped[Visibility] = mapped_column(
         Enum(Visibility, name="visibility"), default=Visibility.public, nullable=False
     )
