@@ -10,7 +10,12 @@ settings = get_settings()
 app = FastAPI(title="colehenry.dev API")
 
 # Session cookie is only used to hold OAuth state during the Google redirect.
-app.add_middleware(SessionMiddleware, secret_key=settings.jwt_secret)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.session_secret or settings.jwt_secret,
+    https_only=settings.cookie_secure,
+    same_site="lax",
+)
 
 app.add_middleware(
     CORSMiddleware,

@@ -9,6 +9,10 @@ class Settings(BaseSettings):
 
     database_url: str
     jwt_secret: str
+    # Signs the short-lived OAuth-state session cookie. Separate from
+    # JWT_SECRET so either can rotate independently; falls back to JWT_SECRET
+    # when unset so local dev keeps working.
+    session_secret: str = ""
     owner_email: str
     google_client_id: str
     google_client_secret: str
