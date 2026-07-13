@@ -72,6 +72,18 @@ Open http://localhost:3000. `⌘K` opens the palette.
   role as the middleware described in the plan.
 - **Resume:** rendered from `frontend/lib/resume.ts` + static `frontend/public/resume.pdf`.
   TODO (later build): move into the DB with inline editing.
+- **Brain tools:** `/brain` exposes narrowly scoped server-side tools to the
+  selected chat model. Notes remain backed by the private vault; optional code
+  tools can inspect only the repositories in `BRAIN_CODE_REPOS`. GitHub tokens
+  stay in the backend and are never sent to the model or browser. Code access
+  is read-only and filters credentials, secret files, generated output,
+  dependencies, lockfiles, binaries, and oversized files. Commit, comparison,
+  merge, and pull-request tools use the same allowlist and filtering boundary.
+  Optional Railway tools use separate project-scoped production tokens for the
+  `colehenry` and `lapwise` services. They can list deployments, inspect a
+  deployment, and read bounded/redacted build or runtime logs. The connector
+  verifies each deployment belongs to its configured project, environment, and
+  service; it exposes no mutations, environment variables, or configuration.
 
 ---
 

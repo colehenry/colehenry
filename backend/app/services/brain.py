@@ -26,6 +26,10 @@ import yaml
 from app.config import get_settings
 from app.db import SessionLocal
 from app.models import BrainConversation, BrainLink, BrainMessage, BrainNote
+from app.services.brain_code import code_repositories, tools as code_tools
+from app.services.brain_railway import target_names as railway_target_names
+from app.services.brain_railway import tools as railway_tools
+from app.services.brain_tool_registry import BrainTool, BrainToolRegistry
 
 log = logging.getLogger(__name__)
 
@@ -69,6 +73,30 @@ general/current-info question).
 Weave the notes in naturally when they're relevant; otherwise just answer normally from your own \
 knowledge.
 
+You may also have read-only GitHub tools for the owner's source-code repositories: {code_repos}. \
+Choose sources by what the question is asking:
+- Personal-vault project notes are the source for intent, goals, plans, past decisions, and the \
+owner's broader project context.
+- Repository code is the source of truth for what the current implementation does. Start with \
+`search_code` or `list_code_tree`, then use `read_code` for relevant files.
+- GitHub history is the source of truth for commits, merges, diffs, and pull requests. For the \
+latest merge into a branch, call `list_recent_merges` first, then `get_pull_request` to inspect and \
+summarize its changed files. Use `list_commits`, `get_commit`, or `compare_refs` for commit/ref \
+questions. Never infer recent GitHub state from notes, repository files, or model knowledge.
+For a narrow current-code or Git-history question, start with GitHub rather than reading a project \
+note. When the question spans project intent and implementation, read the relevant vault project \
+note first, then inspect GitHub, and distinguish planned behavior from current code. Cite code \
+findings as `owner/repo/path:line`; cite PR numbers and commit SHAs for history. Never claim to have \
+changed code: these tools are read-only.
+
+You may also have read-only Railway visibility for these deployed applications: \
+{railway_targets}. Railway is the source of truth for what is currently deployed, deployment \
+status, and build/runtime logs. For deployment questions, call `list_railway_deployments` first, \
+then inspect a specific deployment or its bounded logs as needed. When Railway returns a commit \
+hash, use the GitHub history tools to explain the corresponding code or diff. Never infer the \
+deployed revision from the head of `main`; verify it through Railway. These tools cannot restart, \
+redeploy, roll back, change configuration, or read environment variables.
+
 Style:
 - Your FIRST words must be the answer itself. Never open with a sentence describing what you're \
 about to do or fetch — no "Let me pull up…", "Let me check…", "Let me look at…", "I checked your \
@@ -85,61 +113,6 @@ is only the answer.
 --- FULL NOTE INDEX (fallback) ---
 {vault_map}
 --- END INDEX ---"""
-
-TOOLS = [
-    {
-        "type": "function",
-        "function": {
-            "name": "read_note",
-            "description": "Read the full markdown of one note by its vault path (as given in MAIN.md or the index). This is the primary tool.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {"type": "string", "description": "Repo-relative path, e.g. 'projects/lapwise.md'."}
-                },
-                "required": ["path"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "neighbors",
-            "description": "List a note's linked connections (outbound + inbound) so you can traverse the vault by its links. Optional — README.md usually tells you the path directly.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {"type": "string", "description": "Repo-relative path of the note whose links you want."}
-                },
-                "required": ["path"],
-            },
-        },
-    },
-]
-
-# Offered only when Google CSE is configured (see web_search_available()).
-WEB_SEARCH_TOOL = {
-    "type": "function",
-    "function": {
-        "name": "web_search",
-        "description": "Search the live web (Google) for current events, real-time facts, prices, news, or anything outside your training data and the personal vault. Returns titles, links, and snippets.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string", "description": "Web search query."}
-            },
-            "required": ["query"],
-        },
-    },
-}
-
-
-def _active_tools() -> list[dict]:
-    """Base vault tools, plus web_search when it's configured."""
-    tools = list(TOOLS)
-    if web_search_available():
-        tools.append(WEB_SEARCH_TOOL)
-    return tools
 
 
 def available() -> bool:
@@ -546,36 +519,86 @@ def vault_map(db) -> str:
 # --------------------------------------------------------------------------- #
 # Agentic chat (streaming, tool loop)
 # --------------------------------------------------------------------------- #
+def _read_note_label(db, args: dict) -> str:
+    path = args.get("path", "")
+    note = db.query(BrainNote).filter(BrainNote.path == path).one_or_none()
+    return f"reading {note.title}" if note else f"reading {path}"
+
+
+def _build_tool_registry() -> BrainToolRegistry:
+    object_schema = lambda properties, required=(): {  # noqa: E731
+        "type": "object",
+        "properties": properties,
+        "required": list(required),
+        "additionalProperties": False,
+    }
+    tools = [
+        BrainTool(
+            name="read_note",
+            description=(
+                "Read the full markdown of one personal-vault note by its repo-relative "
+                "path from the vault map. Private notes are never returned."
+            ),
+            parameters=object_schema(
+                {"path": {"type": "string", "description": "Vault-relative markdown path."}},
+                ("path",),
+            ),
+            handler=lambda db, args: read_note(db, args.get("path", ""))
+            or {"error": "not found or private"},
+            label=_read_note_label,
+        ),
+        BrainTool(
+            name="neighbors",
+            description="List the inbound and outbound note links for one personal-vault note.",
+            parameters=object_schema(
+                {"path": {"type": "string", "description": "Vault-relative markdown path."}},
+                ("path",),
+            ),
+            handler=lambda db, args: neighbors(db, args.get("path", "")),
+            label=lambda db, args: f"mapping links from {args.get('path', '')}",
+        ),
+        BrainTool(
+            name="web_search",
+            description=(
+                "Search the live web for current events, real-time facts, prices, news, "
+                "or information outside the personal vault and code repositories."
+            ),
+            parameters=object_schema(
+                {"query": {"type": "string", "description": "Web search query."}},
+                ("query",),
+            ),
+            handler=lambda db, args: web_search(args.get("query", "")),
+            label=lambda db, args: f'searching the web "{args.get("query", "")}"',
+            available=web_search_available,
+        ),
+    ]
+    tools.extend(code_tools())
+    tools.extend(railway_tools())
+    return BrainToolRegistry(tools)
+
+
+TOOL_REGISTRY = _build_tool_registry()
+
+
+def _active_tools() -> list[dict]:
+    return TOOL_REGISTRY.active_schemas()
+
+
 def _run_tool(db, name: str, args: dict) -> str:
+    tool = TOOL_REGISTRY.get(name)
+    if tool is None or not tool.available():
+        return json.dumps({"error": f"unknown or unavailable tool {name}"})
     try:
-        if name == "read_note":
-            note = read_note(db, args.get("path", ""))
-            return json.dumps(note) if note else json.dumps({"error": "not found or private"})
-        if name == "neighbors":
-            return json.dumps(neighbors(db, args.get("path", "")))
-        if name == "search":
-            return json.dumps(search(db, args.get("query", ""))[:8])
-        if name == "web_search":
-            return json.dumps(web_search(args.get("query", "")))
+        return json.dumps(tool.handler(db, args), ensure_ascii=False)
     except Exception as exc:  # noqa: BLE001 — tool errors must not kill the stream
         log.warning("brain: tool %s failed: %s", name, exc)
         return json.dumps({"error": str(exc)})
-    return json.dumps({"error": f"unknown tool {name}"})
 
 
 def _tool_label(db, name: str, args: dict) -> str:
     """Human-readable description of a tool call, for the live activity trail."""
-    if name == "read_note":
-        path = args.get("path", "")
-        note = db.query(BrainNote).filter(BrainNote.path == path).one_or_none()
-        return f"reading {note.title}" if note else f"reading {path}"
-    if name == "neighbors":
-        return f"mapping links from {args.get('path', '')}"
-    if name == "search":
-        return f'searching notes "{args.get("query", "")}"'
-    if name == "web_search":
-        return f'searching the web "{args.get("query", "")}"'
-    return name
+    tool = TOOL_REGISTRY.get(name)
+    return tool.label(db, args) if tool else name
 
 
 def _sse(event: str, data: dict) -> str:
@@ -601,6 +624,8 @@ def _chat_events(db, messages: list[dict], model: str | None):
                 today=datetime.now().strftime("%A, %B %-d, %Y"),
                 main_doc=main_doc(db) or "(no README.md found in the vault)",
                 vault_map=vault_map(db),
+                code_repos=", ".join(code_repositories()) or "(not configured)",
+                railway_targets=", ".join(railway_target_names()) or "(not configured)",
             ),
         }
     ]
