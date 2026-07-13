@@ -126,6 +126,7 @@ export type ChatEvent =
   | { type: "token"; text: string }
   | { type: "tool"; name: string; args: unknown; label?: string }
   | { type: "error"; message: string }
+  | { type: "reset" }
   | { type: "done" };
 
 /** Read an SSE `event:/data:` stream into typed ChatEvents. */
@@ -171,6 +172,7 @@ async function* readSSE(res: Response): AsyncGenerator<ChatEvent> {
         };
       else if (event === "error")
         yield { type: "error", message: String(parsed.message ?? "error") };
+      else if (event === "reset") yield { type: "reset" };
       else if (event === "done") yield { type: "done" };
     }
   }
@@ -213,10 +215,23 @@ export async function* streamConversationMessage(
   yield* readSSE(res);
 }
 
-// A small curated set of OpenRouter model slugs for the picker.
-export const CHAT_MODELS: { label: string; slug: string }[] = [
-  { label: "Claude Opus 4.8", slug: "anthropic/claude-opus-4.8" },
-  { label: "Claude Sonnet 4.5", slug: "anthropic/claude-sonnet-4.5" },
-  { label: "GPT-5", slug: "openai/gpt-5" },
-  { label: "Gemini 2.5 Pro", slug: "google/gemini-2.5-pro" },
+// Model picker options (valid OpenRouter slugs). Provider drives the logo.
+export type ModelProvider = "anthropic" | "openai" | "google" | "deepseek" | "mistral";
+export type ChatModel = {
+  label: string;
+  slug: string;
+  provider: ModelProvider;
+  hint?: string;
+};
+
+export const CHAT_MODELS: ChatModel[] = [
+  { label: "Claude Sonnet 4.6", slug: "anthropic/claude-sonnet-4.6", provider: "anthropic", hint: "balanced" },
+  { label: "Claude Opus 4.8", slug: "anthropic/claude-opus-4.8", provider: "anthropic", hint: "flagship" },
+  { label: "Claude Haiku 4.5", slug: "anthropic/claude-haiku-4.5", provider: "anthropic", hint: "fast · cheap" },
+  { label: "GPT-5.2", slug: "openai/gpt-5.2", provider: "openai", hint: "flagship" },
+  { label: "GPT-5 mini", slug: "openai/gpt-5-mini", provider: "openai", hint: "cheap" },
+  { label: "Gemini 2.5 Pro", slug: "google/gemini-2.5-pro", provider: "google" },
+  { label: "Gemini 2.5 Flash", slug: "google/gemini-2.5-flash", provider: "google", hint: "fast" },
+  { label: "DeepSeek V3.2", slug: "deepseek/deepseek-v3.2", provider: "deepseek", hint: "cheap" },
+  { label: "Mistral Nemo", slug: "mistralai/mistral-nemo", provider: "mistral", hint: "language · cheapest" },
 ];

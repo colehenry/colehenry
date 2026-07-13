@@ -18,7 +18,7 @@ import hashlib
 import json
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 import httpx
 import yaml
@@ -40,17 +40,25 @@ PRIVATE_PREFIX = "_private/"
 CHAT_SYSTEM = """You are "brain", a personal assistant that only ever talks to one person: its owner. \
 Always address them directly as "you"/"your" — never in the third person, never by name.
 
+Today's date is {today}. Treat that as the current date for anything time-sensitive — "this \
+summer", "next weekend", recent events, current prices — and when you run web searches (search \
+the current year, not an older one).
+
 You are a fully capable general-purpose assistant. Answer questions on any topic (science, code, \
 advice, trivia, whatever) using your own knowledge, exactly like a normal chatbot. You are NOT \
-limited to the notes below — never say you can only answer from them.
+limited to the notes below — never say you can only answer from them. When a `web_search` tool is \
+available, use it for current events, real-time facts, prices, news, or anything that may have \
+changed since your training.
 
 On top of that, you have private access to the owner's personal notes vault. Use it whenever a \
 question touches their life, work, projects, preferences, plans, people, or anything personal. \
 `README.md` (below) is the vault's map — it says what lives where and the path to each note. When \
 personal context would help:
 - find the relevant note(s) and their paths in README.md,
-- read them with `read_note` (by path); use `neighbors` to follow links; use `search` only as a \
-last resort.
+- read them with `read_note` (by path); use `neighbors` to follow links between notes.
+Navigate purely by README.md's paths and links — do NOT keyword-search the vault. If README.md \
+doesn't reference something, it isn't in the vault; say so plainly (and use web_search if it's a \
+general/current-info question).
 
 Weave the notes in naturally when they're relevant; otherwise just answer normally from your own \
 knowledge.
@@ -91,7 +99,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "neighbors",
-            "description": "List a note's linked connections (outbound + inbound) so you can traverse the vault by its links. Optional — MAIN.md usually tells you the path directly.",
+            "description": "List a note's linked connections (outbound + inbound) so you can traverse the vault by its links. Optional — README.md usually tells you the path directly.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -101,21 +109,31 @@ TOOLS = [
             },
         },
     },
-    {
-        "type": "function",
-        "function": {
-            "name": "search",
-            "description": "LAST RESORT full-text search. Only use if MAIN.md and the index don't point you to the right note. Returns matching paths, titles, snippets.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string", "description": "Search terms."}
-                },
-                "required": ["query"],
+]
+
+# Offered only when Google CSE is configured (see web_search_available()).
+WEB_SEARCH_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "web_search",
+        "description": "Search the live web (Google) for current events, real-time facts, prices, news, or anything outside your training data and the personal vault. Returns titles, links, and snippets.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Web search query."}
             },
+            "required": ["query"],
         },
     },
-]
+}
+
+
+def _active_tools() -> list[dict]:
+    """Base vault tools, plus web_search when it's configured."""
+    tools = list(TOOLS)
+    if web_search_available():
+        tools.append(WEB_SEARCH_TOOL)
+    return tools
 
 
 def available() -> bool:
@@ -126,6 +144,10 @@ def available() -> bool:
 def chat_available() -> bool:
     s = get_settings()
     return bool(s.open_router_api_key and (s.brain_chat_model or True))
+
+
+def web_search_available() -> bool:
+    return bool(get_settings().brain_tavily_key)
 
 
 def is_private(path: str) -> bool:
@@ -202,6 +224,21 @@ def list_repo_markdown() -> list[str]:
 # --------------------------------------------------------------------------- #
 # Parsing
 # --------------------------------------------------------------------------- #
+def _jsonable(value):
+    """Coerce YAML-parsed frontmatter into JSON-serializable values. YAML turns
+    `date: 2026-07-12` into a Python date, which JSONB can't store — stringify
+    dates/datetimes and anything else exotic."""
+    if isinstance(value, dict):
+        return {str(k): _jsonable(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_jsonable(v) for v in value]
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return str(value)
+
+
 def _split_frontmatter(text: str) -> tuple[dict, str]:
     if not text.startswith("---"):
         return {}, text
@@ -216,7 +253,7 @@ def _split_frontmatter(text: str) -> tuple[dict, str]:
             fm = {}
     except yaml.YAMLError:
         fm = {}
-    return fm, body
+    return _jsonable(fm), body
 
 
 def _clean_wikilink(raw: str) -> str:
@@ -400,6 +437,39 @@ def search(db, query: str, k: int = 8) -> list[dict]:
     ]
 
 
+def web_search(query: str, k: int = 5) -> list[dict]:
+    """Tavily search → [{title, link, snippet}]. Empty on failure or when
+    unconfigured. Tavily's free tier is ~1,000 searches/month."""
+    query = (query or "").strip()
+    s = get_settings()
+    if not query or not web_search_available():
+        return []
+    try:
+        res = httpx.post(
+            "https://api.tavily.com/search",
+            headers={"Authorization": f"Bearer {s.brain_tavily_key}"},
+            json={
+                "query": query,
+                "max_results": max(1, min(k, 10)),
+                "search_depth": "basic",
+            },
+            timeout=25,
+        )
+        res.raise_for_status()
+        results = res.json().get("results", []) or []
+    except (httpx.HTTPError, ValueError) as exc:
+        log.warning("brain: web_search failed for %r: %s", query, exc)
+        return []
+    return [
+        {
+            "title": r.get("title", ""),
+            "link": r.get("url", ""),
+            "snippet": r.get("content", ""),
+        }
+        for r in results[:k]
+    ]
+
+
 def read_note(db, path: str) -> dict | None:
     """Full note by path, for the reader and the chat tool. Refuses private."""
     if not path or is_private(path):
@@ -435,32 +505,19 @@ def neighbors(db, path: str) -> dict:
 
 
 def main_doc(db) -> str:
-    """The vault's map file for the system prompt — the point of contact. Prefers
-    a root-level README.md, falling back to main.md. Case-insensitive. Empty
-    string if the vault has neither."""
+    """The vault's README.md for the system prompt — the point of contact / map.
+    Case-insensitive, prefers the root-level one. Empty string if absent."""
     from sqlalchemy import func as safunc, or_
 
     lp = safunc.lower(BrainNote.path)
     rows = (
         db.query(BrainNote)
-        .filter(
-            or_(
-                lp == "readme.md",
-                lp.like("%/readme.md"),
-                lp == "main.md",
-                lp.like("%/main.md"),
-            )
-        )
+        .filter(or_(lp == "readme.md", lp.like("%/readme.md")))
         .all()
     )
     if not rows:
         return ""
-
-    def rank(n) -> tuple:
-        base = n.path.rsplit("/", 1)[-1].lower()
-        return (0 if base == "readme.md" else 1, n.path.count("/"))
-
-    rows.sort(key=rank)  # README first, then shallowest
+    rows.sort(key=lambda n: n.path.count("/"))  # shallowest (root) wins
     return rows[0].body_md
 
 
@@ -492,6 +549,8 @@ def _run_tool(db, name: str, args: dict) -> str:
             return json.dumps(neighbors(db, args.get("path", "")))
         if name == "search":
             return json.dumps(search(db, args.get("query", ""))[:8])
+        if name == "web_search":
+            return json.dumps(web_search(args.get("query", "")))
     except Exception as exc:  # noqa: BLE001 — tool errors must not kill the stream
         log.warning("brain: tool %s failed: %s", name, exc)
         return json.dumps({"error": str(exc)})
@@ -507,7 +566,9 @@ def _tool_label(db, name: str, args: dict) -> str:
     if name == "neighbors":
         return f"mapping links from {args.get('path', '')}"
     if name == "search":
-        return f'searching "{args.get("query", "")}"'
+        return f'searching notes "{args.get("query", "")}"'
+    if name == "web_search":
+        return f'searching the web "{args.get("query", "")}"'
     return name
 
 
@@ -531,6 +592,7 @@ def _chat_events(db, messages: list[dict], model: str | None):
         {
             "role": "system",
             "content": CHAT_SYSTEM.format(
+                today=datetime.now().strftime("%A, %B %-d, %Y"),
                 main_doc=main_doc(db) or "(no README.md found in the vault)",
                 vault_map=vault_map(db),
             ),
@@ -538,6 +600,7 @@ def _chat_events(db, messages: list[dict], model: str | None):
     ]
     convo += [{"role": m["role"], "content": m["content"]} for m in messages]
 
+    active_tools = _active_tools()
     try:
         for _ in range(6):  # tool-loop guard
             content_parts: list[str] = []
@@ -547,7 +610,7 @@ def _chat_events(db, messages: list[dict], model: str | None):
                 "POST",
                 f"{s.llm_base_url.rstrip('/')}/chat/completions",
                 headers={"Authorization": f"Bearer {s.open_router_api_key}"},
-                json={"model": model, "messages": convo, "tools": TOOLS, "stream": True},
+                json={"model": model, "messages": convo, "tools": active_tools, "stream": True},
                 timeout=120,
             ) as res:
                 res.raise_for_status()
@@ -579,6 +642,11 @@ def _chat_events(db, messages: list[dict], model: str | None):
 
             if not tool_calls:
                 break
+
+            # Drop any "let me check…" chatter emitted before the tool calls, so
+            # only the final answer shows (the tool trail conveys the lookups).
+            if content_parts:
+                yield ("reset", {})
 
             ordered = [tool_calls[i] for i in sorted(tool_calls)]
             convo.append(
@@ -656,6 +724,8 @@ def converse(conversation_id: int, user_content: str, model: str | None):
         for name, data in _chat_events(db, history, model):
             if name == "token":
                 acc.append(data["text"])
+            elif name == "reset":
+                acc.clear()  # discard pre-tool chatter from the saved answer
             elif name == "tool":
                 tools_used.append(data)
             yield _sse(name, data)

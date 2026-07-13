@@ -5,7 +5,16 @@ import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { FileText, FolderTree, Menu, Plus, Search, Trash2 } from "lucide-react";
+import {
+  ArrowUp,
+  FileText,
+  FolderTree,
+  Globe,
+  Menu,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react";
 
 import {
   CHAT_MODELS,
@@ -15,6 +24,7 @@ import {
   getConversations,
   streamConversationMessage,
 } from "@/lib/api/brain";
+import { ModelPicker } from "@/components/brain/model-picker";
 
 type Turn = {
   role: "user" | "assistant";
@@ -50,9 +60,18 @@ export function BrainChat() {
   const [busy, setBusy] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const bootstrapped = useRef(false);
 
-  const convsQ = useQuery({ queryKey: ["brain", "conversations"], queryFn: getConversations });
+  // Keep the terminal prompt focused whenever the agent isn't replying.
+  useEffect(() => {
+    if (!busy) inputRef.current?.focus();
+  }, [busy]);
+
+  const convsQ = useQuery({
+    queryKey: ["brain", "conversations"],
+    queryFn: getConversations,
+  });
 
   const scrollToEnd = () =>
     requestAnimationFrame(() =>
@@ -119,7 +138,10 @@ export function BrainChat() {
           setMessages((prev) => {
             const next = [...prev];
             const last = next[next.length - 1];
-            next[next.length - 1] = { ...last, content: last.content + ev.text };
+            next[next.length - 1] = {
+              ...last,
+              content: last.content + ev.text,
+            };
             return next;
           });
           scrollToEnd();
@@ -129,16 +151,30 @@ export function BrainChat() {
             const last = next[next.length - 1];
             next[next.length - 1] = {
               ...last,
-              tools: [...(last.tools ?? []), { name: ev.name, args: ev.args, label: ev.label }],
+              tools: [
+                ...(last.tools ?? []),
+                { name: ev.name, args: ev.args, label: ev.label },
+              ],
             };
             return next;
           });
           scrollToEnd();
+        } else if (ev.type === "reset") {
+          // Drop pre-tool "let me check…" chatter; keep the tool trail.
+          setMessages((prev) => {
+            const next = [...prev];
+            const last = next[next.length - 1];
+            next[next.length - 1] = { ...last, content: "" };
+            return next;
+          });
         } else if (ev.type === "error") {
           setMessages((prev) => {
             const next = [...prev];
             const last = next[next.length - 1];
-            next[next.length - 1] = { ...last, content: last.content || `⚠ ${ev.message}` };
+            next[next.length - 1] = {
+              ...last,
+              content: last.content || `⚠ ${ev.message}`,
+            };
             return next;
           });
         }
@@ -166,7 +202,9 @@ export function BrainChat() {
       </div>
       <div className="brain-term-scroll flex-1 overflow-y-auto px-2">
         {conversations.length === 0 && (
-          <p className="px-2 py-3 text-xs text-[var(--term-dim)]">No conversations yet.</p>
+          <p className="px-2 py-3 text-xs text-[var(--term-dim)]">
+            No conversations yet.
+          </p>
         )}
         {conversations.map((c) => (
           <div
@@ -214,9 +252,15 @@ export function BrainChat() {
 
       {/* Mobile rail drawer */}
       {railOpen && (
-        <div className="fixed inset-0 z-40 md:hidden" onClick={() => setRailOpen(false)}>
+        <div
+          className="fixed inset-0 z-40 md:hidden"
+          onClick={() => setRailOpen(false)}
+        >
           <div className="absolute inset-0 bg-black/50" />
-          <div className="absolute inset-y-0 left-0 w-72" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="absolute inset-y-0 left-0 w-72"
+            onClick={(e) => e.stopPropagation()}
+          >
             {rail}
           </div>
         </div>
@@ -224,27 +268,41 @@ export function BrainChat() {
 
       {/* Chat column */}
       <section className="flex min-h-0 flex-col">
-        {/* Mobile top bar */}
-        <div className="flex items-center gap-2 border-b border-[var(--term-line)] px-3 py-2 md:hidden">
-          <button type="button" onClick={() => setRailOpen(true)} aria-label="History">
+        {/* Header — conversation title + model picker (all sizes) */}
+        <header className="flex items-center gap-2 border-b border-[var(--term-line)] px-3 py-2">
+          <button
+            type="button"
+            onClick={() => setRailOpen(true)}
+            aria-label="History"
+            className="md:hidden"
+          >
             <Menu className="size-5 text-[var(--term-fg)]" />
           </button>
-          <span className="truncate text-sm text-[var(--term-dim)]">
+          <span className="min-w-0 flex-1 truncate text-sm text-[var(--term-dim)]">
             {conversations.find((c) => c.id === activeId)?.title ?? "new chat"}
           </span>
-          <button type="button" onClick={newChat} className="ml-auto" aria-label="New chat">
+          <ModelPicker model={model} onChange={setModel} />
+          <button
+            type="button"
+            onClick={newChat}
+            className="md:hidden"
+            aria-label="New chat"
+          >
             <Plus className="size-5 text-[var(--term-fg)]" />
           </button>
-        </div>
+        </header>
 
         {/* Transcript */}
-        <div ref={scrollRef} className="brain-term-scroll flex-1 overflow-y-auto px-4 py-5">
+        <div
+          ref={scrollRef}
+          className="brain-term-scroll flex-1 overflow-y-auto px-4 py-5"
+        >
           <div className="mx-auto max-w-3xl space-y-5">
             {messages.length === 0 && (
-              <p className="text-[var(--term-dim)]">
-                <BrainLabel /> <span>ready — ask anything.</span>
-                <span className="term-cursor ml-1 align-middle" />
-              </p>
+              <div className="flex items-baseline gap-2.5">
+                <BrainLabel />
+                <span className="text-[var(--term-fg)]">how can I help?</span>
+              </div>
             )}
 
             {messages.map((m, i) =>
@@ -263,22 +321,29 @@ export function BrainChat() {
                       (m.tools ?? []).length === 0 &&
                       busy &&
                       i === messages.length - 1 && (
-                        <div className="term-tool animate-pulse text-xs">working…</div>
+                        <div className="term-tool animate-pulse text-xs">
+                          working…
+                        </div>
                       )}
                     {(m.tools ?? []).map((t, j) => (
-                      <div key={j} className="term-tool flex items-center gap-1.5 text-xs">
-                        {t.name === "search" ? (
-                          <Search className="size-3" />
+                      <div
+                        key={j}
+                        className="term-tool flex items-center gap-1.5 text-xs leading-none"
+                      >
+                        {t.name === "web_search" ? (
+                          <Globe className="size-3.5 shrink-0" />
+                        ) : t.name === "search" ? (
+                          <Search className="size-3.5 shrink-0" />
                         ) : (
-                          <FileText className="size-3" />
+                          <FileText className="size-3.5 shrink-0" />
                         )}
-                        <span>
-                          » <b>{toolLabel(t)}</b>
-                        </span>
+                        <span>{toolLabel(t)}</span>
                       </div>
                     ))}
                     <div className="brain-term-prose">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {m.content}
+                      </ReactMarkdown>
                       {busy && i === messages.length - 1 && (
                         <span className="term-cursor align-middle" />
                       )}
@@ -287,40 +352,35 @@ export function BrainChat() {
                 </div>
               ),
             )}
-          </div>
-        </div>
 
-        {/* Composer */}
-        <div className="border-t border-[var(--term-line)] px-4 py-3">
-          <div className="mx-auto flex max-w-3xl items-end gap-2">
-            <span className="pb-2 pt-0.5">
-              <UserLabel />
-            </span>
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
+            {/* Active terminal prompt — inline input at the end of the log */}
+            {!busy && (
+              <form
+                onSubmit={(e) => {
                   e.preventDefault();
                   send();
-                }
-              }}
-              rows={1}
-              placeholder="type a message…"
-              className="brain-term-input max-h-40 flex-1 resize-none py-1.5 outline-none"
-            />
-            <select
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              aria-label="Model"
-              className="shrink-0 rounded border border-[var(--term-line)] bg-[var(--term-bg-2)] px-1.5 py-1 text-xs text-[var(--term-fg)]"
-            >
-              {CHAT_MODELS.map((mm) => (
-                <option key={mm.slug} value={mm.slug} className="bg-[var(--term-bg-2)]">
-                  {mm.label}
-                </option>
-              ))}
-            </select>
+                }}
+                className="flex items-center gap-2.5"
+              >
+                <UserLabel />
+                <input
+                  ref={inputRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  autoFocus
+                  aria-label="Message"
+                  className="brain-term-input min-w-0 flex-1 bg-transparent outline-none"
+                />
+                <button
+                  type="submit"
+                  disabled={!input.trim()}
+                  aria-label="Send"
+                  className="inline-flex size-7 shrink-0 items-center justify-center rounded-md bg-[var(--term-accent)] text-white transition-opacity disabled:opacity-30"
+                >
+                  <ArrowUp className="size-4" />
+                </button>
+              </form>
+            )}
           </div>
         </div>
       </section>

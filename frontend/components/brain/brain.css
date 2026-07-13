@@ -162,9 +162,10 @@
 /* Blinking block cursor */
 .term-cursor {
   display: inline-block;
-  width: 0.55ch;
+  width: 0.5ch;
   height: 1.05em;
-  translate: 0 0.15em;
+  vertical-align: middle;
+  margin-top: -0.18em;
   background: var(--term-accent);
   animation: term-blink 1.1s steps(1) infinite;
 }

@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     brain_github_token: str = ""  # fine-grained PAT, contents:read on that repo
     brain_webhook_secret: str = ""  # GitHub webhook HMAC secret (X-Hub-Signature-256)
     brain_chat_model: str = ""  # default OpenRouter slug; UI picker overrides per request
+    # Web search tool (Tavily, LLM-oriented). Set the key to offer web_search
+    # to the agent. Free tier ~1,000 searches/month.
+    brain_tavily_key: str = ""  # Tavily API key (tvly-...)
 
     cookie_name: str = "ch_session"
     jwt_expires_days: int = 30
