@@ -40,9 +40,12 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
     userinfo = token.get("userinfo") or {}
     email = (userinfo.get("email") or "").lower()
 
-    # The allowlist: exactly one account gets in.
+    # The allowlist: exactly one account gets in, and Google must have verified
+    # the address (belt-and-suspenders now that /brain hangs off this session).
     if not email or email != settings.owner_email.lower():
         raise HTTPException(status_code=403, detail="Not the owner")
+    if userinfo.get("email_verified") is False:
+        raise HTTPException(status_code=403, detail="Email not verified")
 
     user = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
     if user is None:

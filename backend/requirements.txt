@@ -11,6 +11,8 @@ authlib>=1.3
 pyjwt>=2.9
 itsdangerous>=2.2
 httpx>=0.27
+# YAML frontmatter parsing for brain vault notes (app/services/brain.py).
+pyyaml>=6.0
 fsrs>=5.0
 cloudinary>=1.41
 # Runtime conjugation for wiki lookups of unsaved verbs (POST /language/verbs,

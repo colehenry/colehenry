@@ -33,5 +33,6 @@ export const config = {
     "/quenoseteolvide/:path*",
     "/journal/:path*",
     "/dashboard/:path*",
+    "/brain/:path*",
   ],
 };

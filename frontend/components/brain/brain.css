@@ -1,0 +1,270 @@
+/* Brain section — reader prose + layout. Scoped to [data-section="brain"]. */
+
+.brain-prose {
+  line-height: 1.7;
+  font-size: 0.95rem;
+  color: hsl(var(--foreground));
+  overflow-wrap: break-word;
+}
+.brain-prose > :first-child {
+  margin-top: 0;
+}
+.brain-prose h1,
+.brain-prose h2,
+.brain-prose h3 {
+  font-family: var(--font-heading, inherit);
+  font-weight: 600;
+  line-height: 1.25;
+  margin: 1.6em 0 0.6em;
+}
+.brain-prose h1 {
+  font-size: 1.6rem;
+}
+.brain-prose h2 {
+  font-size: 1.3rem;
+}
+.brain-prose h3 {
+  font-size: 1.1rem;
+}
+.brain-prose p,
+.brain-prose ul,
+.brain-prose ol,
+.brain-prose blockquote,
+.brain-prose pre,
+.brain-prose table {
+  margin: 0.75em 0;
+}
+.brain-prose ul,
+.brain-prose ol {
+  padding-left: 1.4em;
+}
+.brain-prose ul {
+  list-style: disc;
+}
+.brain-prose ol {
+  list-style: decimal;
+}
+.brain-prose li {
+  margin: 0.25em 0;
+}
+.brain-prose a {
+  color: hsl(var(--accent));
+  text-underline-offset: 3px;
+  text-decoration: underline;
+}
+.brain-prose code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.85em;
+  background: hsl(var(--muted-hsl) / 0.15);
+  padding: 0.1em 0.35em;
+  border-radius: 0.3rem;
+}
+.brain-prose pre {
+  background: hsl(var(--card-hsl));
+  border: 1px solid hsl(var(--border-hsl));
+  border-radius: 0.5rem;
+  padding: 0.9em 1em;
+  overflow-x: auto;
+}
+.brain-prose pre code {
+  background: none;
+  padding: 0;
+  font-size: 0.85rem;
+}
+.brain-prose blockquote {
+  border-left: 3px solid hsl(var(--accent) / 0.5);
+  padding-left: 1em;
+  color: hsl(var(--muted-hsl));
+}
+.brain-prose table {
+  border-collapse: collapse;
+  display: block;
+  overflow-x: auto;
+}
+.brain-prose th,
+.brain-prose td {
+  border: 1px solid hsl(var(--border-hsl));
+  padding: 0.4em 0.7em;
+  text-align: left;
+}
+.brain-prose hr {
+  border: none;
+  border-top: 1px solid hsl(var(--border-hsl));
+  margin: 1.5em 0;
+}
+
+/* An unresolved [[wikilink]] — target note doesn't exist yet. */
+.brain-wikilink-dead {
+  color: hsl(var(--muted-hsl));
+  text-decoration: underline dotted;
+  cursor: default;
+}
+
+/* ===================================================================== */
+/* Terminal theme — the chat-first /brain. Committed dark surface in both */
+/* light and dark site themes (like the recipes terminal bar), violet     */
+/* accent. Scoped to .brain-term.                                         */
+/* ===================================================================== */
+.brain-term {
+  /* light terminal (default) */
+  --term-bg: #f7f8fa;
+  --term-bg-2: #eef0f4;
+  --term-line: #dde0e7;
+  --term-fg: #2a2d34;
+  --term-dim: #868d9c;
+  --term-accent: #6d40d8; /* violet — the brain */
+  --term-ok: #2f8f4e; /* green — you */
+  --term-strong: #14161b;
+  --term-code-bg: rgba(0, 0, 0, 0.06);
+  --term-pre-bg: #eceef3;
+
+  background: var(--term-bg);
+  color: var(--term-fg);
+  font-family: var(--font-mono, ui-monospace, "SF Mono", Menlo, monospace);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+.dark .brain-term {
+  --term-bg: #0b0c10;
+  --term-bg-2: #101218;
+  --term-line: #1f2431;
+  --term-fg: #d7dae2;
+  --term-dim: #737a8c;
+  --term-accent: #a98bff;
+  --term-ok: #7ee787;
+  --term-strong: #ffffff;
+  --term-code-bg: rgba(255, 255, 255, 0.08);
+  --term-pre-bg: #05060a;
+}
+.brain-term ::selection {
+  background: rgba(169, 139, 255, 0.3);
+}
+
+/* Speaker labels in the transcript. */
+.term-prompt {
+  color: var(--term-accent);
+  white-space: nowrap;
+  user-select: none;
+}
+.term-user {
+  color: var(--term-ok); /* you — green */
+  white-space: nowrap;
+  user-select: none;
+  font-weight: 500;
+}
+.term-brain {
+  color: var(--term-accent); /* brain — violet */
+  white-space: nowrap;
+  user-select: none;
+  font-weight: 500;
+}
+
+/* Blinking block cursor */
+.term-cursor {
+  display: inline-block;
+  width: 0.55ch;
+  height: 1.05em;
+  translate: 0 0.15em;
+  background: var(--term-accent);
+  animation: term-blink 1.1s steps(1) infinite;
+}
+@keyframes term-blink {
+  50% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .term-cursor {
+    animation: none;
+  }
+}
+
+/* A tool-activity log line: » read_note projects/lapwise.md */
+.term-tool {
+  color: var(--term-dim);
+}
+.term-tool b {
+  color: var(--term-accent);
+  font-weight: 500;
+}
+
+.brain-term-rail {
+  background: var(--term-bg-2);
+  border-color: var(--term-line);
+}
+.brain-term-input {
+  background: transparent;
+  color: var(--term-fg);
+  caret-color: var(--term-accent);
+  font: inherit;
+}
+.brain-term-input::placeholder {
+  color: var(--term-dim);
+}
+.brain-term-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+.brain-term-scroll::-webkit-scrollbar-thumb {
+  background: var(--term-line);
+  border-radius: 6px;
+}
+
+/* Assistant markdown rendered on the dark terminal surface */
+.brain-term-prose {
+  color: var(--term-fg);
+}
+.brain-term-prose > :first-child {
+  margin-top: 0;
+}
+.brain-term-prose > :last-child {
+  margin-bottom: 0;
+}
+.brain-term-prose p,
+.brain-term-prose ul,
+.brain-term-prose ol,
+.brain-term-prose pre,
+.brain-term-prose blockquote {
+  margin: 0.5em 0;
+}
+.brain-term-prose h1,
+.brain-term-prose h2,
+.brain-term-prose h3 {
+  color: var(--term-strong);
+  font-weight: 600;
+  margin: 0.9em 0 0.4em;
+}
+.brain-term-prose ul,
+.brain-term-prose ol {
+  padding-left: 1.3em;
+}
+.brain-term-prose ul {
+  list-style: disc;
+}
+.brain-term-prose ol {
+  list-style: decimal;
+}
+.brain-term-prose a {
+  color: var(--term-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.brain-term-prose strong {
+  color: var(--term-strong);
+}
+.brain-term-prose code {
+  background: var(--term-code-bg);
+  padding: 0.08em 0.35em;
+  border-radius: 0.3rem;
+  font-size: 0.9em;
+}
+.brain-term-prose pre {
+  background: var(--term-pre-bg);
+  border: 1px solid var(--term-line);
+  border-radius: 0.4rem;
+  padding: 0.8em 1em;
+  overflow-x: auto;
+}
+.brain-term-prose pre code {
+  background: none;
+  padding: 0;
+}
