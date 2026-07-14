@@ -75,6 +75,14 @@ export const sections: Section[] = [
     comingSoon: true,
   },
   {
+    slug: "coding",
+    path: "/coding",
+    name: "Coding",
+    accent: "brain",
+    description: "Local coding agents, controlled from the browser.",
+    ownerOnly: true,
+  },
+  {
     slug: "brain",
     path: "/brain",
     name: "Brain",

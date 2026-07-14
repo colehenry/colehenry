@@ -18,6 +18,7 @@ import {
   type LanguageCode,
   type LanguageTextDetail,
   type TextAnnotation,
+  type TextLookup,
 } from "@/lib/api/language";
 import {
   genderLabel,
@@ -60,6 +61,24 @@ function toDraft(a: TextAnnotation): AnnotationDraft {
     is_false_friend: a.is_false_friend,
     headword: a.headword,
     form_note: a.form_note,
+  };
+}
+
+/** Fill a draft's empty headword/form/translation from an inflected-form lookup. */
+function enrichDraft(
+  base: AnnotationDraft,
+  found: TextLookup | undefined,
+): AnnotationDraft {
+  if (!found || !found.is_inflected) return base;
+  const translationWasFormDescription =
+    !base.translation || base.translation === found.form_note;
+  return {
+    ...base,
+    headword: base.headword || found.headword,
+    form_note: base.form_note || found.form_note,
+    translation: translationWasFormDescription
+      ? found.translation
+      : base.translation,
   };
 }
 
@@ -409,9 +428,6 @@ function Reader({
   const text = detail.data ?? null;
 
   const editAnnotation = text?.annotations.find((a) => a.id === editId) ?? null;
-  const draft = editAnnotation
-    ? drafts[editAnnotation.id] ?? toDraft(editAnnotation)
-    : null;
   const popoverAnnotation =
     (popover && text?.annotations.find((a) => a.id === popover.id)) || null;
 
@@ -430,26 +446,15 @@ function Reader({
     enabled: selection != null,
     staleTime: 60_000,
   });
-  useEffect(() => {
-    const found = annotationLookup.data;
-    if (!editAnnotation || !found || !found.is_inflected) return;
-    setDrafts((current) => {
-      const base = current[editAnnotation.id] ?? toDraft(editAnnotation);
-      const translationWasFormDescription =
-        !base.translation || base.translation === found.form_note;
-      return {
-        ...current,
-        [editAnnotation.id]: {
-          ...base,
-          headword: base.headword || found.headword,
-          form_note: base.form_note || found.form_note,
-          translation: translationWasFormDescription
-            ? found.translation
-            : base.translation,
-        },
-      };
-    });
-  }, [annotationLookup.data, editAnnotation]);
+
+  // Derived at render (not synced via an effect): the stored draft holds the
+  // user's edits, and lookup enrichment fills whatever is still empty.
+  const draft = editAnnotation
+    ? enrichDraft(
+        drafts[editAnnotation.id] ?? toDraft(editAnnotation),
+        annotationLookup.data,
+      )
+    : null;
 
   const compatibleDecks = text
     ? decks.filter((d) => d.language === text.language && !d.is_system)
@@ -469,14 +474,10 @@ function Reader({
   };
 
   const patchDraft = (patch: Partial<AnnotationDraft>) => {
-    if (!editAnnotation) return;
+    if (!editAnnotation || !draft) return;
     setDrafts((current) => ({
       ...current,
-      [editAnnotation.id]: {
-        ...toDraft(editAnnotation),
-        ...current[editAnnotation.id],
-        ...patch,
-      },
+      [editAnnotation.id]: { ...draft, ...patch },
     }));
   };
 

@@ -1,10 +1,10 @@
 from datetime import datetime
 
 from sqlalchemy import DateTime, ForeignKey, Text, func
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
+from app.models.types import PortableJSONB
 
 
 class BrainNote(Base):
@@ -25,7 +25,7 @@ class BrainNote(Base):
     path: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
     title: Mapped[str] = mapped_column(Text, nullable=False, default="")
     body_md: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    frontmatter: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    frontmatter: Mapped[dict] = mapped_column(PortableJSONB, nullable=False, default=dict)
     content_hash: Mapped[str] = mapped_column(Text, nullable=False, default="")
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -101,7 +101,7 @@ class BrainMessage(Base):
     )
     role: Mapped[str] = mapped_column(Text, nullable=False)  # user | assistant
     content: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    tool_calls: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    tool_calls: Mapped[list | None] = mapped_column(PortableJSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

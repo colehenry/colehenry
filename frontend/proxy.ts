@@ -10,6 +10,15 @@ const SESSION_COOKIE = "ch_session";
  * protected endpoint, so a forged cookie gets an empty page, not data.
  */
 export function proxy(request: NextRequest) {
+  // The coding workspace talks to a loopback-only companion during local
+  // development. Let that surface boot without a Google OAuth round trip;
+  // production and remote API calls remain owner-authenticated.
+  const isLocalCodingDev =
+    process.env.NODE_ENV === "development" &&
+    request.nextUrl.pathname.startsWith("/coding") &&
+    ["localhost", "127.0.0.1"].includes(request.nextUrl.hostname);
+  if (isLocalCodingDev) return NextResponse.next();
+
   // The curated showcase contains no owner data and is intentionally public.
   if (
     request.nextUrl.pathname === "/quenoseteolvide/showcase" ||
@@ -34,5 +43,6 @@ export const config = {
     "/journal/:path*",
     "/dashboard/:path*",
     "/brain/:path*",
+    "/coding/:path*",
   ],
 };

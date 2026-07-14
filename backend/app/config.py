@@ -9,10 +9,17 @@ class Settings(BaseSettings):
 
     database_url: str
     jwt_secret: str
+    # Signs the short-lived OAuth-state session cookie. Separate from
+    # JWT_SECRET so either can rotate independently; falls back to JWT_SECRET
+    # when unset so local dev keeps working.
+    session_secret: str = ""
     owner_email: str
     google_client_id: str
     google_client_secret: str
     oauth_redirect_uri: str
+    # Fernet key used only for persisted Google OAuth refresh tokens. Keep it
+    # independent from JWT_SECRET so either credential can rotate separately.
+    google_token_encryption_key: str = ""
     cookie_domain: str = ""  # empty for localhost (host-only cookie)
     frontend_origin: str = "http://localhost:3000"
 
@@ -37,6 +44,18 @@ class Settings(BaseSettings):
     # Web search tool (Tavily, LLM-oriented). Set the key to offer web_search
     # to the agent. Free tier ~1,000 searches/month.
     brain_tavily_key: str = ""  # Tavily API key (tvly-...)
+
+    # Read-only source-code tools for Brain. Keep this token separate from the
+    # vault token so each credential can be restricted to exactly its repos.
+    brain_code_repos: str = ""  # comma-separated "owner/repo" allowlist
+    brain_code_github_token: str = ""  # fine-grained PAT, contents + pull requests read
+
+    # Read-only Railway deployment visibility. Each token should be a project
+    # token scoped to the production environment for exactly one project.
+    brain_railway_colehenry_token: str = ""
+    brain_railway_colehenry_service_id: str = ""
+    brain_railway_lapwise_token: str = ""
+    brain_railway_lapwise_service_id: str = ""
 
     cookie_name: str = "ch_session"
     jwt_expires_days: int = 30

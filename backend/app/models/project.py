@@ -1,10 +1,11 @@
 import enum
 from datetime import datetime
 
-from sqlalchemy import ARRAY, Boolean, DateTime, Enum, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, Enum, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
+from app.models.types import PortableStringArray
 
 
 class Visibility(str, enum.Enum):
@@ -27,7 +28,7 @@ class Project(Base):
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     summary: Mapped[str] = mapped_column(Text, default="", nullable=False)
     description_md: Mapped[str] = mapped_column(Text, default="", nullable=False)
-    tech: Mapped[list[str]] = mapped_column(ARRAY(String), default=list, nullable=False)
+    tech: Mapped[list[str]] = mapped_column(PortableStringArray, default=list, nullable=False)
     repo_url: Mapped[str | None] = mapped_column(String(500))
     live_url: Mapped[str | None] = mapped_column(String(500))
     embed_url: Mapped[str | None] = mapped_column(String(500))

@@ -1,10 +1,10 @@
 from datetime import date, datetime
 
 from sqlalchemy import Date, DateTime, Integer, Text, func
-from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
+from app.models.types import PortableIntArray
 
 
 class ChallengeCompletion(Base):
@@ -30,7 +30,7 @@ class ChallengeState(Base):
     __tablename__ = "challenge_state"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    ordering: Mapped[list[int]] = mapped_column(ARRAY(Integer), nullable=False)
+    ordering: Mapped[list[int]] = mapped_column(PortableIntArray, nullable=False)
     video_ideas: Mapped[str] = mapped_column(Text, default="", nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

@@ -14,10 +14,10 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
+from app.models.types import PortableJSONB, PortableStringArray
 
 
 class Language(str, enum.Enum):
@@ -100,7 +100,7 @@ class FlashcardDeck(Base):
         String(12), ForeignKey("supported_languages.code"), nullable=False
     )
     description: Mapped[str] = mapped_column(Text, default="", nullable=False)
-    tags: Mapped[list[str]] = mapped_column(ARRAY(String), default=list, nullable=False)
+    tags: Mapped[list[str]] = mapped_column(PortableStringArray, default=list, nullable=False)
     # System decks are generated (conjugation drills, minimal pairs); they can
     # be studied and their cards deleted, but the deck itself isn't editable.
     is_system: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -151,7 +151,7 @@ class Flashcard(Base):
     conjugation_id: Mapped[int | None] = mapped_column(
         ForeignKey("conjugations.id", ondelete="SET NULL"), index=True
     )
-    tags: Mapped[list[str]] = mapped_column(ARRAY(String), default=list, nullable=False)
+    tags: Mapped[list[str]] = mapped_column(PortableStringArray, default=list, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -251,7 +251,7 @@ class LanguageText(Base):
     source_type: Mapped[str] = mapped_column(String(40), default="other", nullable=False)
     source_ref: Mapped[str] = mapped_column(String(300), default="", nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    tags: Mapped[list[str]] = mapped_column(ARRAY(String), default=list, nullable=False)
+    tags: Mapped[list[str]] = mapped_column(PortableStringArray, default=list, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -330,7 +330,7 @@ class WikiEntry(Base):
         String(12), ForeignKey("supported_languages.code"), nullable=False
     )
     word: Mapped[str] = mapped_column(String(120), nullable=False)
-    payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    payload: Mapped[dict] = mapped_column(PortableJSONB, nullable=False)
     fetched_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
