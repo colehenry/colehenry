@@ -1,14 +1,15 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, readdir, realpath, stat, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { dirname, isAbsolute, resolve, sep } from "node:path";
 
-import { AGENT_HOME } from "./config.js";
 import { streamModelTurn, type ModelMessage } from "./openrouter.js";
+import { LoopGuard, strongerDecision, type LoopGuardDecision } from "./loop-guard.js";
 import { runProcess } from "./process.js";
-import type { AgentConfig, TaskAction, TaskRecord, Workspace } from "./types.js";
+import { SessionStore } from "./store.js";
+import type { AgentConfig, RuntimeState, TaskAction, TaskRecord, Workspace } from "./types.js";
 
 type Emit = (type: string, payload?: Record<string, unknown>, forward?: boolean) => Promise<void>;
-type Approval = { resolve: (approved: boolean) => void };
+type Approval = { toolId: string; resolve: (approved: boolean) => void };
 
 const SYSTEM_PROMPT = `You are a careful coding agent operating inside one approved workspace.
 Inspect the repository before changing it. Make focused, maintainable edits. Use tools instead of guessing.
@@ -147,47 +148,48 @@ export class TaskRuntime {
   private baselinePatch = "";
   private abortController: AbortController | null = null;
   private approvals = new Map<string, Approval>();
-  private messages: ModelMessage[] = [{ role: "system", content: SYSTEM_PROMPT }];
+  private messages: ModelMessage[];
 
   constructor(
     record: TaskRecord,
     private readonly workspace: Workspace,
     private readonly config: AgentConfig,
     private readonly emit: Emit,
-    private readonly isolated: boolean,
+    private readonly store: SessionStore,
+    restored?: RuntimeState,
   ) {
     this.record = record;
+    this.cwd = restored?.cwd ?? "";
+    this.branch = restored?.branch ?? null;
+    this.initialized = restored?.initialized ?? false;
+    this.baselineStatus = restored?.baselineStatus ?? "";
+    this.baselinePatch = restored?.baselinePatch ?? "";
+    this.messages = this.store.loadModelMessages(record.id);
+    if (!this.messages.length) {
+      const system: ModelMessage = { role: "system", content: SYSTEM_PROMPT };
+      this.messages.push(system);
+      this.store.appendModelMessage(record.id, system, null);
+    }
   }
 
   private async initialize(): Promise<void> {
-    if (this.initialized) return;
+    if (this.initialized) {
+      try {
+        await stat(this.cwd);
+        return;
+      } catch {
+        this.initialized = false;
+      }
+    }
     this.cwd = this.workspace.path;
     const gitRoot = await runProcess("git", ["rev-parse", "--show-toplevel"], {
       cwd: this.workspace.path,
     });
     if (gitRoot.code === 0) {
-      const root = gitRoot.stdout.trim();
       const currentBranch = await runProcess("git", ["branch", "--show-current"], {
         cwd: this.workspace.path,
       });
       this.branch = currentBranch.stdout.trim() || null;
-      if (this.isolated) {
-        const subpath = relative(root, this.workspace.path);
-        const worktree = resolve(AGENT_HOME, "worktrees", this.workspace.id, this.record.id);
-        await mkdir(dirname(worktree), { recursive: true });
-        this.branch = `codex/agent-${this.record.id.slice(0, 8)}`;
-        const created = await runProcess(
-          "git",
-          ["worktree", "add", "-b", this.branch, worktree, "HEAD"],
-          { cwd: root },
-        );
-        if (created.code !== 0) throw new Error(`Could not create isolated worktree: ${created.stderr}`);
-        this.cwd = resolve(worktree, subpath);
-      }
-    } else if (this.isolated) {
-      await this.emit("activity", {
-        label: "Workspace is not a Git repository; using its approved directory directly",
-      });
     }
     this.initialized = true;
     const baselineStatus = await runProcess("git", ["status", "--short"], { cwd: this.cwd });
@@ -195,11 +197,26 @@ export class TaskRuntime {
     this.baselineStatus = baselineStatus.stdout;
     this.baselinePatch = baselinePatch.stdout;
     this.record.branch = this.branch;
-    await this.emit("task_started", { branch: this.branch, cwd: this.workspace.name });
+    this.store.updateRuntime(this.record.id, this.runtimeState());
+  }
+
+  private runtimeState(): RuntimeState {
+    return {
+      cwd: this.cwd,
+      branch: this.branch,
+      initialized: this.initialized,
+      baselineStatus: this.baselineStatus,
+      baselinePatch: this.baselinePatch,
+    };
   }
 
   async process(prompt: string, model?: string): Promise<void> {
+    const requestTurnId = randomUUID();
+    const userMessage: ModelMessage = { role: "user", content: prompt };
+    this.store.beginTurn(this.record.id, requestTurnId, prompt, userMessage);
+    this.messages.push(userMessage);
     if (!this.config.openRouterApiKey) {
+      this.store.updateTurn(requestTurnId, "failed");
       await this.emit("task_failed", {
         message: "OPENROUTER_API_KEY is not configured in the local agent.",
       });
@@ -207,13 +224,21 @@ export class TaskRuntime {
     }
     if (model) this.record.model = model;
     this.abortController = new AbortController();
+    const loopGuard = new LoopGuard();
+    let modelRounds = 0;
     try {
-      if (this.initialized) await this.emit("task_started", { branch: this.branch, cwd: this.workspace.name });
-      else await this.initialize();
-      this.messages.push({ role: "user", content: prompt });
-      for (let iteration = 0; iteration < 20; iteration += 1) {
+      await this.initialize();
+      await this.emit("task_started", { branch: this.branch, cwd: this.workspace.name });
+      while (true) {
+        const roundDecision = loopGuard.beforeModelRound(modelRounds);
+        if (roundDecision.action === "pause") {
+          await this.pauseForLoopGuard(requestTurnId, roundDecision, loopGuard.stats(modelRounds));
+          return;
+        }
+        modelRounds += 1;
         const turnId = randomUUID();
         let deltaBuffer = "";
+        let partialContent = "";
         let lastFlush = Date.now();
         const turn = await streamModelTurn({
           apiKey: this.config.openRouterApiKey,
@@ -222,10 +247,12 @@ export class TaskRuntime {
           signal: this.abortController.signal,
           onText: async (text) => {
             deltaBuffer += text;
+            partialContent += text;
             if (deltaBuffer.length >= 48 || text.includes("\n") || Date.now() - lastFlush >= 80) {
               const chunk = deltaBuffer;
               deltaBuffer = "";
               lastFlush = Date.now();
+              this.store.updateTurn(requestTurnId, "running", partialContent);
               await this.emit("assistant_delta", { turn_id: turnId, text: chunk });
             }
           },
@@ -237,15 +264,18 @@ export class TaskRuntime {
           ...(turn.toolCalls.length ? { tool_calls: turn.toolCalls } : {}),
         };
         this.messages.push(assistant);
+        this.store.appendModelMessage(this.record.id, assistant, requestTurnId);
         if (turn.toolCalls.length && turn.content) {
           await this.emit("assistant_message", { turn_id: turnId, content: turn.content });
         }
         if (!turn.toolCalls.length) {
           await this.emit("assistant_message", { turn_id: turnId, content: turn.content });
           await this.emitDiff();
+          this.store.updateTurn(requestTurnId, "completed", turn.content);
           await this.emit("task_completed", { message: "Agent finished" });
           return;
         }
+        let guardDecision: LoopGuardDecision = { action: "continue" };
         for (const call of turn.toolCalls) {
           const args = parseArgs(call.function.arguments);
           const toolId = call.id || randomUUID();
@@ -255,9 +285,12 @@ export class TaskRuntime {
             label: toolLabel(call.function.name, args),
             args: visibleArgs(call.function.name, args),
           });
+          this.store.startTool(this.record.id, requestTurnId, toolId, call.function.name, args);
           let output: string;
+          let failed = false;
           try {
             output = await this.executeTool(toolId, call.function.name, args);
+            this.store.updateTool(toolId, "completed", output);
             await this.emit("tool_finished", {
               id: toolId,
               name: call.function.name,
@@ -265,7 +298,9 @@ export class TaskRuntime {
               summary: output.slice(0, 500),
             });
           } catch (error) {
+            failed = true;
             output = `Tool failed: ${error instanceof Error ? error.message : String(error)}`;
+            this.store.updateTool(toolId, "failed", output);
             await this.emit("tool_finished", {
               id: toolId,
               name: call.function.name,
@@ -273,18 +308,40 @@ export class TaskRuntime {
               summary: output,
             });
           }
-          this.messages.push({
+          const toolMessage: ModelMessage = {
             role: "tool",
             tool_call_id: call.id,
             content: output.slice(0, 60_000),
-          });
+          };
+          this.messages.push(toolMessage);
+          this.store.appendModelMessage(this.record.id, toolMessage, requestTurnId);
+          guardDecision = strongerDecision(guardDecision, loopGuard.recordTool({
+            name: call.function.name,
+            args,
+            output,
+            failed,
+          }));
+        }
+        if (guardDecision.action === "pause") {
+          await this.pauseForLoopGuard(requestTurnId, guardDecision, loopGuard.stats(modelRounds));
+          return;
+        }
+        if (guardDecision.action === "nudge") {
+          const guardMessage: ModelMessage = {
+            role: "system",
+            content: `Loop guard: ${guardDecision.message} Do not repeat the same operation. Choose a materially different approach that can produce new information or progress, or finish now with the best supported answer.`,
+          };
+          this.messages.push(guardMessage);
+          this.store.appendModelMessage(this.record.id, guardMessage, requestTurnId);
+          await this.emit("activity", { label: "Reassessing repeated tool activity" });
         }
       }
-      throw new Error("Agent reached the 20-step safety limit");
     } catch (error: any) {
       if (error?.name === "AbortError") {
+        this.store.updateTurn(requestTurnId, "cancelled");
         await this.emit("task_cancelled", { message: "Task cancelled" });
       } else {
+        this.store.updateTurn(requestTurnId, "failed");
         await this.emit("task_failed", {
           message: error instanceof Error ? error.message : String(error),
         });
@@ -294,10 +351,28 @@ export class TaskRuntime {
     }
   }
 
+  private async pauseForLoopGuard(
+    requestTurnId: string,
+    decision: LoopGuardDecision,
+    stats: { model_rounds: number; tool_calls: number },
+  ): Promise<void> {
+    await this.emitDiff();
+    this.store.updateTurn(requestTurnId, "attention");
+    await this.emit("attention", {
+      reason: `loop_guard_${decision.reason ?? "unknown"}`,
+      message: `${decision.message ?? "The loop guard paused the agent."} Paused after ${stats.tool_calls} tool calls across ${stats.model_rounds} model rounds. Send a new message to continue with different instructions.`,
+      can_continue: true,
+      ...stats,
+    });
+  }
+
   async handleAction(action: TaskAction): Promise<void> {
     if (action.type === "cancel") {
       this.abortController?.abort();
-      for (const approval of this.approvals.values()) approval.resolve(false);
+      for (const approval of this.approvals.values()) {
+        this.store.updateTool(approval.toolId, "interrupted", "Task cancelled while approval was pending.");
+        approval.resolve(false);
+      }
       this.approvals.clear();
       return;
     }
@@ -307,6 +382,7 @@ export class TaskRuntime {
     if (!pending) return;
     this.approvals.delete(approvalId);
     const approved = Boolean(action.payload?.approved);
+    this.store.updateTool(pending.toolId, approved ? "running" : "denied", approved ? undefined : "User denied this tool call.");
     await this.emit("task_started", { branch: this.branch, resumed_after_approval: true });
     pending.resolve(approved);
   }
@@ -323,8 +399,9 @@ export class TaskRuntime {
       tool,
       details,
     });
+    this.store.updateTool(toolId, "awaiting_approval");
     return new Promise<boolean>((resolveApproval) => {
-      this.approvals.set(approvalId, { resolve: resolveApproval });
+      this.approvals.set(approvalId, { toolId, resolve: resolveApproval });
     });
   }
 

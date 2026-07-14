@@ -1,10 +1,13 @@
 import { randomUUID } from "node:crypto";
 
+import { SESSION_DB_PATH } from "./config.js";
+import { SessionStore } from "./store.js";
 import { TaskRuntime } from "./task.js";
 import type {
   AgentConfig,
   AgentEvent,
   EventSink,
+  RuntimeState,
   StartTaskInput,
   TaskAction,
   TaskRecord,
@@ -15,16 +18,53 @@ type Job = { taskId: string; runtime: TaskRuntime; prompt: string; model?: strin
 
 export class TaskManager {
   readonly tasks = new Map<string, TaskRecord>();
+  readonly store: SessionStore;
   private readonly runtimes = new Map<string, TaskRuntime>();
   private readonly subscribers = new Map<string, Set<Subscriber>>();
+  private readonly sinks = new Map<string, EventSink>();
   private readonly queue: Job[] = [];
   private readonly busyTasks = new Set<string>();
   private active = 0;
 
-  constructor(private config: AgentConfig) {}
+  constructor(private config: AgentConfig, store = new SessionStore(SESSION_DB_PATH)) {
+    this.store = store;
+    for (const restored of this.store.loadSessions()) this.loadRuntime(restored.record, restored.runtime);
+  }
 
   updateConfig(config: AgentConfig) {
     this.config = config;
+  }
+
+  private loadRuntime(record: TaskRecord, restored: RuntimeState): void {
+    this.tasks.set(record.id, record);
+    const workspace = this.config.workspaces.find((candidate) => candidate.id === record.workspace_id);
+    if (!workspace) return;
+    this.runtimes.set(
+      record.id,
+      new TaskRuntime(record, workspace, this.config, this.emitter(record), this.store, restored),
+    );
+  }
+
+  private emitter(record: TaskRecord) {
+    return async (type: string, payload: Record<string, unknown> = {}, forward = true): Promise<void> => {
+      const event: AgentEvent = {
+        seq: record.events.length + 1,
+        type,
+        payload,
+        created_at: new Date().toISOString(),
+      };
+      record.events.push(event);
+      record.updated_at = event.created_at;
+      if (type === "task_started") record.status = "running";
+      else if (type === "approval_required" || type === "attention") record.status = "attention";
+      else if (type === "task_interrupted") record.status = "interrupted";
+      else if (type === "task_completed") record.status = "completed";
+      else if (type === "task_failed") record.status = "failed";
+      else if (type === "task_cancelled") record.status = "cancelled";
+      this.store.appendEventAndUpdate(record, event);
+      for (const subscriber of this.subscribers.get(record.id) ?? []) subscriber(event);
+      if (forward) await this.sinks.get(record.id)?.(record.id, { type, payload });
+    };
   }
 
   createTask(input: StartTaskInput, sink?: EventSink, forwardUser = true): TaskRecord {
@@ -44,27 +84,14 @@ export class TaskManager {
       status: normalized ? "queued" : "draft",
       created_at: now,
       updated_at: now,
+      archived_at: null,
       events: [],
     };
+    this.store.createSession(record);
     this.tasks.set(id, record);
-    const emit = async (type: string, payload: Record<string, unknown> = {}, forward = true) => {
-      const event: AgentEvent = {
-        seq: record.events.length + 1,
-        type,
-        payload,
-        created_at: new Date().toISOString(),
-      };
-      record.events.push(event);
-      record.updated_at = event.created_at;
-      if (type === "task_started") record.status = "running";
-      else if (type === "approval_required" || type === "attention") record.status = "attention";
-      else if (type === "task_completed") record.status = "completed";
-      else if (type === "task_failed") record.status = "failed";
-      else if (type === "task_cancelled") record.status = "cancelled";
-      for (const subscriber of this.subscribers.get(id) ?? []) subscriber(event);
-      if (forward) await sink?.(id, { type, payload });
-    };
-    const runtime = new TaskRuntime(record, workspace, this.config, emit, input.isolated !== false);
+    if (sink) this.sinks.set(id, sink);
+    const emit = this.emitter(record);
+    const runtime = new TaskRuntime(record, workspace, this.config, emit, this.store);
     this.runtimes.set(id, runtime);
     if (normalized) {
       void emit("user_message", { content: input.prompt }, forwardUser);
@@ -74,16 +101,16 @@ export class TaskManager {
     return record;
   }
 
-  sendMessage(taskId: string, content: string, model?: string, forwardUser = true): void {
+  sendMessage(taskId: string, content: string, model?: string): void {
     const runtime = this.runtimes.get(taskId);
     const record = this.tasks.get(taskId);
-    if (!runtime || !record) throw new Error("Task not found");
+    if (!runtime || !record) throw new Error("Task not found or its workspace is no longer registered");
     const normalized = content.replace(/\s+/g, " ").trim();
     if (!normalized) throw new Error("Message cannot be empty");
     if (record.status === "draft") {
       record.title = `${normalized.slice(0, 52)}${normalized.length > 52 ? "…" : ""}`;
-      record.status = "queued";
     }
+    record.status = "queued";
     if (model) record.model = model;
     const event: AgentEvent = {
       seq: record.events.length + 1,
@@ -93,10 +120,8 @@ export class TaskManager {
     };
     record.events.push(event);
     record.updated_at = event.created_at;
+    this.store.appendEventAndUpdate(record, event);
     for (const subscriber of this.subscribers.get(taskId) ?? []) subscriber(event);
-    if (forwardUser) {
-      // Local-origin user messages are already visible in the local event store.
-    }
     this.queue.push({ taskId, runtime, prompt: content, model });
     this.drain();
   }
@@ -108,19 +133,96 @@ export class TaskManager {
     if (!normalized) throw new Error("Model cannot be empty");
     record.model = normalized;
     record.updated_at = new Date().toISOString();
+    this.store.updateSession(record);
     return record;
   }
 
-  async closeTask(taskId: string): Promise<void> {
+  updateTitle(taskId: string, title: string): TaskRecord {
+    const record = this.tasks.get(taskId);
+    if (!record) throw new Error("Task not found");
+    const normalized = title.replace(/\s+/g, " ").trim();
+    if (!normalized) throw new Error("Title cannot be empty");
+    record.title = normalized.slice(0, 120);
+    record.updated_at = new Date().toISOString();
+    this.store.updateSession(record);
+    return record;
+  }
+
+  updateWorkspace(taskId: string, workspaceId: string): TaskRecord {
+    const record = this.tasks.get(taskId);
+    if (!record) throw new Error("Task not found");
+    if (record.status !== "draft") throw new Error("Workspace can only be changed before the first message");
+    const workspace = this.config.workspaces.find((candidate) => candidate.id === workspaceId);
+    if (!workspace) throw new Error("Workspace is not registered with this agent");
+    record.workspace_id = workspace.id;
+    record.workspace_name = workspace.name;
+    record.branch = null;
+    record.updated_at = new Date().toISOString();
+    const runtime: RuntimeState = {
+      cwd: "",
+      branch: null,
+      initialized: false,
+      baselineStatus: "",
+      baselinePatch: "",
+    };
+    this.store.updateSession(record);
+    this.store.updateRuntime(record.id, runtime);
+    this.runtimes.set(
+      record.id,
+      new TaskRuntime(record, workspace, this.config, this.emitter(record), this.store, runtime),
+    );
+    return record;
+  }
+
+  setSink(taskId: string, sink: EventSink): void {
+    if (!this.tasks.has(taskId)) throw new Error("Task not found");
+    this.sinks.set(taskId, sink);
+  }
+
+  async archiveTask(taskId: string): Promise<void> {
     const runtime = this.runtimes.get(taskId);
-    if (!runtime || !this.tasks.has(taskId)) throw new Error("Task not found");
+    const record = this.tasks.get(taskId);
+    if (!runtime || !record) throw new Error("Task not found");
     for (let index = this.queue.length - 1; index >= 0; index -= 1) {
       if (this.queue[index].taskId === taskId) this.queue.splice(index, 1);
     }
     await runtime.handleAction({ type: "cancel" });
+    record.archived_at = new Date().toISOString();
+    this.store.archive(taskId);
     this.tasks.delete(taskId);
     this.runtimes.delete(taskId);
     this.subscribers.delete(taskId);
+    this.sinks.delete(taskId);
+  }
+
+  restoreTask(taskId: string): TaskRecord {
+    if (this.tasks.has(taskId)) return this.tasks.get(taskId)!;
+    this.store.restore(taskId);
+    const restored = this.store.getSession(taskId);
+    if (!restored) throw new Error("Task not found");
+    const workspace = this.config.workspaces.find((candidate) => candidate.id === restored.record.workspace_id);
+    if (!workspace) throw new Error("The task workspace is no longer registered");
+    this.loadRuntime(restored.record, restored.runtime);
+    return restored.record;
+  }
+
+  async closeTask(taskId: string): Promise<void> {
+    const runtime = this.runtimes.get(taskId);
+    if (!runtime || !this.tasks.has(taskId)) {
+      const stored = this.store.getSession(taskId)?.record;
+      if (!stored?.archived_at) throw new Error("Task not found");
+      this.store.delete(taskId);
+      return;
+    }
+    if (this.busyTasks.has(taskId)) throw new Error("Stop or archive the running task before deleting it");
+    for (let index = this.queue.length - 1; index >= 0; index -= 1) {
+      if (this.queue[index].taskId === taskId) this.queue.splice(index, 1);
+    }
+    this.tasks.delete(taskId);
+    this.runtimes.delete(taskId);
+    this.subscribers.delete(taskId);
+    this.sinks.delete(taskId);
+    this.store.delete(taskId);
   }
 
   async handleAction(taskId: string, action: TaskAction): Promise<void> {
@@ -135,6 +237,7 @@ export class TaskManager {
     };
     record.events.push(event);
     record.updated_at = event.created_at;
+    this.store.appendEventAndUpdate(record, event);
     for (const subscriber of this.subscribers.get(taskId) ?? []) subscriber(event);
     await runtime.handleAction(action);
   }

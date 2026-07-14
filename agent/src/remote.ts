@@ -71,7 +71,10 @@ export class RemoteRelay {
 
   private async handle(message: any): Promise<void> {
     if (message.type === "start_task") {
-      if (this.manager.tasks.has(message.task.id)) return;
+      if (this.manager.tasks.has(message.task.id)) {
+        this.manager.setSink(message.task.id, this.sink);
+        return;
+      }
       const input: StartTaskInput = {
         id: message.task.id,
         device_id: message.task.device_id,
@@ -85,11 +88,21 @@ export class RemoteRelay {
       return;
     }
     if (message.type === "task_message") {
-      this.manager.sendMessage(message.task_id, message.content, message.model, false);
+      this.manager.setSink(message.task_id, this.sink);
+      this.manager.sendMessage(message.task_id, message.content, message.model);
       return;
     }
     if (message.type === "task_action") {
+      this.manager.setSink(message.task_id, this.sink);
       await this.manager.handleAction(message.task_id, message.action as TaskAction);
+      return;
+    }
+    if (message.type === "archive_task") {
+      if (this.manager.tasks.has(message.task_id)) await this.manager.archiveTask(message.task_id);
+      return;
+    }
+    if (message.type === "restore_task") {
+      this.manager.restoreTask(message.task_id);
       return;
     }
     if (message.type === "close_task") await this.manager.closeTask(message.task_id);

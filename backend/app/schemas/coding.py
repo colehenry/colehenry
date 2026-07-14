@@ -39,7 +39,7 @@ class TaskCreate(BaseModel):
     workspace_name: str = Field(min_length=1, max_length=160)
     prompt: str = Field(default="", max_length=100_000)
     model: str
-    isolated: bool = True
+    isolated: bool = False
 
 
 class TaskMessageIn(BaseModel):
@@ -48,7 +48,10 @@ class TaskMessageIn(BaseModel):
 
 
 class TaskUpdate(BaseModel):
-    model: str = Field(min_length=1, max_length=240)
+    model: str | None = Field(default=None, min_length=1, max_length=240)
+    title: str | None = Field(default=None, min_length=1, max_length=120)
+    workspace_id: str | None = Field(default=None, min_length=1, max_length=240)
+    workspace_name: str | None = Field(default=None, min_length=1, max_length=160)
 
 
 class TaskActionIn(BaseModel):
@@ -74,6 +77,7 @@ class CodingTaskOut(BaseModel):
     status: str
     created_at: datetime
     updated_at: datetime
+    archived_at: datetime | None
 
 
 class CodingTaskDetail(CodingTaskOut):

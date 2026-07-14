@@ -63,6 +63,7 @@ class CodingTask(Base):
         onupdate=func.now(),
         nullable=False,
     )
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     device: Mapped["CodingDevice"] = relationship(back_populates="tasks")
     events: Mapped[list["CodingEvent"]] = relationship(

@@ -17,7 +17,12 @@ const links = [
 
 export function Footer() {
   const pathname = usePathname();
-  if (pathname === "/brain" || pathname.startsWith("/brain/")) return null;
+  if (
+    pathname === "/brain" ||
+    pathname.startsWith("/brain/") ||
+    pathname === "/coding" ||
+    pathname.startsWith("/coding/")
+  ) return null;
 
   return (
     <footer className="overscroll-cap-bottom relative z-10 border-t bg-background">

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { addWorkspace, loadConfig, saveConfig } from "./config.js";
+import { addWorkspace, loadConfig, saveConfig, SESSION_DB_PATH } from "./config.js";
 import { TaskManager } from "./manager.js";
 import { promptSecret, storeOpenRouterKey } from "./keychain.js";
 import { pairRemote, RemoteRelay } from "./remote.js";
@@ -35,6 +35,7 @@ async function main() {
       paired: Boolean(config.deviceId && config.deviceToken),
       openRouterConfigured: Boolean(config.openRouterApiKey),
       localUrl: `http://127.0.0.1:${config.localPort}`,
+      sessionDatabase: SESSION_DB_PATH,
       maxConcurrency: config.maxConcurrency,
       workspaces: config.workspaces.map(({ id, name, path }) => ({ id, name, path })),
     }, null, 2));

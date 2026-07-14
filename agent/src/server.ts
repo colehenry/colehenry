@@ -82,7 +82,10 @@ export function startLocalServer(config: AgentConfig, manager: TaskManager) {
         return;
       }
       if (req.method === "GET" && url.pathname === "/v1/tasks") {
-        json(res, 200, [...manager.tasks.values()].map((task) => withoutEvents(task)));
+        const tasks = url.searchParams.get("archived") === "1"
+          ? manager.store.loadSessions(true).map(({ record }) => record).filter((task) => task.archived_at)
+          : [...manager.tasks.values()];
+        json(res, 200, tasks.map((task) => withoutEvents(task)));
         return;
       }
       if (req.method === "POST" && url.pathname === "/v1/tasks") {
@@ -100,8 +103,30 @@ export function startLocalServer(config: AgentConfig, manager: TaskManager) {
       }
       if (req.method === "PATCH" && taskMatch) {
         const payload = await body(req);
-        const task = manager.updateModel(taskMatch[1], String(payload.model ?? ""));
+        let task = manager.tasks.get(taskMatch[1]);
+        if (!task) return json(res, 404, { detail: "Task not found" });
+        if (typeof payload.model === "string") task = manager.updateModel(taskMatch[1], payload.model);
+        if (typeof payload.title === "string") task = manager.updateTitle(taskMatch[1], payload.title);
+        if (typeof payload.workspace_id === "string") task = manager.updateWorkspace(taskMatch[1], payload.workspace_id);
         json(res, 200, withoutEvents(task));
+        return;
+      }
+      const archiveMatch = url.pathname.match(/^\/v1\/tasks\/([^/]+)\/archive$/);
+      if (req.method === "POST" && archiveMatch) {
+        await manager.archiveTask(archiveMatch[1]);
+        json(res, 200, { ok: true });
+        return;
+      }
+      const restoreMatch = url.pathname.match(/^\/v1\/tasks\/([^/]+)\/restore$/);
+      if (req.method === "POST" && restoreMatch) {
+        json(res, 200, withoutEvents(manager.restoreTask(restoreMatch[1])));
+        return;
+      }
+      const resumeMatch = url.pathname.match(/^\/v1\/tasks\/([^/]+)\/resume$/);
+      if (req.method === "POST" && resumeMatch) {
+        const payload = await body(req);
+        manager.sendMessage(resumeMatch[1], String(payload.content ?? ""), payload.model);
+        json(res, 202, { ok: true });
         return;
       }
       if (req.method === "DELETE" && taskMatch) {

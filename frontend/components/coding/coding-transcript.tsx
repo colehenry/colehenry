@@ -38,7 +38,7 @@ type TranscriptItem =
       details: Record<string, unknown>;
       response?: boolean;
     }
-  | { kind: "notice"; id: string; tone: "muted" | "error" | "ok"; content: string };
+  | { kind: "notice"; id: string; tone: "muted" | "attention" | "error" | "ok"; content: string };
 
 function text(value: unknown): string {
   return typeof value === "string" ? value : "";
@@ -113,12 +113,16 @@ function buildTranscript(events: CodingEvent[]): TranscriptItem[] {
       if (item) item.response = Boolean(response?.approved);
     } else if (event.type === "activity") {
       items.push({ kind: "notice", id: `activity-${event.seq}`, tone: "muted", content: text(payload.label) });
+    } else if (event.type === "attention") {
+      items.push({ kind: "notice", id: `attention-${event.seq}`, tone: "attention", content: text(payload.message) || "Agent needs attention" });
     } else if (event.type === "task_failed") {
       items.push({ kind: "notice", id: `failed-${event.seq}`, tone: "error", content: text(payload.message) || "Task failed" });
     } else if (event.type === "task_completed") {
       items.push({ kind: "notice", id: `complete-${event.seq}`, tone: "ok", content: text(payload.message) || "Agent finished" });
     } else if (event.type === "task_cancelled") {
       items.push({ kind: "notice", id: `cancelled-${event.seq}`, tone: "muted", content: "Task cancelled" });
+    } else if (event.type === "task_interrupted") {
+      items.push({ kind: "notice", id: `interrupted-${event.seq}`, tone: "error", content: text(payload.message) || "Agent stopped before this task finished" });
     }
   }
   return items;
@@ -208,7 +212,7 @@ export function CodingTranscript({
         }
         return (
           <div key={item.id} className={`coding-notice is-${item.tone}`}>
-            {item.tone === "error" ? <AlertTriangle className="size-3.5" /> : item.tone === "ok" ? <Check className="size-3.5" /> : <span>·</span>}
+            {item.tone === "error" || item.tone === "attention" ? <AlertTriangle className="size-3.5" /> : item.tone === "ok" ? <Check className="size-3.5" /> : <span>·</span>}
             <span>{item.content}</span>
           </div>
         );

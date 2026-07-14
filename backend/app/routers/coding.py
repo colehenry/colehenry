@@ -79,6 +79,7 @@ def _task_out(task: CodingTask) -> CodingTaskOut:
         status=task.status,
         created_at=task.created_at,
         updated_at=task.updated_at,
+        archived_at=task.archived_at,
     )
 
 
@@ -242,9 +243,18 @@ async def revoke_device(
 
 @router.get("/tasks", response_model=list[CodingTaskOut])
 def list_tasks(
-    _user: User = Depends(require_owner), db: Session = Depends(get_db)
+    archived: bool = False,
+    _user: User = Depends(require_owner),
+    db: Session = Depends(get_db),
 ):
-    tasks = db.execute(select(CodingTask).order_by(CodingTask.updated_at.desc())).scalars()
+    archive_filter = (
+        CodingTask.archived_at.is_not(None)
+        if archived
+        else CodingTask.archived_at.is_(None)
+    )
+    tasks = db.execute(
+        select(CodingTask).where(archive_filter).order_by(CodingTask.updated_at.desc())
+    ).scalars()
     return [_task_out(task) for task in tasks]
 
 
@@ -313,9 +323,61 @@ def update_task(
     task = db.get(CodingTask, task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
-    task.model = payload.model
+    if payload.model is not None:
+        task.model = payload.model
+    if payload.title is not None:
+        task.title = " ".join(payload.title.split())[:120]
+    if payload.workspace_id is not None:
+        if task.status != "draft":
+            raise HTTPException(
+                status_code=409,
+                detail="Workspace can only be changed before the first message",
+            )
+        device = db.get(CodingDevice, task.device_id)
+        workspaces = (device.capabilities or {}).get("workspaces", []) if device else []
+        workspace = next(
+            (candidate for candidate in workspaces if candidate.get("id") == payload.workspace_id),
+            None,
+        )
+        if workspace is None:
+            raise HTTPException(status_code=422, detail="Workspace is not available on this device")
+        task.workspace_id = workspace["id"]
+        task.workspace_name = workspace.get("name") or payload.workspace_name or task.workspace_name
     db.commit()
     db.refresh(task)
+    return _task_out(task)
+
+
+@router.post("/tasks/{task_id}/archive")
+async def archive_task(
+    task_id: str,
+    _user: User = Depends(require_owner),
+    db: Session = Depends(get_db),
+):
+    task = db.get(CodingTask, task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if hub.connected(task.device_id):
+        await hub.send(task.device_id, {"type": "archive_task", "task_id": task.id})
+    task.archived_at = _now()
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/tasks/{task_id}/restore", response_model=CodingTaskOut)
+async def restore_task(
+    task_id: str,
+    _user: User = Depends(require_owner),
+    db: Session = Depends(get_db),
+):
+    task = db.get(CodingTask, task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    task.archived_at = None
+    db.commit()
+    db.refresh(task)
+    if hub.connected(task.device_id):
+        await hub.send(task.device_id, {"type": "restore_task", "task_id": task.id})
     return _task_out(task)
 
 
@@ -329,6 +391,8 @@ async def send_task_message(
     task = db.get(CodingTask, task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
+    if task.archived_at is not None:
+        raise HTTPException(status_code=409, detail="Restore this task before sending a message")
     if not hub.connected(task.device_id):
         raise HTTPException(status_code=409, detail="Agent device is offline")
     starting_draft = task.status == "draft"
@@ -353,7 +417,7 @@ async def send_task_message(
                 "type": "start_task",
                 "task": _task_out(task).model_dump(mode="json"),
                 "prompt": payload.content,
-                "isolated": (isolated or {}).get("isolated", True),
+                "isolated": (isolated or {}).get("isolated", False),
             },
         )
     else:
@@ -497,7 +561,7 @@ async def agent_socket(websocket: WebSocket):
                     "type": "start_task",
                     "task": _task_out(task).model_dump(mode="json"),
                     "prompt": first_prompt,
-                    "isolated": True,
+                    "isolated": False,
                 }
             )
 

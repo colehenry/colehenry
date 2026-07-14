@@ -1,7 +1,7 @@
 # cole-agent
 
 Local executor for the private `/coding` workspace on colehenry.dev. The browser
-controls tasks; this process owns repository access, Git worktrees, shell
+controls tasks; this process owns repository access, durable sessions, shell
 commands, and OpenRouter calls.
 
 ## One-time local configuration
@@ -18,7 +18,8 @@ npm run dev -- doctor
 
 `key set` saves the OpenRouter API key in macOS Keychain. Configuration and the
 registered workspace list live in `~/.cole-agent/config.json` with user-only
-file permissions.
+file permissions. Coding sessions, complete model/tool history, and transcript
+events live in `~/.cole-agent/sessions.sqlite3` using SQLite WAL mode.
 
 ## Install the macOS background service
 
@@ -66,7 +67,8 @@ reload the service. Remove it with:
 npm run service:uninstall
 ```
 
-Uninstalling leaves the Keychain entry and `~/.cole-agent/config.json` intact.
+Uninstalling leaves the Keychain entry, configuration, and durable session
+database intact.
 
 ## Foreground alternative
 
@@ -96,7 +98,7 @@ use. The key is never sent to the hosted relay.
 
 ## Remote mode
 
-1. Deploy migration `0017` and the updated FastAPI service.
+1. Deploy migrations through `0018` and the updated FastAPI service.
 2. Open `/coding`, switch to remote, and choose **new**.
 3. Create a pairing code.
 4. Pair the Mac from the repository root:
@@ -118,6 +120,11 @@ history; OpenRouter and filesystem traffic remain local to the agent.
 
 - Only explicitly registered workspaces are available to a task.
 - Relative paths are checked against the real workspace path, including symlinks.
-- Write-capable tasks use isolated `codex/agent-*` Git worktrees when possible.
+- Tasks operate in the registered workspace and never create branches or Git worktrees.
 - Every file write and shell command requires an explicit browser approval.
+- Productive agent runs are not capped at 20 tool rounds. An adaptive loop guard
+  corrects repeated calls, pauses persistent stagnation as an amber attention
+  state, and retains a 200-round emergency fuse.
 - A configurable concurrency queue defaults to two tasks and supports up to four.
+- Closing a chat archives it; permanent deletion is a separate API operation.
+- Interrupted tasks are restored after a restart without automatically rerunning commands.

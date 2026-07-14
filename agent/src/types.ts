@@ -20,6 +20,7 @@ export type TaskStatus =
   | "queued"
   | "running"
   | "attention"
+  | "interrupted"
   | "completed"
   | "failed"
   | "cancelled";
@@ -42,7 +43,16 @@ export type TaskRecord = {
   status: TaskStatus;
   created_at: string;
   updated_at: string;
+  archived_at?: string | null;
   events: AgentEvent[];
+};
+
+export type RuntimeState = {
+  cwd: string;
+  branch: string | null;
+  initialized: boolean;
+  baselineStatus: string;
+  baselinePatch: string;
 };
 
 export type StartTaskInput = {

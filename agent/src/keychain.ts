@@ -17,7 +17,7 @@ export async function readOpenRouterKey(): Promise<string | undefined> {
       "-s",
       service,
       "-w",
-    ]);
+    ], { timeout: 5_000 });
     return stdout.trim() || undefined;
   } catch {
     return undefined;

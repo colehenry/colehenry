@@ -23,6 +23,7 @@ import {
   type CodingEvent,
   type CodingTask,
   type CodingTransport,
+  type CodingWorkspace,
 } from "@/lib/api/coding";
 
 function eventStatus(events: CodingEvent[], fallback: CodingTask["status"]): CodingTask["status"] {
@@ -30,6 +31,7 @@ function eventStatus(events: CodingEvent[], fallback: CodingTask["status"]): Cod
     const type = events[index].type;
     if (type === "task_started") return "running";
     if (type === "approval_required" || type === "attention") return "attention";
+    if (type === "task_interrupted") return "interrupted";
     if (type === "task_completed") return "completed";
     if (type === "task_failed") return "failed";
     if (type === "task_cancelled") return "cancelled";
@@ -58,20 +60,24 @@ function DiffSheet({ payload, onClose }: { payload: Record<string, unknown>; onC
 
 export function CodingPane({
   task,
+  workspaces,
   transport,
   focused,
   onFocus,
   onClose,
   onEvent,
+  onWorkspaceChange,
   onDragStart,
   onDragEnd,
 }: {
   task: CodingTask;
+  workspaces: CodingWorkspace[];
   transport: CodingTransport;
   focused: boolean;
   onFocus: () => void;
   onClose: () => void;
   onEvent: (taskId: string, event: CodingEvent) => void;
+  onWorkspaceChange: (workspace: CodingWorkspace) => void;
   onDragStart: () => void;
   onDragEnd: () => void;
 }) {
@@ -121,6 +127,7 @@ export function CodingPane({
 
   const status = eventStatus(events, task.status);
   const busy = status === "queued" || status === "running" || status === "attention";
+  const working = status === "queued" || status === "running";
   const terminal = useMemo(
     () => events.filter((event) => event.type === "command_output").map((event) => String(event.payload.text ?? "")).join(""),
     [events],
@@ -141,6 +148,7 @@ export function CodingPane({
   function changeModel(nextModel: string) {
     const previous = model;
     setModel(nextModel);
+    localStorage.setItem(`coding-model-${transport}`, nextModel);
     void updateCodingTaskModel(transport, task.id, nextModel).catch(() => setModel(previous));
   }
 
@@ -156,7 +164,24 @@ export function CodingPane({
       <header className="coding-pane-header" draggable onDragStart={(event) => { event.dataTransfer.setData("text/task-id", task.id); onDragStart(); }} onDragEnd={onDragEnd}>
         <GripVertical className="coding-pane-grip size-3.5" />
         <span className={`coding-status is-${status}`} title={status} />
-        <div className="coding-pane-title"><strong>{task.title}</strong><span>{task.workspace_name}</span></div>
+        <div className="coding-pane-title">
+          <strong>{task.title}</strong>
+          {task.status === "draft" && workspaces.length > 0 ? (
+            <select
+              className="coding-workspace-picker"
+              aria-label="Workspace"
+              value={task.workspace_id}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => event.stopPropagation()}
+              onChange={(event) => {
+                const workspace = workspaces.find((candidate) => candidate.id === event.target.value);
+                if (workspace) onWorkspaceChange(workspace);
+              }}
+            >
+              {workspaces.map((workspace) => <option key={workspace.id} value={workspace.id}>{workspace.name}</option>)}
+            </select>
+          ) : <span>{task.workspace_name}</span>}
+        </div>
         <div className="coding-pane-meta">
           {task.branch && <span title={task.branch}><GitBranch className="size-3" /><b>branch</b>{task.branch}</span>}
           <ModelPicker model={model} onChange={changeModel} />
@@ -168,7 +193,7 @@ export function CodingPane({
 
       <div ref={transcriptRef} className="coding-pane-scroll">
         {detailQuery.isLoading ? <div className="coding-loading">connecting<span className="coding-cursor" /></div> : detailQuery.isError ? <div className="coding-load-error">Could not load task. Is the local agent running?</div> : (
-          <CodingTranscript events={events} busy={busy} onApproval={(id, approved) => void approval(id, approved)} onOpenDiff={setDiff} />
+          <CodingTranscript events={events} busy={working} onApproval={(id, approved) => void approval(id, approved)} onOpenDiff={setDiff} />
         )}
       </div>
 

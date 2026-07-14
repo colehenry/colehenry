@@ -44,9 +44,10 @@ export const codingTaskSchema = z.object({
   workspace_name: z.string(),
   model: z.string(),
   branch: z.string().nullable(),
-  status: z.enum(["draft", "queued", "running", "attention", "completed", "failed", "cancelled"]),
+  status: z.enum(["draft", "queued", "running", "attention", "interrupted", "completed", "failed", "cancelled"]),
   created_at: z.string(),
   updated_at: z.string(),
+  archived_at: z.string().nullable().optional(),
 });
 export type CodingTask = z.infer<typeof codingTaskSchema>;
 
@@ -82,6 +83,10 @@ export function getCodingDevices(transport: CodingTransport): Promise<CodingDevi
 
 export function getCodingTasks(transport: CodingTransport): Promise<CodingTask[]> {
   return transportFetch(transport, "/tasks", z.array(codingTaskSchema));
+}
+
+export function getArchivedCodingTasks(transport: CodingTransport): Promise<CodingTask[]> {
+  return transportFetch(transport, "/tasks?archived=1", z.array(codingTaskSchema));
 }
 
 export function getCodingTask(
@@ -132,6 +137,28 @@ export function updateCodingTaskModel(
   });
 }
 
+export function updateCodingTaskTitle(
+  transport: CodingTransport,
+  taskId: string,
+  title: string,
+): Promise<CodingTask> {
+  return transportFetch(transport, `/tasks/${taskId}`, codingTaskSchema, {
+    method: "PATCH",
+    body: JSON.stringify({ title }),
+  });
+}
+
+export function updateCodingTaskWorkspace(
+  transport: CodingTransport,
+  taskId: string,
+  workspace: CodingWorkspace,
+): Promise<CodingTask> {
+  return transportFetch(transport, `/tasks/${taskId}`, codingTaskSchema, {
+    method: "PATCH",
+    body: JSON.stringify({ workspace_id: workspace.id, workspace_name: workspace.name }),
+  });
+}
+
 export function sendCodingAction(
   transport: CodingTransport,
   taskId: string,
@@ -155,6 +182,26 @@ export async function closeCodingTask(
     headers: transport === "local" ? { "X-Cole-Agent": "1" } : undefined,
   });
   if (!response.ok) throw new Error((await response.text()) || response.statusText);
+}
+
+export async function archiveCodingTask(
+  transport: CodingTransport,
+  taskId: string,
+): Promise<void> {
+  const base = transport === "local" ? LOCAL_URL : `${API_URL}/coding`;
+  const response = await fetch(`${base}/tasks/${taskId}/archive`, {
+    method: "POST",
+    credentials: transport === "remote" ? "include" : "omit",
+    headers: transport === "local" ? { "X-Cole-Agent": "1" } : undefined,
+  });
+  if (!response.ok) throw new Error((await response.text()) || response.statusText);
+}
+
+export function restoreCodingTask(
+  transport: CodingTransport,
+  taskId: string,
+): Promise<CodingTask> {
+  return transportFetch(transport, `/tasks/${taskId}/restore`, codingTaskSchema, { method: "POST" });
 }
 
 export const pairingCodeSchema = z.object({ code: z.string(), expires_at: z.string() });

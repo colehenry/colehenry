@@ -8,6 +8,7 @@ import { readOpenRouterKey } from "./keychain.js";
 
 export const AGENT_HOME = process.env.COLE_AGENT_HOME ?? resolve(homedir(), ".cole-agent");
 export const CONFIG_PATH = resolve(AGENT_HOME, "config.json");
+export const SESSION_DB_PATH = process.env.COLE_AGENT_SESSION_DB ?? resolve(AGENT_HOME, "sessions.sqlite3");
 
 const defaults: AgentConfig = {
   serverUrl: "https://api.colehenry.dev",

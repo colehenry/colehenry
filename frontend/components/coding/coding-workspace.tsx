@@ -10,26 +10,34 @@ import {
   Columns2,
   ExternalLink,
   Laptop,
+  Menu,
   PanelRightOpen,
   Plus,
+  RotateCcw,
   Settings2,
+  Trash2,
   Volume2,
   VolumeX,
   X,
 } from "lucide-react";
 
-import { ModelPicker } from "@/components/brain/model-picker";
 import { CodingPane } from "@/components/coding/coding-pane";
 import {
   createCodingTask,
-  createPairingCode,
+  archiveCodingTask,
   closeCodingTask,
   defaultCodingTransport,
+  getArchivedCodingTasks,
   getCodingDevices,
   getCodingTasks,
+  restoreCodingTask,
+  updateCodingTaskTitle,
+  updateCodingTaskWorkspace,
+  type CodingDevice,
   type CodingEvent,
   type CodingTask,
   type CodingTransport,
+  type CodingWorkspace as CodingWorkspaceOption,
 } from "@/lib/api/coding";
 import { CHAT_MODELS } from "@/lib/api/brain";
 
@@ -77,76 +85,79 @@ function subscribeLayout(callback: () => void) {
   return () => window.removeEventListener("coding-layout", callback);
 }
 
-function NewTaskDialog({
-  transport,
-  onClose,
-  onCreated,
+type SessionGroup = { id: string; name: string; tasks: CodingTask[] };
+
+function groupSessions(tasks: CodingTask[]): SessionGroup[] {
+  const groups = new Map<string, SessionGroup>();
+  for (const task of tasks) {
+    const group = groups.get(task.workspace_id) ?? {
+      id: task.workspace_id,
+      name: task.workspace_name,
+      tasks: [],
+    };
+    group.tasks.push(task);
+    groups.set(task.workspace_id, group);
+  }
+  return [...groups.values()]
+    .map((group) => ({
+      ...group,
+      tasks: group.tasks.sort((left, right) => right.updated_at.localeCompare(left.updated_at)),
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name));
+}
+
+function ChatHistory({
+  groups,
+  loading,
+  restoring,
+  deletingTaskId,
+  onOpen,
+  onRestore,
+  onDelete,
 }: {
-  transport: CodingTransport;
-  onClose: () => void;
-  onCreated: (task: CodingTask) => void;
+  groups: SessionGroup[];
+  loading: boolean;
+  restoring: boolean;
+  deletingTaskId: string | null;
+  onOpen: (taskId: string) => void;
+  onRestore: (taskId: string) => void;
+  onDelete: (task: CodingTask) => void;
 }) {
-  const devicesQuery = useQuery({
-    queryKey: ["coding", transport, "devices"],
-    queryFn: () => getCodingDevices(transport),
-    refetchInterval: 5_000,
-  });
-  const devices = devicesQuery.data ?? [];
-  const [deviceId, setDeviceId] = useState("");
-  const [workspaceId, setWorkspaceId] = useState("");
-  const [model, setModel] = useState(CHAT_MODELS[0].slug);
-  const [isolated, setIsolated] = useState(true);
-  const [pairing, setPairing] = useState<{ code: string; expires_at: string } | null>(null);
-
-  const device = devices.find((candidate) => candidate.id === deviceId) ?? devices.find((candidate) => candidate.connected) ?? devices[0];
-  const workspaces = device?.capabilities.workspaces ?? [];
-  const workspace = workspaces.find((candidate) => candidate.id === workspaceId) ?? workspaces[0];
-
-  const mutation = useMutation({
-    mutationFn: () => createCodingTask(transport, {
-      device_id: device!.id,
-      workspace_id: workspace!.id,
-      workspace_name: workspace!.name,
-      prompt: "",
-      model,
-      isolated,
-    }),
-    onSuccess: onCreated,
-  });
-
   return (
-    <div className="coding-modal-backdrop" role="presentation" onMouseDown={onClose}>
-      <section className="coding-new-task" role="dialog" aria-modal="true" aria-label="New coding task" onMouseDown={(event) => event.stopPropagation()}>
-        <header><div><span className="coding-eyebrow">new chat</span><h2>Choose a workspace</h2></div><button type="button" onClick={onClose}><X className="size-4" /></button></header>
-        {devicesQuery.isError ? (
-          <div className="coding-setup-state">
-            <strong>{transport === "local" ? "Local agent not found" : "No paired agent is online"}</strong>
-            <p>{transport === "local" ? "Start cole-agent, then try again." : "Create a pairing code, then enter it in the local agent."}</p>
-            {transport === "remote" && !pairing && <button type="button" onClick={() => void createPairingCode().then(setPairing)}>create pairing code</button>}
-            {pairing && <div className="coding-pair-code"><b>{pairing.code}</b><code>cole-agent pair {pairing.code}</code></div>}
-          </div>
-        ) : devices.length === 0 ? (
-          <div className="coding-setup-state">
-            <strong>No coding device paired</strong><p>Pair this browser workspace with your Mac agent.</p>
-            {!pairing && <button type="button" onClick={() => void createPairingCode().then(setPairing)}>create pairing code</button>}
-            {pairing && <div className="coding-pair-code"><b>{pairing.code}</b><code>cole-agent pair {pairing.code}</code></div>}
-          </div>
-        ) : (
-          <>
-            <p className="coding-new-task-hint">Open an empty chat, choose its model, then send a message whenever you are ready.</p>
-            <div className="coding-new-task-options">
-              <label><span>device</span><select value={device?.id ?? ""} onChange={(event) => { setDeviceId(event.target.value); setWorkspaceId(""); }}>{devices.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name}{candidate.connected ? "" : " · offline"}</option>)}</select></label>
-              <label><span>workspace</span><select value={workspace?.id ?? ""} onChange={(event) => setWorkspaceId(event.target.value)}>{workspaces.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}</select></label>
-            </div>
-            <div className="coding-new-task-footer">
-              <ModelPicker model={model} onChange={setModel} placement="up" />
-              <label className="coding-isolate"><input type="checkbox" checked={isolated} onChange={(event) => setIsolated(event.target.checked)} /><span>isolated worktree</span></label>
-              <button type="button" className="coding-launch" disabled={!device?.connected || !workspace || mutation.isPending} onClick={() => mutation.mutate()}>{mutation.isPending ? "opening…" : "open chat"}</button>
-            </div>
-            {mutation.isError && <p className="coding-form-error">{mutation.error.message}</p>}
-          </>
-        )}
-      </section>
+    <div className="coding-history-popover">
+      <header><span>chat history</span><i>{groups.reduce((count, group) => count + group.tasks.length, 0)}</i></header>
+      <div className="coding-history-list">
+        {loading && <p>loading history…</p>}
+        {!loading && groups.length === 0 && <p>No saved chats yet.</p>}
+        {groups.map((group) => (
+          <section key={group.id}>
+            <h3>{group.name}</h3>
+            {group.tasks.map((task) => {
+              const archived = Boolean(task.archived_at);
+              return (
+                <div className="coding-history-row" key={task.id}>
+                  <button
+                    type="button"
+                    className="coding-history-open"
+                    disabled={archived && restoring}
+                    onClick={() => archived ? onRestore(task.id) : onOpen(task.id)}
+                  >
+                    <span className={`coding-status is-${task.status}`} />
+                    <strong>{task.title}</strong>
+                    <small>{archived ? "archived" : statusLabel(task.status)}</small>
+                  </button>
+                  {archived && (
+                    <div className="coding-history-actions">
+                      <button type="button" title={`Restore ${task.title}`} aria-label={`Restore ${task.title}`} disabled={restoring} onClick={() => onRestore(task.id)}><RotateCcw className="size-3" /></button>
+                      <button type="button" title={`Delete ${task.title} permanently`} aria-label={`Delete ${task.title} permanently`} disabled={deletingTaskId === task.id} onClick={() => onDelete(task)}><Trash2 className="size-3" /></button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </section>
+        ))}
+      </div>
     </div>
   );
 }
@@ -187,14 +198,25 @@ export function CodingWorkspace() {
     return { column: 50, row: 50 };
   }, [splitRaw]);
   const [focused, setFocused] = useState<string | null>(null);
-  const [newTaskOpen, setNewTaskOpen] = useState(false);
   const [draggingTask, setDraggingTask] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [renamingTaskId, setRenamingTaskId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
   const [sound, setSound] = useState(true);
   const [desktopAlerts, setDesktopAlerts] = useState(false);
   const previousStatuses = useRef<Map<string, string>>(new Map());
   const initializedStatuses = useRef(false);
   const gridRef = useRef<HTMLElement>(null);
+
+  const devicesQuery = useQuery({
+    queryKey: ["coding", transport, "devices"],
+    queryFn: () => getCodingDevices(transport),
+    enabled: isClient,
+    refetchInterval: 5_000,
+    retry: 1,
+  });
+  const devices = useMemo(() => devicesQuery.data ?? [], [devicesQuery.data]);
 
   const tasksQuery = useQuery({
     queryKey: ["coding", transport, "tasks"],
@@ -204,6 +226,16 @@ export function CodingWorkspace() {
     retry: 1,
   });
   const tasks = useMemo(() => tasksQuery.data ?? [], [tasksQuery.data]);
+  const archivedQuery = useQuery({
+    queryKey: ["coding", transport, "archived-tasks"],
+    queryFn: () => getArchivedCodingTasks(transport),
+    enabled: isClient && historyOpen,
+    staleTime: 10_000,
+  });
+  const sessionGroups = useMemo(
+    () => groupSessions([...tasks, ...(archivedQuery.data ?? [])]),
+    [archivedQuery.data, tasks],
+  );
   const taskMap = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks]);
   const requestedTask = isClient ? new URLSearchParams(window.location.search).get("task") : null;
   const visiblePanes = useMemo(
@@ -240,12 +272,133 @@ export function CodingWorkspace() {
     window.dispatchEvent(new Event("coding-layout"));
   }, [transport, visiblePanes]);
 
+  const newTaskMutation = useMutation({
+    mutationFn: ({
+      device,
+      workspace,
+      model,
+    }: {
+      device: CodingDevice;
+      workspace: CodingWorkspaceOption;
+      model: string;
+    }) => createCodingTask(transport, {
+      device_id: device.id,
+      workspace_id: workspace.id,
+      workspace_name: workspace.name,
+      prompt: "",
+      model,
+      isolated: false,
+    }),
+    onSuccess: (task) => {
+      queryClient.setQueryData<CodingTask[]>(["coding", transport, "tasks"], (current = []) => [task, ...current]);
+      setPanes((current) => {
+        if (!current.length) return [task.id];
+        const index = current.indexOf(focusedTask ?? "");
+        if (index < 0) return [task.id];
+        const next = [...current];
+        next[index] = task.id;
+        return next;
+      });
+      setFocused(task.id);
+    },
+  });
+
+  const createNewTask = useCallback(() => {
+    const currentTask = focusedTask ? taskMap.get(focusedTask) : undefined;
+    const device = devices.find((candidate) => candidate.id === currentTask?.device_id && candidate.connected)
+      ?? devices.find((candidate) => candidate.connected && (candidate.capabilities.workspaces?.length ?? 0) > 0);
+    if (!device) return;
+    const workspaces = device.capabilities.workspaces ?? [];
+    const savedWorkspaceId = localStorage.getItem(`coding-workspace-${transport}`);
+    const workspace = workspaces.find((candidate) => candidate.id === currentTask?.workspace_id)
+      ?? workspaces.find((candidate) => candidate.id === savedWorkspaceId)
+      ?? workspaces[0];
+    if (!workspace) return;
+    const model = currentTask?.model
+      ?? localStorage.getItem(`coding-model-${transport}`)
+      ?? CHAT_MODELS[0].slug;
+    localStorage.setItem(`coding-workspace-${transport}`, workspace.id);
+    localStorage.setItem(`coding-model-${transport}`, model);
+    newTaskMutation.mutate({ device, workspace, model });
+  }, [devices, focusedTask, newTaskMutation, taskMap, transport]);
+
   const closeMutation = useMutation({
-    mutationFn: (taskId: string) => closeCodingTask(transport, taskId),
+    mutationFn: (taskId: string) => archiveCodingTask(transport, taskId),
     onSuccess: (_result, taskId) => {
       queryClient.setQueryData<CodingTask[]>(["coding", transport, "tasks"], (current = []) => current.filter((task) => task.id !== taskId));
       setPanes((current) => current.filter((id) => id !== taskId));
       if (focusedTask === taskId) setFocused(null);
+    },
+  });
+
+  const renameMutation = useMutation({
+    mutationFn: ({ taskId, title }: { taskId: string; title: string }) =>
+      updateCodingTaskTitle(transport, taskId, title),
+    onMutate: async ({ taskId, title }) => {
+      await queryClient.cancelQueries({ queryKey: ["coding", transport, "tasks"] });
+      const previous = queryClient.getQueryData<CodingTask[]>(["coding", transport, "tasks"]);
+      queryClient.setQueryData<CodingTask[]>(["coding", transport, "tasks"], (current = []) =>
+        current.map((task) => task.id === taskId ? { ...task, title } : task),
+      );
+      return { previous };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previous) queryClient.setQueryData(["coding", transport, "tasks"], context.previous);
+    },
+    onSuccess: (updated) => {
+      queryClient.setQueryData<CodingTask[]>(["coding", transport, "tasks"], (current = []) =>
+        current.map((task) => task.id === updated.id ? updated : task),
+      );
+    },
+  });
+
+  const workspaceMutation = useMutation({
+    mutationFn: ({ taskId, workspace }: { taskId: string; workspace: CodingWorkspaceOption }) =>
+      updateCodingTaskWorkspace(transport, taskId, workspace),
+    onMutate: async ({ taskId, workspace }) => {
+      await queryClient.cancelQueries({ queryKey: ["coding", transport, "tasks"] });
+      const previous = queryClient.getQueryData<CodingTask[]>(["coding", transport, "tasks"]);
+      queryClient.setQueryData<CodingTask[]>(["coding", transport, "tasks"], (current = []) =>
+        current.map((task) => task.id === taskId ? {
+          ...task,
+          workspace_id: workspace.id,
+          workspace_name: workspace.name,
+        } : task),
+      );
+      localStorage.setItem(`coding-workspace-${transport}`, workspace.id);
+      return { previous };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previous) queryClient.setQueryData(["coding", transport, "tasks"], context.previous);
+    },
+    onSuccess: (updated) => {
+      queryClient.setQueryData<CodingTask[]>(["coding", transport, "tasks"], (current = []) =>
+        current.map((task) => task.id === updated.id ? updated : task),
+      );
+    },
+  });
+
+  const restoreMutation = useMutation({
+    mutationFn: (taskId: string) => restoreCodingTask(transport, taskId),
+    onSuccess: (task) => {
+      queryClient.setQueryData<CodingTask[]>(["coding", transport, "archived-tasks"], (current = []) =>
+        current.filter((candidate) => candidate.id !== task.id),
+      );
+      queryClient.setQueryData<CodingTask[]>(["coding", transport, "tasks"], (current = []) => [
+        task,
+        ...current.filter((candidate) => candidate.id !== task.id),
+      ]);
+      openTask(task.id);
+      setHistoryOpen(false);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (taskId: string) => closeCodingTask(transport, taskId),
+    onSuccess: (_result, taskId) => {
+      queryClient.setQueryData<CodingTask[]>(["coding", transport, "archived-tasks"], (current = []) =>
+        current.filter((candidate) => candidate.id !== taskId),
+      );
     },
   });
 
@@ -296,6 +449,18 @@ export function CodingWorkspace() {
     else if (!visiblePanes.length) setPanes([taskId]);
     else setPanes((current) => current.map((id) => id === focusedTask ? taskId : id));
     setFocused(taskId);
+  }
+
+  function beginRename(task: CodingTask) {
+    setRenamingTaskId(task.id);
+    setRenameValue(task.title);
+  }
+
+  function finishRename(task: CodingTask) {
+    const title = renameValue.replace(/\s+/g, " ").trim();
+    setRenamingTaskId(null);
+    if (!title || title === task.title) return;
+    renameMutation.mutate({ taskId: task.id, title });
   }
 
   function dropTask(taskId: string, slot: number) {
@@ -368,7 +533,7 @@ export function CodingWorkspace() {
       if (event.key === "Escape") setDraggingTask(null);
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n") {
         event.preventDefault();
-        setNewTaskOpen(true);
+        createNewTask();
       }
       if ((event.metaKey || event.ctrlKey) && /^[1-4]$/.test(event.key)) {
         const taskId = visiblePanes[Number(event.key) - 1];
@@ -377,7 +542,7 @@ export function CodingWorkspace() {
     }
     window.addEventListener("keydown", shortcut);
     return () => window.removeEventListener("keydown", shortcut);
-  }, [visiblePanes]);
+  }, [createNewTask, visiblePanes]);
 
   if (!isClient) return <div className="coding-shell coding-loading-screen">booting coding workspace<span className="coding-cursor" /></div>;
 
@@ -391,7 +556,7 @@ export function CodingWorkspace() {
               key={task.id}
               role="tab"
               tabIndex={0}
-              draggable
+              draggable={renamingTaskId !== task.id}
               aria-selected={focusedTask === task.id}
               className={`coding-tab ${focusedTask === task.id ? "is-active" : ""}`}
               onClick={() => openTask(task.id)}
@@ -401,20 +566,61 @@ export function CodingWorkspace() {
                   openTask(task.id);
                 }
               }}
-              onDragStart={(event) => { event.dataTransfer.setData("text/task-id", task.id); setDraggingTask(task.id); }}
+              onDragStart={(event) => {
+                if (renamingTaskId === task.id) {
+                  event.preventDefault();
+                  return;
+                }
+                event.dataTransfer.setData("text/task-id", task.id);
+                setDraggingTask(task.id);
+              }}
               onDragEnd={() => setDraggingTask(null)}
             >
               <span className={`coding-status is-${task.status}`} />
-              <span className="coding-tab-title">{task.title}</span>
-              <span className="coding-tab-status">{statusLabel(task.status)}</span>
+              {renamingTaskId === task.id ? (
+                <input
+                  autoFocus
+                  className="coding-tab-title-input"
+                  value={renameValue}
+                  maxLength={120}
+                  aria-label={`Rename ${task.title}`}
+                  onClick={(event) => event.stopPropagation()}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onChange={(event) => setRenameValue(event.target.value)}
+                  onBlur={() => finishRename(task)}
+                  onKeyDown={(event) => {
+                    event.stopPropagation();
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      event.currentTarget.blur();
+                    } else if (event.key === "Escape") {
+                      event.preventDefault();
+                      setRenamingTaskId(null);
+                      setRenameValue(task.title);
+                    }
+                  }}
+                />
+              ) : (
+                <span
+                  className="coding-tab-title"
+                  title="Click to rename"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    beginRename(task);
+                  }}
+                >
+                  {task.title}
+                </span>
+              )}
+              {renamingTaskId !== task.id && <span className="coding-tab-status">{statusLabel(task.status)}</span>}
               <span className="coding-tab-actions">
                 <button type="button" title="Open in split" aria-label={`Open ${task.title} in split`} onClick={(event) => { event.stopPropagation(); openTask(task.id, true); }}><PanelRightOpen className="size-3" /></button>
                 <button type="button" title="Open in new window" aria-label={`Open ${task.title} in new window`} onClick={(event) => { event.stopPropagation(); window.open(`/coding?task=${task.id}`, "_blank", "noopener,noreferrer"); }}><ExternalLink className="size-3" /></button>
-                <button type="button" title="Close chat" aria-label={`Close ${task.title}`} onClick={(event) => { event.stopPropagation(); closeMutation.mutate(task.id); }}><X className="size-3" /></button>
+                <button type="button" title="Archive chat" aria-label={`Archive ${task.title}`} onClick={(event) => { event.stopPropagation(); closeMutation.mutate(task.id); }}><X className="size-3" /></button>
               </span>
             </div>
           ))}
-          <button type="button" className="coding-new-tab" onClick={() => setNewTaskOpen(true)} title="New chat (⌘N)"><Plus className="size-3.5" /></button>
+          <button type="button" className="coding-new-tab" disabled={newTaskMutation.isPending} onClick={createNewTask} title="New chat (⌘N)"><Plus className="size-3.5" /></button>
         </div>
         <div className="coding-global-actions">
           <div className="coding-transport" title="Agent connection">
@@ -422,7 +628,7 @@ export function CodingWorkspace() {
             <button type="button" className={transport === "remote" ? "is-active" : ""} onClick={() => { initializedStatuses.current = false; setTransportChoice("remote"); setFocused(null); }}><Cloud className="size-3.5" /><span>remote</span></button>
           </div>
           <div className="coding-settings-wrap">
-            <button type="button" onClick={() => setSettingsOpen((open) => !open)} title="Notifications"><Settings2 className="size-4" /></button>
+            <button type="button" onClick={() => { setHistoryOpen(false); setSettingsOpen((open) => !open); }} title="Notifications"><Settings2 className="size-4" /></button>
             {settingsOpen && (
               <div className="coding-settings-popover">
                 <button type="button" onClick={() => { const next = !sound; setSound(next); localStorage.setItem("coding-sound", next ? "on" : "off"); if (next) playDing("completed"); }}>{sound ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}<span>sound</span><i>{sound ? "on" : "off"}</i></button>
@@ -430,9 +636,29 @@ export function CodingWorkspace() {
               </div>
             )}
           </div>
-          <button type="button" className="coding-primary-action" onClick={() => setNewTaskOpen(true)}><Plus className="size-4" /><span>new</span></button>
+          <div className="coding-history-wrap">
+            <button type="button" onClick={() => { setSettingsOpen(false); setHistoryOpen((open) => !open); }} title="Chat history" aria-label="Chat history"><Menu className="size-4" /></button>
+            {historyOpen && (
+              <ChatHistory
+                groups={sessionGroups}
+                loading={archivedQuery.isLoading}
+                restoring={restoreMutation.isPending}
+                deletingTaskId={deleteMutation.isPending ? deleteMutation.variables ?? null : null}
+                onOpen={(taskId) => { openTask(taskId); setHistoryOpen(false); }}
+                onRestore={(taskId) => restoreMutation.mutate(taskId)}
+                onDelete={(task) => {
+                  if (window.confirm(`Permanently delete “${task.title}”? This cannot be undone.`)) {
+                    deleteMutation.mutate(task.id);
+                  }
+                }}
+              />
+            )}
+          </div>
+          <button type="button" className="coding-primary-action" disabled={newTaskMutation.isPending} onClick={createNewTask}><Plus className="size-4" /><span>{newTaskMutation.isPending ? "opening" : "new"}</span></button>
         </div>
       </header>
+
+      {newTaskMutation.isError && <div className="coding-create-error">Could not open a new chat: {newTaskMutation.error.message}</div>}
 
       {tasksQuery.isError && visiblePanes.length === 0 ? (
         <main className="coding-offline">
@@ -440,15 +666,16 @@ export function CodingWorkspace() {
           <h1>{transport === "local" ? "Start your local agent" : "Connect your Mac"}</h1>
           <p>{transport === "local" ? "The interface is ready. Run the local companion, register this repository, and start your first task." : "Pair the local companion once, then this workspace can control it from anywhere."}</p>
           <code>{transport === "local" ? "cd agent && npm run dev -- workspace add .. && npm run dev -- start" : "Create a new task to pair a device"}</code>
-          <button type="button" onClick={() => setNewTaskOpen(true)}>open setup</button>
+          <button type="button" onClick={() => void Promise.all([devicesQuery.refetch(), tasksQuery.refetch()])}>retry connection</button>
         </main>
       ) : visiblePanes.length === 0 ? (
-        <main className="coding-offline"><div className="coding-offline-mark"><span>+</span><i>_</i></div><h1>Open a chat</h1><p>Choose a workspace and model. Nothing runs until you send the first message.</p><button type="button" onClick={() => setNewTaskOpen(true)}>new chat</button></main>
+        <main className="coding-offline"><div className="coding-offline-mark"><span>+</span><i>_</i></div><h1>Open a chat</h1><p>A blank tab uses your current project and model. Nothing runs until you send the first message.</p><button type="button" onClick={createNewTask}>new chat</button></main>
       ) : (
         <main ref={gridRef} className={`coding-grid count-${Math.min(4, visiblePanes.length)}`} style={gridStyle}>
           {visiblePanes.map((taskId) => {
             const task = taskMap.get(taskId);
-            return task ? <CodingPane key={task.id} task={task} transport={transport} focused={focusedTask === task.id} onFocus={() => setFocused(task.id)} onClose={() => { setPanes((current) => current.filter((id) => id !== task.id)); if (focusedTask === task.id) setFocused(null); }} onEvent={onEvent} onDragStart={() => setDraggingTask(task.id)} onDragEnd={() => setDraggingTask(null)} /> : null;
+            const workspaces = devices.find((device) => device.id === task?.device_id)?.capabilities.workspaces ?? [];
+            return task ? <CodingPane key={task.id} task={task} workspaces={workspaces} transport={transport} focused={focusedTask === task.id} onFocus={() => setFocused(task.id)} onClose={() => { setPanes((current) => current.filter((id) => id !== task.id)); if (focusedTask === task.id) setFocused(null); }} onEvent={onEvent} onWorkspaceChange={(workspace) => workspaceMutation.mutate({ taskId: task.id, workspace })} onDragStart={() => setDraggingTask(task.id)} onDragEnd={() => setDraggingTask(null)} /> : null;
           })}
           {visiblePanes.length >= 2 && <div className="coding-resize-handle is-column" role="separator" aria-orientation="vertical" title="Drag to resize columns" onPointerDown={(event) => beginResize("column", event)} />}
           {visiblePanes.length >= 3 && <div className="coding-resize-handle is-row" role="separator" aria-orientation="horizontal" title="Drag to resize rows" onPointerDown={(event) => beginResize("row", event)} />}
@@ -459,7 +686,6 @@ export function CodingWorkspace() {
           )}
         </main>
       )}
-      {newTaskOpen && <NewTaskDialog transport={transport} onClose={() => setNewTaskOpen(false)} onCreated={(task) => { queryClient.setQueryData<CodingTask[]>(["coding", transport, "tasks"], (current = []) => [task, ...current]); setPanes((current) => current.length < 4 ? [...current, task.id] : [task.id]); setFocused(task.id); setNewTaskOpen(false); }} />}
     </div>
   );
 }

@@ -7,7 +7,7 @@ the portfolio wired end to end.
 ```
 /frontend    Next.js 16 (App Router) · TypeScript · Tailwind v4 · shadcn/ui · TanStack Query · cmdk
 /backend    FastAPI · SQLAlchemy 2.0 · Alembic · Authlib (Google OAuth) · PyJWT · psycopg
-/agent      Local TypeScript coding-agent executor · OpenRouter · Git worktrees
+/agent      Local TypeScript coding-agent executor · OpenRouter · durable SQLite sessions
 ```
 
 ---
@@ -106,7 +106,8 @@ After changing the agent source, rerun
 and reload it. To remove the background service, run
 `npm --prefix agent run service:uninstall`. The configuration remains at
 `~/.cole-agent/config.json`; remove it separately only if you also want to
-forget registered workspaces and remote pairing.
+forget registered workspaces and remote pairing. Durable coding sessions remain
+in `~/.cole-agent/sessions.sqlite3` unless you explicitly remove that database.
 
 #### Foreground alternative
 
