@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowUp,
@@ -15,6 +16,7 @@ import {
 import { ModelPicker } from "@/components/brain/model-picker";
 import { CodingTranscript } from "@/components/coding/coding-transcript";
 import {
+  codingStatusLabel,
   getCodingTask,
   sendCodingAction,
   sendCodingMessage,
@@ -39,20 +41,81 @@ function eventStatus(events: CodingEvent[], fallback: CodingTask["status"]): Cod
   return fallback;
 }
 
+type DiffFile = { path?: string; status?: string };
+type DiffSection = { path: string; lines: string[] };
+
+function diffLineClass(line: string): string {
+  if (line.startsWith("+") && !line.startsWith("+++")) return "add";
+  if (line.startsWith("-") && !line.startsWith("---")) return "del";
+  if (line.startsWith("@@")) return "hunk";
+  if (line.startsWith("diff --git")) return "file";
+  return "";
+}
+
+function splitPatch(patch: string, files: DiffFile[]): DiffSection[] {
+  const sections: DiffSection[] = [];
+  let current: DiffSection | null = null;
+  for (const line of patch.split("\n")) {
+    const match = line.match(/^diff --git a\/(.+) b\/(.+)$/);
+    if (match) {
+      current = { path: match[2], lines: [line] };
+      sections.push(current);
+    } else if (current) {
+      current.lines.push(line);
+    }
+  }
+  if (sections.length) return sections;
+  return [{
+    path: files[0]?.path ?? "working tree",
+    lines: patch ? patch.split("\n") : ["No textual patch is available for this file yet."],
+  }];
+}
+
 function DiffSheet({ payload, onClose }: { payload: Record<string, unknown>; onClose: () => void }) {
   const patch = typeof payload.patch === "string" ? payload.patch : "No textual patch is available for this file yet.";
-  const files = Array.isArray(payload.files) ? payload.files as { path?: string; status?: string }[] : [];
+  const files = useMemo(() => Array.isArray(payload.files) ? payload.files as DiffFile[] : [], [payload.files]);
+  const sections = useMemo(() => splitPatch(patch, files), [files, patch]);
+  const [selectedPath, setSelectedPath] = useState(sections[0]?.path ?? "working tree");
+  const selected = sections.find((section) => section.path === selectedPath) ?? sections[0];
+  const additions = Number(payload.additions ?? (patch.match(/^\+(?!\+\+)/gm) ?? []).length);
+  const deletions = Number(payload.deletions ?? (patch.match(/^-(?!--)/gm) ?? []).length);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [onClose]);
+
   return (
     <div className="coding-sheet-backdrop" role="presentation" onMouseDown={onClose}>
       <section className="coding-diff-sheet" role="dialog" aria-modal="true" aria-label="Code changes" onMouseDown={(event) => event.stopPropagation()}>
         <header>
-          <div><span className="coding-eyebrow">working tree</span><h2>{files.length || 1} changed file{files.length === 1 ? "" : "s"}</h2></div>
+          <div><span className="coding-eyebrow">review changes</span><h2>{files.length || 1} changed file{files.length === 1 ? "" : "s"}</h2></div>
+          <div className="coding-diff-summary"><b>+{additions}</b><i>−{deletions}</i></div>
           <button type="button" onClick={onClose} aria-label="Close diff"><X className="size-4" /></button>
         </header>
-        {files.length > 0 && <div className="coding-diff-files">{files.map((file, index) => <span key={`${file.path}-${index}`}><i>{file.status || "M"}</i>{file.path}</span>)}</div>}
-        <pre className="coding-patch">{patch.split("\n").map((line, index) => (
-          <span key={index} className={line.startsWith("+") && !line.startsWith("+++") ? "add" : line.startsWith("-") && !line.startsWith("---") ? "del" : line.startsWith("@@") ? "hunk" : ""}>{line || " "}</span>
-        ))}</pre>
+        <div className="coding-diff-body">
+          <aside aria-label="Changed files">
+            {sections.map((section) => {
+              const file = files.find((candidate) => candidate.path === section.path);
+              const status = file?.status?.trim().split(/\s+/)[0] || "M";
+              return <button type="button" key={section.path} className={selected?.path === section.path ? "is-active" : ""} onClick={() => setSelectedPath(section.path)}><i>{status}</i><span>{section.path}</span></button>;
+            })}
+          </aside>
+          <div className="coding-diff-code">
+            <div className="coding-diff-code-header"><span>{selected?.path}</span><small>unified diff</small></div>
+            <pre className="coding-patch">{selected?.lines.map((line, index) => (
+              <span key={index} className={diffLineClass(line)}>{line || " "}</span>
+            ))}</pre>
+          </div>
+        </div>
       </section>
     </div>
   );
@@ -163,7 +226,7 @@ export function CodingPane({
     <section className={`coding-pane ${focused ? "is-focused" : ""}`} onMouseDown={onFocus}>
       <header className="coding-pane-header" draggable onDragStart={(event) => { event.dataTransfer.setData("text/task-id", task.id); onDragStart(); }} onDragEnd={onDragEnd}>
         <GripVertical className="coding-pane-grip size-3.5" />
-        <span className={`coding-status is-${status}`} title={status} />
+        <span className={`coding-status is-${status}`} title={codingStatusLabel(status)} />
         <div className="coding-pane-title">
           <strong>{task.title}</strong>
           {task.status === "draft" && workspaces.length > 0 ? (
@@ -222,7 +285,10 @@ export function CodingPane({
         <button type="button" disabled={!input.trim() || sending} onClick={() => void send()} aria-label="Send message"><ArrowUp className="size-4" /></button>
         <span>↵ send · ⇧↵ newline</span>
       </div>
-      {diff && <DiffSheet payload={diff} onClose={() => setDiff(null)} />}
+      {diff && typeof document !== "undefined" && createPortal(
+        <DiffSheet payload={diff} onClose={() => setDiff(null)} />,
+        document.querySelector(".coding-shell") ?? document.body,
+      )}
     </section>
   );
 }

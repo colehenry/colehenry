@@ -307,6 +307,13 @@ export class SessionStore {
     }));
   }
 
+  updateSystemMessage(sessionId: string, content: string): void {
+    const row = this.db.prepare(
+      "SELECT id FROM model_messages WHERE session_id = ? AND role = 'system' ORDER BY seq LIMIT 1",
+    ).get(sessionId) as { id: number } | undefined;
+    if (row) this.db.prepare("UPDATE model_messages SET content = ? WHERE id = ?").run(content, row.id);
+  }
+
   appendModelMessage(sessionId: string, message: ModelMessage, turnId: string | null, createdAt = new Date().toISOString()): void {
     const last = this.db.prepare(
       "SELECT COALESCE(MAX(seq), 0) AS seq FROM model_messages WHERE session_id = ?",

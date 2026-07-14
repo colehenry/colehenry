@@ -44,6 +44,19 @@ function text(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
+function commandSummary(command: string): string {
+  const firstLine = command.trim().split("\n")[0] || "shell command";
+  return firstLine.length > 110 ? `${firstLine.slice(0, 109)}…` : firstLine;
+}
+
+function toolLabel(name: string, label: string, args: unknown): string {
+  if (name !== "run_command") return label || name;
+  const command = args && typeof args === "object" && "command" in args
+    ? text((args as Record<string, unknown>).command)
+    : "";
+  return command ? `Running command · ${commandSummary(command)}` : "Running command";
+}
+
 function buildTranscript(events: CodingEvent[]): TranscriptItem[] {
   const items: TranscriptItem[] = [];
   const assistants = new Map<string, Extract<TranscriptItem, { kind: "assistant" }>>();
@@ -79,7 +92,7 @@ function buildTranscript(events: CodingEvent[]): TranscriptItem[] {
         kind: "tool" as const,
         id,
         name: text(payload.name),
-        label: text(payload.label) || text(payload.name),
+        label: toolLabel(text(payload.name), text(payload.label), payload.args),
         args: payload.args,
         done: false,
         ok: true,
@@ -136,17 +149,35 @@ function DiffCard({
   onOpen: (payload: Record<string, unknown>) => void;
 }) {
   const files = Array.isArray(payload.files) ? payload.files : [];
-  const additions = Number(payload.additions ?? 0);
-  const deletions = Number(payload.deletions ?? 0);
+  const patch = typeof payload.patch === "string" ? payload.patch : "";
+  const additions = Number(payload.additions ?? (patch.match(/^\+(?!\+\+)/gm) ?? []).length);
+  const deletions = Number(payload.deletions ?? (patch.match(/^-(?!--)/gm) ?? []).length);
+  const preview = patch.split("\n").filter((line) => line && !line.startsWith("index ")).slice(0, 9);
+  const lineClass = (line: string) => line.startsWith("+") && !line.startsWith("+++")
+    ? "add"
+    : line.startsWith("-") && !line.startsWith("---")
+      ? "del"
+      : line.startsWith("@@")
+        ? "hunk"
+        : line.startsWith("diff --git")
+          ? "file"
+          : "";
   return (
-    <button type="button" className="coding-diff-card" onClick={() => onOpen(payload)}>
-      <FileDiff className="size-4" />
-      <span>{files.length || 1} file{files.length === 1 ? "" : "s"} changed</span>
-      {(additions > 0 || deletions > 0) && (
-        <span className="coding-diff-count"><b>+{additions}</b> <i>−{deletions}</i></span>
-      )}
-      <span className="coding-diff-review">review <ChevronRight className="size-3" /></span>
-    </button>
+    <div className="coding-diff-wrap">
+      <button type="button" className="coding-diff-card" onClick={() => onOpen(payload)}>
+        <FileDiff className="size-4" />
+        <span>{files.length || 1} file{files.length === 1 ? "" : "s"} changed</span>
+        {(additions > 0 || deletions > 0) && (
+          <span className="coding-diff-count"><b>+{additions}</b> <i>−{deletions}</i></span>
+        )}
+        <span className="coding-diff-review">review <ChevronRight className="size-3" /></span>
+      </button>
+      <div className="coding-diff-preview" aria-hidden="true">
+        <header><span>quick diff</span><i>{preview.length < patch.split("\n").length ? "preview" : "complete"}</i></header>
+        <pre>{preview.length ? preview.map((line, index) => <span key={index} className={lineClass(line)}>{line}</span>) : <span>No textual patch available.</span>}</pre>
+        <footer>click to review by file</footer>
+      </div>
+    </div>
   );
 }
 
@@ -169,7 +200,7 @@ export function CodingTranscript({
       )}
       {items.map((item) => {
         if (item.kind === "user") {
-          return <div key={item.id} className="coding-turn coding-turn-user"><span className="coding-speaker">you</span><p>{item.content}</p></div>;
+          return <div key={item.id} className="coding-turn coding-turn-user"><span className="coding-speaker">colehenry</span><p>{item.content}</p></div>;
         }
         if (item.kind === "assistant") {
           return (
@@ -198,7 +229,12 @@ export function CodingTranscript({
           return (
             <div key={item.id} className="coding-approval">
               <div className="coding-approval-title"><ShieldQuestion className="size-4" /><span>{item.tool === "run_command" ? "Run command?" : "Apply file change?"}</span></div>
-              <code>{command || path || JSON.stringify(item.details)}</code>
+              {command ? (
+                <details className="coding-approval-details">
+                  <summary><code>{commandSummary(command)}</code><ChevronRight className="size-3" /></summary>
+                  <pre>{command}</pre>
+                </details>
+              ) : <code>{path || JSON.stringify(item.details)}</code>}
               {item.response === undefined ? (
                 <div className="coding-approval-actions">
                   <button type="button" onClick={() => onApproval(item.approvalId, false)}><X className="size-3.5" /> deny</button>

@@ -14,7 +14,9 @@ type Approval = { toolId: string; resolve: (approved: boolean) => void };
 const SYSTEM_PROMPT = `You are a careful coding agent operating inside one approved workspace.
 Inspect the repository before changing it. Make focused, maintainable edits. Use tools instead of guessing.
 All writes and shell commands require the user's approval. Read-only tools do not.
+Use write_file for file edits. Never use run_command with heredocs, shell redirection, or synthetic git diff commands to write or preview file content.
 After changing code, run the smallest relevant validation when practical. End with a concise summary of changes and validation.
+Never paste a full unified diff or large before-and-after code blocks into chat. Summarize the changes and name the affected files. Only quote a specific changed line or very small excerpt when the user explicitly asks for it.
 Continue until the user's request is actually satisfied. Never end with progress language about what you are "currently" or "about to" do.
 For a broad request such as "audit", inspect representative architecture, backend, frontend, security, tests, and deployment surfaces, then return concrete prioritized findings.
 If a tool fails, inspect its error and try another available tool or approach. Do not claim the repository is inaccessible after one missing utility.
@@ -68,7 +70,11 @@ function toolLabel(name: string, args: Record<string, unknown>): string {
   if (name === "list_files") return "Scanning files";
   if (name === "search") return `Searching for ${String(args.query ?? "text")}`;
   if (name === "write_file") return `Editing ${String(args.path ?? "file")}`;
-  if (name === "run_command") return `Running ${String(args.command ?? "command")}`;
+  if (name === "run_command") {
+    const firstLine = String(args.command ?? "").trim().split("\n")[0];
+    const summary = firstLine.length > 110 ? `${firstLine.slice(0, 109)}…` : firstLine;
+    return summary ? `Running command · ${summary}` : "Running command";
+  }
   return name;
 }
 
@@ -169,6 +175,12 @@ export class TaskRuntime {
       const system: ModelMessage = { role: "system", content: SYSTEM_PROMPT };
       this.messages.push(system);
       this.store.appendModelMessage(record.id, system, null);
+    } else {
+      const systemIndex = this.messages.findIndex((message) => message.role === "system");
+      if (systemIndex >= 0 && this.messages[systemIndex].content !== SYSTEM_PROMPT) {
+        this.messages[systemIndex] = { role: "system", content: SYSTEM_PROMPT };
+        this.store.updateSystemMessage(record.id, SYSTEM_PROMPT);
+      }
     }
   }
 

@@ -26,6 +26,7 @@ import {
   createCodingTask,
   archiveCodingTask,
   closeCodingTask,
+  codingStatusLabel,
   defaultCodingTransport,
   getArchivedCodingTasks,
   getCodingDevices,
@@ -68,12 +69,6 @@ function playDing(kind: AlertKind) {
     oscillator.stop(context.currentTime + index * 0.1 + 0.26);
   });
   window.setTimeout(() => void context.close(), 700);
-}
-
-function statusLabel(status: CodingTask["status"]) {
-  if (status === "draft") return "ready";
-  if (status === "attention") return "needs you";
-  return status;
 }
 
 function subscribeClient() {
@@ -144,7 +139,7 @@ function ChatHistory({
                   >
                     <span className={`coding-status is-${task.status}`} />
                     <strong>{task.title}</strong>
-                    <small>{archived ? "archived" : statusLabel(task.status)}</small>
+                    <small>{archived ? "closed" : codingStatusLabel(task.status)}</small>
                   </button>
                   {archived && (
                     <div className="coding-history-actions">
@@ -612,7 +607,7 @@ export function CodingWorkspace() {
                   {task.title}
                 </span>
               )}
-              {renamingTaskId !== task.id && <span className="coding-tab-status">{statusLabel(task.status)}</span>}
+              {renamingTaskId !== task.id && <span className="coding-tab-status">{codingStatusLabel(task.status)}</span>}
               <span className="coding-tab-actions">
                 <button type="button" title="Open in split" aria-label={`Open ${task.title} in split`} onClick={(event) => { event.stopPropagation(); openTask(task.id, true); }}><PanelRightOpen className="size-3" /></button>
                 <button type="button" title="Open in new window" aria-label={`Open ${task.title} in new window`} onClick={(event) => { event.stopPropagation(); window.open(`/coding?task=${task.id}`, "_blank", "noopener,noreferrer"); }}><ExternalLink className="size-3" /></button>

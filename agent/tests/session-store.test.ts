@@ -50,6 +50,7 @@ test("persists exact model messages and recovers interrupted tools", () => {
     }, "turn-1");
     first.startTurn(task.id, "turn-1", "change it");
     first.startTool(task.id, "turn-1", "tool-1", "run_command", { command: "npm test" });
+    first.updateSystemMessage(task.id, "updated system");
     first.close();
 
     const recovered = new SessionStore(files.database);
@@ -58,7 +59,7 @@ test("persists exact model messages and recovers interrupted tools", () => {
     assert.equal(session?.record.events.at(-1)?.type, "task_interrupted");
     const messages = recovered.loadModelMessages(task.id);
     assert.deepEqual(messages.slice(0, 3), [
-      { role: "system", content: "system" },
+      { role: "system", content: "updated system" },
       { role: "user", content: "change it" },
       {
         role: "assistant",

@@ -57,7 +57,7 @@ export const CODING_TOOLS = [
     type: "function",
     function: {
       name: "write_file",
-      description: "Replace or create a UTF-8 text file. This requires user approval.",
+      description: "Replace or create a UTF-8 text file. Always use this for file edits instead of shell heredocs or redirection. This requires user approval.",
       parameters: {
         type: "object",
         properties: { path: { type: "string" }, content: { type: "string" } },
@@ -69,7 +69,7 @@ export const CODING_TOOLS = [
     type: "function",
     function: {
       name: "run_command",
-      description: "Run a shell command inside the task workspace. This requires user approval.",
+      description: "Run validation, builds, tests, or repository inspection inside the task workspace. Do not use it to write files, pass file content through heredocs, or manufacture diff previews; use write_file for edits. This requires user approval.",
       parameters: {
         type: "object",
         properties: { command: { type: "string" } },

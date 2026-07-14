@@ -51,6 +51,13 @@ export const codingTaskSchema = z.object({
 });
 export type CodingTask = z.infer<typeof codingTaskSchema>;
 
+export function codingStatusLabel(status: CodingTask["status"]): "ready" | "working" | "needs you" | "finished" {
+  if (status === "queued" || status === "running") return "working";
+  if (status === "attention") return "needs you";
+  if (status === "completed") return "finished";
+  return "ready";
+}
+
 export const codingTaskDetailSchema = codingTaskSchema.extend({
   events: z.array(codingEventSchema),
 });
