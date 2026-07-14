@@ -2,7 +2,30 @@ import WebSocket from "ws";
 
 import { publicWorkspace } from "./config.js";
 import { TaskManager } from "./manager.js";
-import type { AgentConfig, EventSink, StartTaskInput, TaskAction } from "./types.js";
+import type { AgentConfig, EventSink, StartTaskInput, TaskAction, TaskRecord } from "./types.js";
+
+export function reconciliationEvent(task: TaskRecord): { type: string; payload: Record<string, unknown> } {
+  const type = task.status === "queued" || task.status === "running"
+    ? "task_started"
+    : task.status === "attention"
+      ? "attention"
+      : task.status === "completed"
+        ? "task_completed"
+        : task.status === "failed"
+          ? "task_failed"
+          : task.status === "cancelled"
+            ? "task_cancelled"
+            : "task_interrupted";
+  return {
+    type,
+    payload: {
+      branch: task.branch,
+      message: type === "task_interrupted"
+        ? "The Mac companion restarted before this task finished. Send a message to continue safely."
+        : "Mac companion reconciled this task after reconnecting.",
+    },
+  };
+}
 
 export class RemoteRelay {
   private socket: WebSocket | null = null;
@@ -73,6 +96,8 @@ export class RemoteRelay {
     if (message.type === "start_task") {
       if (this.manager.tasks.has(message.task.id)) {
         this.manager.setSink(message.task.id, this.sink);
+        const task = this.manager.tasks.get(message.task.id)!;
+        await this.sink(task.id, reconciliationEvent(task));
         return;
       }
       const input: StartTaskInput = {

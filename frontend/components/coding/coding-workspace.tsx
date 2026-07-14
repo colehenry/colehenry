@@ -8,8 +8,8 @@ import {
   BellOff,
   Cloud,
   Columns2,
+  Copy,
   ExternalLink,
-  Laptop,
   Menu,
   PanelRightOpen,
   Plus,
@@ -24,6 +24,7 @@ import {
 import { CodingPane } from "@/components/coding/coding-pane";
 import {
   createCodingTask,
+  createPairingCode,
   archiveCodingTask,
   closeCodingTask,
   codingStatusLabel,
@@ -32,15 +33,16 @@ import {
   getCodingDevices,
   getCodingTasks,
   restoreCodingTask,
+  revokeCodingDevice,
   updateCodingTaskTitle,
   updateCodingTaskWorkspace,
   type CodingDevice,
   type CodingEvent,
   type CodingTask,
-  type CodingTransport,
   type CodingWorkspace as CodingWorkspaceOption,
 } from "@/lib/api/coding";
 import { CHAT_MODELS } from "@/lib/api/brain";
+import { API_URL } from "@/lib/api/client";
 
 type AlertKind = "completed" | "attention" | "failed";
 type SplitRatio = { column: number; row: number };
@@ -78,6 +80,16 @@ function subscribeClient() {
 function subscribeLayout(callback: () => void) {
   window.addEventListener("coding-layout", callback);
   return () => window.removeEventListener("coding-layout", callback);
+}
+
+function devicePresence(device: CodingDevice): string {
+  if (device.connected) return "online";
+  if (!device.last_seen_at) return "never seen";
+  const seconds = Math.max(0, Math.floor((Date.now() - new Date(device.last_seen_at).getTime()) / 1_000));
+  if (seconds < 60) return "seen just now";
+  if (seconds < 3_600) return `seen ${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86_400) return `seen ${Math.floor(seconds / 3_600)}h ago`;
+  return `seen ${Math.floor(seconds / 86_400)}d ago`;
 }
 
 type SessionGroup = { id: string; name: string; tasks: CodingTask[] };
@@ -160,8 +172,7 @@ function ChatHistory({
 export function CodingWorkspace() {
   const queryClient = useQueryClient();
   const isClient = useSyncExternalStore(subscribeClient, () => true, () => false);
-  const [transportChoice, setTransportChoice] = useState<CodingTransport | null>(null);
-  const transport = transportChoice ?? (isClient ? defaultCodingTransport() : "local");
+  const transport = isClient ? defaultCodingTransport() : "remote";
   const layoutRaw = useSyncExternalStore(
     subscribeLayout,
     () => sessionStorage.getItem(`coding-panes-${transport}`) ?? "null",
@@ -200,6 +211,7 @@ export function CodingWorkspace() {
   const [renameValue, setRenameValue] = useState("");
   const [sound, setSound] = useState(true);
   const [desktopAlerts, setDesktopAlerts] = useState(false);
+  const [copiedPairCommand, setCopiedPairCommand] = useState(false);
   const previousStatuses = useRef<Map<string, string>>(new Map());
   const initializedStatuses = useRef(false);
   const gridRef = useRef<HTMLElement>(null);
@@ -212,6 +224,16 @@ export function CodingWorkspace() {
     retry: 1,
   });
   const devices = useMemo(() => devicesQuery.data ?? [], [devicesQuery.data]);
+  const connectedDevice = devices.find((device) => device.connected);
+
+  const pairingMutation = useMutation({ mutationFn: createPairingCode });
+  const revokeDeviceMutation = useMutation({
+    mutationFn: revokeCodingDevice,
+    onSuccess: () => {
+      pairingMutation.reset();
+      void devicesQuery.refetch();
+    },
+  });
 
   const tasksQuery = useQuery({
     queryKey: ["coding", transport, "tasks"],
@@ -513,6 +535,15 @@ export function CodingWorkspace() {
     localStorage.setItem("coding-desktop-alerts", enabled ? "on" : "off");
   }
 
+  async function copyPairCommand() {
+    const code = pairingMutation.data?.code;
+    if (!code) return;
+    const command = `npm --prefix agent run dev -- pair ${code} ${API_URL} && npm --prefix agent run service:install`;
+    await navigator.clipboard.writeText(command);
+    setCopiedPairCommand(true);
+    window.setTimeout(() => setCopiedPairCommand(false), 1_500);
+  }
+
   useEffect(() => {
     const finishDrag = () => setDraggingTask(null);
     window.addEventListener("dragend", finishDrag);
@@ -544,7 +575,7 @@ export function CodingWorkspace() {
   return (
     <div className="coding-shell">
       <header className="coding-topbar">
-        <div className="coding-brand"><span>~/code</span><i>{transport === "local" ? "local" : "remote"}</i></div>
+        <div className="coding-brand"><span>~/code</span><i>{transport === "local" ? "direct dev" : "synced"}</i></div>
         <div className="coding-tabs" role="tablist" aria-label="Coding tasks">
           {tasks.map((task) => (
             <div
@@ -618,9 +649,9 @@ export function CodingWorkspace() {
           <button type="button" className="coding-new-tab" disabled={newTaskMutation.isPending} onClick={createNewTask} title="New chat (⌘N)"><Plus className="size-3.5" /></button>
         </div>
         <div className="coding-global-actions">
-          <div className="coding-transport" title="Agent connection">
-            <button type="button" className={transport === "local" ? "is-active" : ""} onClick={() => { initializedStatuses.current = false; setTransportChoice("local"); setFocused(null); }}><Laptop className="size-3.5" /><span>local</span></button>
-            <button type="button" className={transport === "remote" ? "is-active" : ""} onClick={() => { initializedStatuses.current = false; setTransportChoice("remote"); setFocused(null); }}><Cloud className="size-3.5" /><span>remote</span></button>
+          <div className={`coding-connection ${connectedDevice ? "is-online" : "is-offline"}`} title={connectedDevice ? `${connectedDevice.name} is connected` : "Mac companion is offline"}>
+            <Cloud className="size-3.5" />
+            <span>{connectedDevice ? connectedDevice.name : "Mac offline"}</span>
           </div>
           <div className="coding-settings-wrap">
             <button type="button" onClick={() => { setHistoryOpen(false); setSettingsOpen((open) => !open); }} title="Notifications"><Settings2 className="size-4" /></button>
@@ -628,6 +659,13 @@ export function CodingWorkspace() {
               <div className="coding-settings-popover">
                 <button type="button" onClick={() => { const next = !sound; setSound(next); localStorage.setItem("coding-sound", next ? "on" : "off"); if (next) playDing("completed"); }}>{sound ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}<span>sound</span><i>{sound ? "on" : "off"}</i></button>
                 <button type="button" onClick={() => void enableDesktopAlerts()}>{desktopAlerts ? <Bell className="size-4" /> : <BellOff className="size-4" />}<span>desktop alerts</span><i>{desktopAlerts ? "on" : "off"}</i></button>
+                {devices.map((device) => (
+                  <button key={device.id} type="button" title={`Revoke ${device.name}`} disabled={revokeDeviceMutation.isPending} onClick={() => {
+                    if (window.confirm(`Revoke ${device.name}? It will need to be paired again.`)) revokeDeviceMutation.mutate(device.id);
+                  }}>
+                    <Cloud className="size-4" /><span>{device.name}</span><i>{devicePresence(device)}</i>
+                  </button>
+                ))}
               </div>
             )}
           </div>
@@ -655,13 +693,41 @@ export function CodingWorkspace() {
 
       {newTaskMutation.isError && <div className="coding-create-error">Could not open a new chat: {newTaskMutation.error.message}</div>}
 
-      {tasksQuery.isError && visiblePanes.length === 0 ? (
+      {(tasksQuery.isError || devicesQuery.isError) && visiblePanes.length === 0 ? (
         <main className="coding-offline">
           <div className="coding-offline-mark"><span>$</span><i>_</i></div>
-          <h1>{transport === "local" ? "Start your local agent" : "Connect your Mac"}</h1>
-          <p>{transport === "local" ? "The interface is ready. Run the local companion, register this repository, and start your first task." : "Pair the local companion once, then this workspace can control it from anywhere."}</p>
-          <code>{transport === "local" ? "cd agent && npm run dev -- workspace add .. && npm run dev -- start" : "Create a new task to pair a device"}</code>
+          <h1>Could not load the coding service</h1>
+          <p>Check that you are signed in and that the API is available, then try again.</p>
           <button type="button" onClick={() => void Promise.all([devicesQuery.refetch(), tasksQuery.refetch()])}>retry connection</button>
+        </main>
+      ) : transport === "remote" && devices.length === 0 && visiblePanes.length === 0 ? (
+        <main className="coding-offline coding-pairing">
+          <div className="coding-offline-mark"><span>$</span><i>_</i></div>
+          <h1>Pair your Mac once</h1>
+          <p>The Mac makes an outbound encrypted connection. No router setup or public port is needed.</p>
+          {!pairingMutation.data ? (
+            <button type="button" disabled={pairingMutation.isPending} onClick={() => pairingMutation.mutate()}>{pairingMutation.isPending ? "creating code…" : "create pairing code"}</button>
+          ) : (
+            <div className="coding-pairing-card">
+              <strong>{pairingMutation.data.code}</strong>
+              <small>expires {new Date(pairingMutation.data.expires_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</small>
+              <p>From the <b>colehenry</b> repository root on your Mac, run:</p>
+              <code>{`npm --prefix agent run dev -- pair ${pairingMutation.data.code} ${API_URL} && npm --prefix agent run service:install`}</code>
+              <div className="coding-pairing-actions">
+                <button type="button" onClick={() => void copyPairCommand()}><Copy className="size-3.5" />{copiedPairCommand ? "copied" : "copy command"}</button>
+                <button type="button" onClick={() => pairingMutation.mutate()}>new code</button>
+              </div>
+            </div>
+          )}
+          {pairingMutation.isError && <p className="coding-pairing-error">Could not create a code: {pairingMutation.error.message}</p>}
+        </main>
+      ) : !connectedDevice && visiblePanes.length === 0 ? (
+        <main className="coding-offline">
+          <div className="coding-offline-mark"><span>$</span><i>_</i></div>
+          <h1>Your Mac is offline</h1>
+          <p>Chats are safe and still available. Wake the Mac and confirm its background service is running.</p>
+          <code>npm --prefix agent run service:status</code>
+          <button type="button" onClick={() => void devicesQuery.refetch()}>check again</button>
         </main>
       ) : visiblePanes.length === 0 ? (
         <main className="coding-offline"><div className="coding-offline-mark"><span>+</span><i>_</i></div><h1>Open a chat</h1><p>A blank tab uses your current project and model. Nothing runs until you send the first message.</p><button type="button" onClick={createNewTask}>new chat</button></main>

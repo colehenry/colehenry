@@ -36,6 +36,7 @@ PROTECTED = [
     ("GET", "/challenges/dashboard"),
     ("POST", "/language/decks"),
     ("POST", "/catan/games"),
+    ("POST", "/coding/pairing-codes"),
 ]
 
 # Reads deliberately exposed for the public showcase.
@@ -113,3 +114,28 @@ class AuthGuardTests(unittest.TestCase):
 
     def test_health_is_open(self):
         self.assertEqual(self.client.get("/health").status_code, 200)
+
+    def test_owner_can_pair_and_revoke_a_coding_device(self):
+        cookies = {COOKIE: create_token("owner@example.com")}
+        code_response = self.client.post("/coding/pairing-codes", cookies=cookies)
+        self.assertEqual(code_response.status_code, 200)
+        code = code_response.json()["code"]
+        self.assertEqual(len(code), 8)
+
+        pair_response = self.client.post(
+            "/coding/pair", json={"code": code, "name": "Test Mac"}
+        )
+        self.assertEqual(pair_response.status_code, 200)
+        device_id = pair_response.json()["device_id"]
+        self.assertTrue(pair_response.json()["device_token"])
+
+        devices_response = self.client.get("/coding/devices", cookies=cookies)
+        self.assertEqual(devices_response.status_code, 200)
+        self.assertTrue(
+            any(device["id"] == device_id for device in devices_response.json())
+        )
+
+        revoke_response = self.client.delete(
+            f"/coding/devices/{device_id}", cookies=cookies
+        )
+        self.assertEqual(revoke_response.status_code, 200)

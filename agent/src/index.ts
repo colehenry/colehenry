@@ -68,7 +68,7 @@ async function main() {
   console.log(`Local coding agent ready at http://127.0.0.1:${config.localPort}`);
   console.log(`${config.workspaces.length} workspace(s) registered · concurrency ${config.maxConcurrency}`);
   if (!config.openRouterApiKey) console.log("Set OPENROUTER_API_KEY before starting an agent task.");
-  if (!config.deviceToken) console.log("Remote relay is not paired; local mode is available.");
+  if (!config.deviceToken) console.log("Hosted relay is not paired; create a code at colehenry.dev/coding.");
   const shutdown = () => {
     relay.stop();
     server.close(() => process.exit(0));

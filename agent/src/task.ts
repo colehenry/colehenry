@@ -11,6 +11,11 @@ import type { AgentConfig, RuntimeState, TaskAction, TaskRecord, Workspace } fro
 type Emit = (type: string, payload?: Record<string, unknown>, forward?: boolean) => Promise<void>;
 type Approval = { toolId: string; resolve: (approved: boolean) => void };
 
+const MAX_WRITE_BYTES = 2_000_000;
+const MAX_DIFF_BYTES = 300_000;
+const MAX_COMMAND_OUTPUT_BYTES = 250_000;
+const COMMAND_TIMEOUT_MS = 15 * 60_000;
+
 const SYSTEM_PROMPT = `You are a careful coding agent operating inside one approved workspace.
 Inspect the repository before changing it. Make focused, maintainable edits. Use tools instead of guessing.
 All writes and shell commands require the user's approval. Read-only tools do not.
@@ -469,9 +474,11 @@ export class TaskRuntime {
     if (name === "write_file") {
       const requested = String(args.path ?? "");
       const content = String(args.content ?? "");
+      const contentBytes = Buffer.byteLength(content);
+      if (contentBytes > MAX_WRITE_BYTES) throw new Error("File write is larger than 2 MB");
       const approved = await this.requestApproval(toolId, name, {
         path: requested,
-        bytes: Buffer.byteLength(content),
+        bytes: contentBytes,
       });
       if (!approved) return "User denied the file write.";
       const target = await safePath(this.cwd, requested);
@@ -492,6 +499,9 @@ export class TaskRuntime {
       const result = await runProcess("/bin/zsh", ["-lc", command], {
         cwd: this.cwd,
         signal: this.abortController?.signal,
+        maxBytes: MAX_COMMAND_OUTPUT_BYTES,
+        maxOutputEventBytes: MAX_COMMAND_OUTPUT_BYTES,
+        timeoutMs: COMMAND_TIMEOUT_MS,
         onOutput: (stream, chunk) => {
           outputEvents = outputEvents.then(() => this.emit("command_output", { tool_id: toolId, stream, text: chunk }));
         },
@@ -509,7 +519,8 @@ export class TaskRuntime {
     });
     await this.emit("diff", {
       files: [{ path, status: status.stdout.trim() || "modified" }],
-      patch: diff.stdout,
+      patch: diff.stdout.slice(0, MAX_DIFF_BYTES),
+      truncated: diff.stdout.length > MAX_DIFF_BYTES,
     });
   }
 
@@ -525,6 +536,12 @@ export class TaskRuntime {
       .map((line) => ({ status: line.slice(0, 2).trim(), path: line.slice(3) }));
     const additions = (diff.stdout.match(/^\+(?!\+\+)/gm) ?? []).length;
     const deletions = (diff.stdout.match(/^-(?!--)/gm) ?? []).length;
-    await this.emit("diff", { files, patch: diff.stdout, additions, deletions });
+    await this.emit("diff", {
+      files,
+      patch: diff.stdout.slice(0, MAX_DIFF_BYTES),
+      additions,
+      deletions,
+      truncated: diff.stdout.length > MAX_DIFF_BYTES,
+    });
   }
 }

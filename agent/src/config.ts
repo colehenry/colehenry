@@ -4,7 +4,7 @@ import { homedir, hostname } from "node:os";
 import { basename, resolve } from "node:path";
 
 import type { AgentConfig, Workspace } from "./types.js";
-import { readOpenRouterKey } from "./keychain.js";
+import { readOpenRouterKey, storeOpenRouterKey } from "./keychain.js";
 
 export const AGENT_HOME = process.env.COLE_AGENT_HOME ?? resolve(homedir(), ".cole-agent");
 export const CONFIG_PATH = resolve(AGENT_HOME, "config.json");
@@ -22,20 +22,38 @@ export async function loadConfig(): Promise<AgentConfig> {
   const keychainKey = await readOpenRouterKey();
   try {
     const parsed = JSON.parse(await readFile(CONFIG_PATH, "utf8")) as Partial<AgentConfig>;
-    return {
+    const config = {
       ...defaults,
       ...parsed,
       openRouterApiKey: keychainKey ?? parsed.openRouterApiKey,
       workspaces: Array.isArray(parsed.workspaces) ? parsed.workspaces : [],
     };
+    if (parsed.openRouterApiKey) {
+      try {
+        if (!keychainKey) await storeOpenRouterKey(parsed.openRouterApiKey);
+        await saveConfig(config);
+        console.warn("Moved a legacy OpenRouter key from config.json into macOS Keychain");
+      } catch (error) {
+        console.warn(
+          `Could not migrate the legacy OpenRouter key to Keychain: ${error instanceof Error ? error.message : error}`,
+        );
+      }
+    }
+    return config;
   } catch {
     return { ...defaults, openRouterApiKey: keychainKey };
   }
 }
 
 export async function saveConfig(config: AgentConfig): Promise<void> {
+  const persisted = configForDisk(config);
   await mkdir(AGENT_HOME, { recursive: true, mode: 0o700 });
-  await writeFile(CONFIG_PATH, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
+  await writeFile(CONFIG_PATH, `${JSON.stringify(persisted, null, 2)}\n`, { mode: 0o600 });
+}
+
+export function configForDisk(config: AgentConfig): Omit<AgentConfig, "openRouterApiKey"> {
+  const { openRouterApiKey: _secret, ...persisted } = config;
+  return persisted;
 }
 
 export async function addWorkspace(path: string, name?: string): Promise<Workspace> {

@@ -108,6 +108,8 @@ def _append_event(db: Session, task_id: str, event_type: str, payload: dict) -> 
         task.branch = payload.get("branch") or task.branch
     elif event_type in {"attention", "approval_required"}:
         task.status = "attention"
+    elif event_type == "task_interrupted":
+        task.status = "interrupted"
     elif event_type == "task_completed":
         task.status = "completed"
     elif event_type == "task_failed":
@@ -195,7 +197,12 @@ def pair_device(payload: PairDeviceIn, db: Session = Depends(get_db)):
         select(CodingPairingCode).where(CodingPairingCode.code_hash == _digest(payload.code.upper()))
     ).scalar_one_or_none()
     now = _now()
-    if row is None or row.claimed_at is not None or row.expires_at < now:
+    if row is None:
+        raise HTTPException(status_code=400, detail="Pairing code is invalid or expired")
+    expires_at = row.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if row.claimed_at is not None or expires_at < now:
         raise HTTPException(status_code=400, detail="Pairing code is invalid or expired")
     device_id = str(uuid.uuid4())
     token = secrets.token_urlsafe(48)

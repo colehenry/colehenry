@@ -17,4 +17,7 @@ out/
 .DS_Store
 .claude/
 /context
+!/context/
+/context/*
+!/context/coding_page.md
 /catan_data

@@ -41,6 +41,17 @@ function eventStatus(events: CodingEvent[], fallback: CodingTask["status"]): Cod
   return fallback;
 }
 
+function reconnectDelay(milliseconds: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal.aborted) return resolve();
+    const timeout = window.setTimeout(resolve, milliseconds);
+    signal.addEventListener("abort", () => {
+      window.clearTimeout(timeout);
+      resolve();
+    }, { once: true });
+  });
+}
+
 type DiffFile = { path?: string; status?: string };
 type DiffSection = { path: string; lines: string[] };
 
@@ -167,15 +178,22 @@ export function CodingPane({
     lastSeq.current = Math.max(lastSeq.current, detailQuery.data.events.at(-1)?.seq ?? 0);
     const controller = new AbortController();
     void (async () => {
-      try {
-        for await (const event of streamCodingEvents(transport, task.id, lastSeq.current, controller.signal)) {
-          if (event.seq <= lastSeq.current) continue;
-          lastSeq.current = event.seq;
-          setLiveEvents((current) => [...current, event]);
-          onEvent(task.id, event);
+      let attempt = 0;
+      while (!controller.signal.aborted) {
+        try {
+          for await (const event of streamCodingEvents(transport, task.id, lastSeq.current, controller.signal)) {
+            if (event.seq <= lastSeq.current) continue;
+            attempt = 0;
+            lastSeq.current = event.seq;
+            setLiveEvents((current) => [...current, event]);
+            onEvent(task.id, event);
+          }
+        } catch (error) {
+          if (controller.signal.aborted) return;
+          console.warn("Coding event stream disconnected; reconnecting", error);
         }
-      } catch (error) {
-        if (!controller.signal.aborted) console.error(error);
+        const wait = Math.min(15_000, 750 * 2 ** attempt++);
+        await reconnectDelay(wait, controller.signal);
       }
     })();
     return () => controller.abort();

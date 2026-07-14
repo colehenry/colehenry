@@ -53,46 +53,59 @@ Open http://localhost:3000. `⌘K` opens the palette.
 
 ### Coding agent (`/agent`)
 
-The coding UI has two modes:
+The normal coding experience has one synced history. Open
+`https://colehenry.dev/coding` on the Mac or phone; both browsers read and write
+the same task/event history in Postgres. The paired Mac companion performs the
+actual OpenRouter calls, file reads/writes, and approved commands, while keeping
+a local SQLite recovery cache.
 
-- **Local:** the browser talks directly to the Mac companion on
-  `127.0.0.1:7331`. Only the frontend and companion are required; FastAPI is
-  not involved.
-- **Remote:** the hosted browser talks through FastAPI/Railway to the same Mac
-  companion. See [`agent/README.md`](agent/README.md) for pairing.
+The companion makes an outbound WebSocket connection to the hosted API. There
+is no port forwarding, public Mac HTTP server, VPN, or terminal window required
+after setup. The Mac must remain awake, online, and running the background
+service whenever it is expected to execute work.
+
+The legacy direct-to-`127.0.0.1:7331` transport remains available only for
+development by setting `NEXT_PUBLIC_CODING_TRANSPORT=local`. It bypasses the
+canonical Postgres history and is not the normal desktop mode.
 
 #### Recommended macOS setup (background service)
 
-Configure the companion once from the repository root. This repository is not
-itself an npm package, so the commands use `--prefix agent` to target the
-agent's `package.json`. `key set` stores the OpenRouter key in macOS Keychain,
-not in the repository.
+Use Node 20 and configure the companion once from the repository root. This
+repository is not itself an npm package, so every npm command uses `--prefix
+agent`. `key set` stores the OpenRouter key in macOS Keychain; config writes
+explicitly exclude it.
 
 ```bash
+nvm install 20
+nvm use 20
 npm --prefix agent install
-npm --prefix agent run dev -- workspace add .. colehenry.dev
-npm --prefix agent run dev -- workspace add ../../lapwise/lapwise.dev lapwise.dev
+npm --prefix agent run dev -- workspace add . colehenry.dev
+npm --prefix agent run dev -- workspace add ../lapwise/lapwise.dev lapwise.dev
 npm --prefix agent run dev -- key set
 npm --prefix agent run dev -- doctor
-npm --prefix agent run service:install
+```
+
+Then open `https://colehenry.dev/coding`, choose **create pairing code**, and
+paste the command shown there into the same terminal. It pairs the Mac and
+installs/reloads the background service. Confirm the result:
+
+```bash
+npm --prefix agent run dev -- doctor
 npm --prefix agent run service:status
 ```
+
+`doctor` should show `paired: true`, the two registered workspaces, and an
+OpenRouter key. Service status should normally be `running`. The `/coding`
+header changes from **Mac offline** to the connected Mac name within a few
+seconds.
 
 Stop any foreground `npm run dev -- start` process before installing, because
 only one companion can use port `7331`. The installer builds the agent, writes
 `~/Library/LaunchAgents/dev.colehenry.coding-agent.plist`, starts it immediately,
 and configures macOS to start it at login and restart it after a failure.
 
-For normal local use after installation, open a new terminal at the repository
-root and start only the web app:
-
-```bash
-npm --prefix frontend run dev
-```
-
-Then open `http://localhost:3000/coding` and leave the connection set to
-**local**. The companion continues running in the background. Check it or read
-its logs with:
+For normal use there is nothing to start in a terminal. Open the hosted page on
+the Mac or phone. Check the companion or read its logs with:
 
 ```bash
 npm --prefix agent run service:status
@@ -117,10 +130,21 @@ For debugging, skip the service and run the companion in a terminal instead:
 npm --prefix agent run dev -- start
 ```
 
-Do not run the foreground and background versions together. The local agent
-runs model/tool loops and touches files; the web app supplies task tabs, up to
-four split panes, diffs, approvals, terminal output, and
-completion/attention notifications.
+Do not run foreground and background copies together. The foreground process
+still connects to the hosted relay when paired.
+
+For local frontend development, run the API and frontend as described above,
+then open `http://localhost:3000/coding`. It uses the configured API and the
+same relay architecture. Only use the direct diagnostic transport when
+specifically testing the companion HTTP server:
+
+```bash
+NEXT_PUBLIC_CODING_TRANSPORT=local npm --prefix frontend run dev
+```
+
+Direct diagnostic tasks are local-only and do not appear in hosted history.
+The full product/release checklist lives in
+[`context/coding_page.md`](context/coding_page.md).
 
 ---
 
@@ -252,6 +276,9 @@ with zod; secrets stay server-side.
    `OAUTH_REDIRECT_URI=https://api.colehenry.dev/auth/google/callback`, and the
    stable `GOOGLE_TOKEN_ENCRYPTION_KEY`).
 4. Custom domain `api.colehenry.dev` → add the CNAME Railway gives you.
+5. Keep the coding relay at exactly **one Railway replica and one Uvicorn
+   worker**. Its live WebSocket/SSE routing is currently process-local; scale
+   only after adding shared Redis pub/sub and connection routing.
 
 ### 4. OpenRouter privacy
 
@@ -276,3 +303,7 @@ of sending the Google data through a less private route.
 - Projects load on `/` (an API call with `credentials: "include"`), the
   lapwise iframe renders, and the owner edit pencil appears when logged in.
 - `/journal` and `/dashboard` redirect to `/login` when logged out.
+- On `/coding`, create a pairing code, pair/reload the Mac companion, and verify
+  its name shows online. Create a blank task on the Mac, send the first message
+  from the phone, approve a harmless edit, refresh both browsers, and confirm
+  there is one matching transcript and status.

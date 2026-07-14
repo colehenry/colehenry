@@ -216,6 +216,14 @@ export function createPairingCode() {
   return apiFetch("/coding/pairing-codes", pairingCodeSchema, { method: "POST" });
 }
 
+export async function revokeCodingDevice(deviceId: string): Promise<void> {
+  const response = await fetch(`${API_URL}/coding/devices/${deviceId}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!response.ok) throw new Error((await response.text()) || response.statusText);
+}
+
 export async function* streamCodingEvents(
   transport: CodingTransport,
   taskId: string,
@@ -262,8 +270,6 @@ export async function* streamCodingEvents(
 }
 
 export function defaultCodingTransport(): CodingTransport {
-  if (process.env.NEXT_PUBLIC_CODING_TRANSPORT === "remote") return "remote";
   if (process.env.NEXT_PUBLIC_CODING_TRANSPORT === "local") return "local";
-  if (typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") return "remote";
-  return "local";
+  return "remote";
 }
