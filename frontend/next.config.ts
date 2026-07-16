@@ -2,8 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   images: {
-    // page.tsx renders the lapwise screenshots at quality={100}.
-    qualities: [75, 100],
+    // page.tsx renders the lapwise screenshots at quality={85}; a quality the
+    // list doesn't allow is rejected at request time, not at build.
+    qualities: [85],
   },
   async redirects() {
     return [
