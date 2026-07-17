@@ -112,7 +112,9 @@ export function HeroConstellation() {
       const dx = wx - x;
       const dy = wy - y;
       if (dx > WELL_R || dx < -WELL_R || dy > WELL_R || dy < -WELL_R) return;
-      const r = Math.hypot(dx, dy);
+      // sqrt, not hypot: hypot's overflow guarding costs several times more
+      // and this runs per grid sample per star per frame
+      const r = Math.sqrt(dx * dx + dy * dy);
       if (r < 0.0001 || r > WELL_R) return;
       const n = r / WELL_R;
       // smooth radial bump: zero displacement AND zero slope at the edge, so
@@ -147,8 +149,10 @@ export function HeroConstellation() {
       }));
     };
 
-    // one grid line: straight cheap stroke when outside the well's reach,
-    // sampled + warped polyline when it passes near the well
+    // one grid line: a straight two-point segment when outside the well's
+    // reach, a sampled + warped polyline when it passes near it. Appends to
+    // the caller's open path rather than stroking — every line shares one
+    // strokeStyle, so the whole grid is a single batched stroke.
     const gridLine = (
       x0: number,
       y0: number,
@@ -156,31 +160,30 @@ export function HeroConstellation() {
       y1: number,
       nearWell: boolean,
     ) => {
-      ctx.beginPath();
       if (!nearWell) {
         ctx.moveTo(x0, y0);
         ctx.lineTo(x1, y1);
-      } else {
-        const len = Math.hypot(x1 - x0, y1 - y0);
-        const steps = Math.ceil(len / STEP);
-        warp(x0, y0);
-        ctx.moveTo(warpX, warpY);
-        for (let s = 1; s <= steps; s++) {
-          const t = s / steps;
-          warp(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t);
-          ctx.lineTo(warpX, warpY);
-        }
+        return;
       }
-      ctx.stroke();
+      const dx = x1 - x0;
+      const dy = y1 - y0;
+      const steps = Math.ceil(Math.sqrt(dx * dx + dy * dy) / STEP);
+      warp(x0, y0);
+      ctx.moveTo(warpX, warpY);
+      for (let s = 1; s <= steps; s++) {
+        const t = s / steps;
+        warp(x0 + dx * t, y0 + dy * t);
+        ctx.lineTo(warpX, warpY);
+      }
     };
 
-    const drawGrid = () => {
+    const drawGrid = (scrollY: number) => {
       const active = power >= 0.01;
-      const scroll = window.scrollY * GRID_PARALLAX;
-      const offY = CELL - (scroll % CELL);
+      const offY = CELL - ((scrollY * GRID_PARALLAX) % CELL);
 
       ctx.lineWidth = 1;
       ctx.strokeStyle = `hsl(${fgHsl} / ${GRID_ALPHA})`;
+      ctx.beginPath();
 
       // Draw well beyond the viewport. The canvas clips the excess, while the
       // off-screen geometry keeps a near-edge warp from exposing a hard end.
@@ -199,6 +202,7 @@ export function HeroConstellation() {
         const near = active && Math.abs(y - wy) < WELL_R + WELL_PULL;
         gridLine(-GRID_PAD, y, width + GRID_PAD, y, near);
       }
+      ctx.stroke();
 
       // soft-fade the grid toward the cursor: warped lines dissolve and blur
       // into the background instead of glowing, so focus stays readable
@@ -212,8 +216,8 @@ export function HeroConstellation() {
       }
     };
 
-    const drawStars = () => {
-      const scroll = window.scrollY * STAR_PARALLAX;
+    const drawStars = (scrollY: number) => {
+      const scroll = scrollY * STAR_PARALLAX;
       ctx.lineWidth = 1;
       for (const a of stars) {
         // parallax scroll (wrapped), then pulled by the well like the grid
@@ -223,9 +227,13 @@ export function HeroConstellation() {
         const py = warpY;
 
         if (mouse.active) {
-          const dist = Math.hypot(px - mouse.x, py - mouse.y);
-          if (dist < MOUSE_DIST) {
-            const alpha = (1 - dist / MOUSE_DIST) * 0.6;
+          // compare squared distances so the sqrt only runs for the few
+          // stars actually close enough to draw a link
+          const ldx = px - mouse.x;
+          const ldy = py - mouse.y;
+          const d2 = ldx * ldx + ldy * ldy;
+          if (d2 < MOUSE_DIST * MOUSE_DIST) {
+            const alpha = (1 - Math.sqrt(d2) / MOUSE_DIST) * 0.6;
             ctx.strokeStyle = `hsl(${carolinaHsl} / ${alpha})`;
             ctx.beginPath();
             ctx.moveTo(px, py);
@@ -243,9 +251,12 @@ export function HeroConstellation() {
     };
 
     const draw = () => {
+      // one scrollY read per frame: it can force a layout flush, and the grid
+      // and the stars both want it
+      const scrollY = window.scrollY;
       ctx.clearRect(0, 0, width, height);
-      drawGrid();
-      drawStars();
+      drawGrid(scrollY);
+      drawStars(scrollY);
     };
 
     let raf = 0;
@@ -310,16 +321,9 @@ export function HeroConstellation() {
         raf = requestAnimationFrame(step);
       }
     };
-    // The canvas is document-sized rather than viewport-fixed, so keep its
-    // viewport-relative top current for cursor coordinates while scrolling.
-    const onScrollGeometry = () => {
-      rectTop = canvas.getBoundingClientRect().top;
-    };
-
     // reduced-motion: no loop, but still track scroll for the parallax
     let staticRaf = 0;
     const onScrollStatic = () => {
-      onScrollGeometry();
       if (staticRaf) return;
       staticRaf = requestAnimationFrame(() => {
         staticRaf = 0;
@@ -338,7 +342,6 @@ export function HeroConstellation() {
 
     resize();
     window.addEventListener("resize", resize);
-    window.addEventListener("scroll", onScrollGeometry, { passive: true });
     window.addEventListener("mousemove", onMove);
     document.addEventListener("mouseleave", onLeave);
     document.addEventListener("visibilitychange", onVisibility);
@@ -355,7 +358,6 @@ export function HeroConstellation() {
       cancelAnimationFrame(staticRaf);
       themeObserver.disconnect();
       window.removeEventListener("resize", resize);
-      window.removeEventListener("scroll", onScrollGeometry);
       window.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseleave", onLeave);
       document.removeEventListener("visibilitychange", onVisibility);
@@ -371,11 +373,15 @@ export function HeroConstellation() {
         ref={canvasRef}
         aria-hidden
         // canvas is a replaced element: `inset` doesn't stretch it, so width
-        // and height must be explicit or it collapses to its 300×150 intrinsic
-        className="pointer-events-none absolute top-14 left-0 z-0"
+        // and height must be explicit or it collapses to its 300×150 intrinsic.
+        // Viewport-sized and fixed, never document-sized: the grid is periodic
+        // in CELL and the stars wrap, so one screen of pixels reproduces the
+        // whole backdrop while a document-tall buffer would clear+repaint
+        // megapixels of off-screen geometry every frame.
+        className="pointer-events-none fixed top-14 left-0 z-0"
         style={{
           width: "100vw",
-          height: `calc(100% - ${HEADER_OFFSET}px)`,
+          height: `calc(100svh - ${HEADER_OFFSET}px)`,
         }}
       />
       {/* soft cursor glow above the content (below the z-50 header) so the

@@ -1,4 +1,5 @@
 import { CatanDashboardPage } from "@/components/catan/catan-dashboard";
+import { Toaster } from "@/components/ui/sonner";
 
 const description = "Game log and standings for the home Catan table.";
 
@@ -19,5 +20,13 @@ export const metadata = {
 };
 
 export default function CatanPage() {
-  return <CatanDashboardPage />;
+  return (
+    <>
+      <CatanDashboardPage />
+      {/* the game editor/summary dialogs toast on save and delete; catan is the
+          only route that does, so the Toaster mounts here rather than in the
+          root layout and keeps sonner out of every other page's bundle */}
+      <Toaster />
+    </>
+  );
 }

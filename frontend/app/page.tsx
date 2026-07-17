@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { AppLogoIcon, GitHubIcon, LinkedInIcon } from "@/components/icons";
-import { QuenoseteolvideShowcase } from "@/components/language/quenoseteolvide-showcase";
+import { QuenoseteolvideShowcaseLazy } from "@/components/language/quenoseteolvide-showcase-lazy";
 import { ResumeSection } from "@/components/portfolio/resume-section";
 import { useLocale, type Localized } from "@/lib/i18n/locale";
 import { ui } from "@/lib/i18n/ui";
@@ -202,7 +202,9 @@ function LapwiseProjectSection() {
               src={activeView.image}
               alt={`Lapwise ${activeView.label.en} screenshot`}
               fill
-              quality={100}
+              // these render ~300px tall in the card; 100 was spending roughly
+              // double the bytes on detail the card can't show
+              quality={85}
               sizes="(min-width: 1024px) 60vw, 100vw"
               className="object-cover object-top transition-transform duration-300 group-hover:scale-[1.02]"
             />
@@ -252,7 +254,7 @@ function QuenoseteolvideProjectSection() {
             className="group relative block focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand"
             aria-label="Explore the full Qué no se te olvide interactive preview"
           >
-            <QuenoseteolvideShowcase compact />
+            <QuenoseteolvideShowcaseLazy compact />
             <span className="absolute inset-0 flex items-end justify-end bg-black/0 p-4 transition-colors duration-250 group-hover:bg-black/10 group-focus-visible:bg-black/10">
               <span className="translate-y-1 rounded-full border border-white/35 bg-black/70 px-3 py-1.5 font-mono text-[10px] text-white opacity-0 shadow-sm transition-all duration-250 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100">
                 {t(quenoseteolvideOpenPreview)}
