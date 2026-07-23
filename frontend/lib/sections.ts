@@ -41,6 +41,13 @@ export const sections: Section[] = [
       "colehenry@kitchen:~$ — recipes I actually cook, rated out of 5.",
   },
   {
+    slug: "cambio",
+    path: "/cambio",
+    name: "Cambio",
+    accent: "cambio",
+    description: "Realtime card game — play the bot or a friend by invite link.",
+  },
+  {
     slug: "challenges",
     path: "/challenges",
     name: "25",

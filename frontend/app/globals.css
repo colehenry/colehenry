@@ -86,6 +86,11 @@
   --accent: 262 52% 52%; /* violet — the second brain */
   --accent-contrast: 0 0% 100%;
 }
+
+[data-section="cambio"] {
+  --accent: 140 52% 32%; /* solitaire felt green */
+  --accent-contrast: 0 0% 100%;
+}
 /* all other sections inherit the site-wide Carolina blue */
 
 .dark {
@@ -123,6 +128,11 @@
 .dark [data-section="brain"] {
   --accent: 262 66% 72%;
   --accent-contrast: 262 40% 10%;
+}
+
+.dark [data-section="cambio"] {
+  --accent: 140 45% 48%;
+  --accent-contrast: 145 40% 8%;
 }
 
 @theme inline {
