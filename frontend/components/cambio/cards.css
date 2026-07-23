@@ -5,22 +5,17 @@
  * ------------------------------------------------------------------------- */
 
 .cbc {
-  --cbc-w: 58px;
-  --cbc-h: 82px;
-  --cbc-radius: 6px;
+  /* height scales with the viewport so the whole board always fits (no scroll) */
+  --cbc-h: clamp(60px, 13vh, 120px);
+  --cbc-w: calc(var(--cbc-h) * 0.71);
+  --cbc-radius: 7px;
   width: var(--cbc-w);
   height: var(--cbc-h);
-  perspective: 600px;
+  perspective: 900px;
   display: inline-block;
   position: relative;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
-}
-@media (min-width: 700px) {
-  .cbc {
-    --cbc-w: 66px;
-    --cbc-h: 94px;
-  }
 }
 .cbc.cbc-sm {
   --cbc-w: 40px;
