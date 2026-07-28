@@ -1,0 +1,51 @@
+/* ===========================================================================
+ * V2 — SLATE. Deep slate + cyan, dark-first.
+ * Cool blue-grey, thin rules, sharp corners, higher contrast. Built to survive
+ * being stared at all day. Pairs with the omnibar: keyboard-forward.
+ * ========================================================================= */
+
+[data-studio="slate"] {
+  --s-bg: #eef1f4;
+  --s-top: #ffffff;
+  --s-card: #ffffff;
+  --s-cardhead: #f5f7f9;
+  --s-side: #e8ecf0;
+  --s-ink: #0f1519;
+  --s-dim: #4e585f;
+  --s-faint: #8794a0;
+  --s-line: #d9e0e6;
+  --s-hair: #e7ecf0;
+  --s-hover: #f2f5f8;
+  --s-chip: #eaeff3;
+  --s-badge: #e8edf2;
+  --s-todaycell: #eef6f8;
+  --s-accent: #0d7d8c;
+  --s-warm: #96650d;
+  --s-alert: #a83a2c;
+  --s-oncheck: #ffffff;
+  --s-boxline: #c4ced6;
+  --s-radius: 0.25rem;
+  --s-boxradius: 0.1875rem;
+}
+
+.dark [data-studio="slate"] {
+  --s-bg: #0c1116;
+  --s-top: #121920;
+  --s-card: #121920;
+  --s-cardhead: #172029;
+  --s-side: #0f161c;
+  --s-ink: #e4ecf1;
+  --s-dim: #93a1ab;
+  --s-faint: #64727d;
+  --s-line: #212c35;
+  --s-hair: #1a232b;
+  --s-hover: #18222b;
+  --s-chip: #1b252e;
+  --s-badge: #1b252e;
+  --s-todaycell: #10242b;
+  --s-accent: #3fc3d6;
+  --s-warm: #d6a038;
+  --s-alert: #ea7d6c;
+  --s-oncheck: #0c1116;
+  --s-boxline: #2e3a44;
+}

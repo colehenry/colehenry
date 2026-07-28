@@ -1,10 +1,10 @@
-import { ComingSoon } from "@/components/coming-soon";
-import { sections } from "@/lib/sections";
+import { DashboardChooser } from "./chooser";
 
-const section = sections.find((s) => s.slug === "dashboard")!;
-
-export const metadata = { title: section.name };
+export const metadata = {
+  title: "Dashboard",
+  description: "Owner dashboard — five interaction models in review.",
+};
 
 export default function DashboardPage() {
-  return <ComingSoon section={section} />;
+  return <DashboardChooser />;
 }

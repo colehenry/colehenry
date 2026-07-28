@@ -1,0 +1,51 @@
+/* ===========================================================================
+ * V3 — EMBER. Warm dark, amber.
+ * Near-black with a brown undertone, amber accent — the low-glare end of dark
+ * mode. Pairs with the writable sidebar: the rail is where you add.
+ * ========================================================================= */
+
+[data-studio="ember"] {
+  --s-bg: #faf5ec;
+  --s-top: #fffaf3;
+  --s-card: #fffaf3;
+  --s-cardhead: #f8f2e7;
+  --s-side: #f4ede0;
+  --s-ink: #1d1813;
+  --s-dim: #61564a;
+  --s-faint: #968a79;
+  --s-line: #e9ddcb;
+  --s-hair: #f0e7d8;
+  --s-hover: #f6efe3;
+  --s-chip: #f0e8d9;
+  --s-badge: #efe6d5;
+  --s-todaycell: #fbf2df;
+  --s-accent: #a5581a;
+  --s-warm: #8d6410;
+  --s-alert: #9c3822;
+  --s-oncheck: #fffaf3;
+  --s-boxline: #ddd0ba;
+  --s-radius: 0.5rem;
+  --s-boxradius: 0.25rem;
+}
+
+.dark [data-studio="ember"] {
+  --s-bg: #16130f;
+  --s-top: #1d1a16;
+  --s-card: #1d1a16;
+  --s-cardhead: #221e19;
+  --s-side: #1a1713;
+  --s-ink: #eee7dc;
+  --s-dim: #ab9f8e;
+  --s-faint: #7b7062;
+  --s-line: #2f2a23;
+  --s-hair: #26221d;
+  --s-hover: #25211b;
+  --s-chip: #2a251e;
+  --s-badge: #2a251e;
+  --s-todaycell: #2a2318;
+  --s-accent: #e8a33f;
+  --s-warm: #d09a3c;
+  --s-alert: #e2836b;
+  --s-oncheck: #16130f;
+  --s-boxline: #423a30;
+}

@@ -1,0 +1,51 @@
+/* ===========================================================================
+ * V1 — PAPER. Warm paper, light-first.
+ * Bone ground, ink text, one muted clay accent. Generous radius, soft rules.
+ * Pairs with inline "+ add" on every list: unhurried, nothing to learn.
+ * ========================================================================= */
+
+[data-studio="paper"] {
+  --s-bg: #f6f2ea;
+  --s-top: #fffdf9;
+  --s-card: #fffdf9;
+  --s-cardhead: #f7f3ec;
+  --s-side: #f2ede3;
+  --s-ink: #211d17;
+  --s-dim: #5f574c;
+  --s-faint: #948b7d;
+  --s-line: #e3dccd;
+  --s-hair: #ece6da;
+  --s-hover: #f3eee4;
+  --s-chip: #eee8dc;
+  --s-badge: #ece5d8;
+  --s-todaycell: #f7f1e4;
+  --s-accent: #8a5a2b;
+  --s-warm: #96650d;
+  --s-alert: #9d3a25;
+  --s-oncheck: #fffdf9;
+  --s-boxline: #d6cdb9;
+  --s-radius: 0.625rem;
+  --s-boxradius: 0.3125rem;
+}
+
+.dark [data-studio="paper"] {
+  --s-bg: #1a1815;
+  --s-top: #22201c;
+  --s-card: #22201c;
+  --s-cardhead: #26241f;
+  --s-side: #1e1c19;
+  --s-ink: #ece7de;
+  --s-dim: #a79e90;
+  --s-faint: #7d7466;
+  --s-line: #34302a;
+  --s-hair: #2b2823;
+  --s-hover: #2a2723;
+  --s-chip: #2e2b25;
+  --s-badge: #2e2b25;
+  --s-todaycell: #2a2621;
+  --s-accent: #d9a066;
+  --s-warm: #d2a04a;
+  --s-alert: #e08872;
+  --s-oncheck: #1a1815;
+  --s-boxline: #453f37;
+}

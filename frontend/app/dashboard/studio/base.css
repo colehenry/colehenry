@@ -1,0 +1,638 @@
+/* ===========================================================================
+ * Studio — shared structure.
+ *
+ * Every rule here is written against --s-* tokens; the three versions supply
+ * values (and a few shape overrides) in their own files. Keeping structure in
+ * one place is what makes the three actually comparable — the only differences
+ * you see are the ones that were chosen.
+ *
+ * Scroll model, which the first Studio got wrong:
+ *   --s-chrome   height of the site header + the version picker above us
+ *   The body and the sidebar each own their scroll, so a long tab never
+ *   scrolls the sidebar away, and switching tabs resets the body to the top.
+ * ========================================================================= */
+
+[data-studio] {
+  --s-chrome: 7.25rem;
+
+  min-height: calc(100svh - var(--s-chrome));
+  background: var(--s-bg);
+  color: var(--s-ink);
+  font-family: var(--font-inter), system-ui, sans-serif;
+}
+
+:where([data-studio]) :where(h1, h2, h3, h4) {
+  font-family: inherit;
+  letter-spacing: inherit;
+}
+
+.sd {
+  display: grid;
+  min-height: calc(100svh - var(--s-chrome));
+}
+
+@media (min-width: 70rem) {
+  .sd {
+    grid-template-columns: minmax(0, 1fr) 18.5rem;
+  }
+}
+
+.sd__main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- header ------------------------------------------------------------- */
+
+.sd__top {
+  position: sticky;
+  top: var(--s-chrome);
+  z-index: 20;
+  background: var(--s-top);
+  border-bottom: 1px solid var(--s-line);
+  padding: 0.875rem clamp(1rem, 3vw, 1.75rem) 0;
+}
+
+.sd__titlerow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.sd__h {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.sd__h span {
+  margin-left: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--s-faint);
+}
+
+.sd__tabs {
+  display: flex;
+  gap: 0.125rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.sd__tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.sd__tab {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4375rem;
+  padding: 0.5rem 0.875rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--s-dim);
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.sd__tab:hover {
+  color: var(--s-ink);
+}
+
+.sd__tab[aria-selected="true"] {
+  color: var(--s-accent);
+  border-bottom-color: var(--s-accent);
+  font-weight: 550;
+}
+
+.sd__tab:focus-visible {
+  outline: 2px solid var(--s-accent);
+  outline-offset: -2px;
+}
+
+.sd__badge {
+  font-size: 0.6875rem;
+  padding: 0.0625rem 0.3125rem;
+  border-radius: 999px;
+  background: var(--s-badge);
+  color: var(--s-faint);
+}
+
+.sd__tab[aria-selected="true"] .sd__badge {
+  background: color-mix(in oklab, var(--s-accent) 16%, transparent);
+  color: var(--s-accent);
+}
+
+/* --- body --------------------------------------------------------------- */
+
+.sd__body {
+  flex: 1;
+  min-width: 0;
+  padding: clamp(1rem, 2.5vw, 1.5rem);
+  overflow-y: auto;
+}
+
+@media (min-width: 70rem) {
+  .sd__body {
+    max-height: calc(100svh - var(--s-chrome) - 6.25rem);
+  }
+}
+
+.sd__split {
+  display: grid;
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (min-width: 56rem) {
+  .sd__split {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.sd__col {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+  min-width: 0;
+}
+
+/* --- cards -------------------------------------------------------------- */
+
+.sd__card {
+  border: 1px solid var(--s-line);
+  border-radius: var(--s-radius);
+  background: var(--s-card);
+  overflow: hidden;
+}
+
+.sd__cardhead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.625rem 0.875rem;
+  border-bottom: 1px solid var(--s-line);
+  background: var(--s-cardhead);
+}
+
+.sd__cardtitle {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+.sd__cardmeta {
+  font-size: 0.75rem;
+  color: var(--s-faint);
+}
+
+.sd__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  width: 100%;
+  padding: 0.5rem 0.875rem;
+  border: 0;
+  border-bottom: 1px solid var(--s-hair);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sd__row:last-child {
+  border-bottom: 0;
+}
+
+.sd__row:hover {
+  background: var(--s-hover);
+}
+
+.sd__row:focus-visible {
+  outline: 2px solid var(--s-accent);
+  outline-offset: -2px;
+}
+
+.sd__box {
+  flex-shrink: 0;
+  width: 0.9375rem;
+  height: 0.9375rem;
+  margin-top: 0.1875rem;
+  border: 1px solid var(--s-boxline);
+  border-radius: var(--s-boxradius);
+  display: grid;
+  place-items: center;
+  color: var(--s-oncheck);
+}
+
+.sd__row[data-on="true"] .sd__box {
+  border-color: var(--s-accent);
+  background: var(--s-accent);
+}
+
+.sd__name {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.sd__row[data-on="true"] .sd__name {
+  color: var(--s-faint);
+  text-decoration: line-through;
+}
+
+.sd__sub {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--s-faint);
+  text-decoration: none;
+}
+
+.sd__meta {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: var(--s-faint);
+  padding-top: 0.0625rem;
+  white-space: nowrap;
+}
+
+.sd__meta[data-t="alert"] {
+  color: var(--s-alert);
+}
+.sd__meta[data-t="warm"] {
+  color: var(--s-warm);
+}
+
+.sd__empty {
+  padding: 1rem 0.875rem;
+  font-size: 0.8125rem;
+  color: var(--s-faint);
+}
+
+.sd__group {
+  padding: 0.5rem 0.875rem 0.25rem;
+  font-size: 0.625rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--s-faint);
+  background: var(--s-cardhead);
+  border-bottom: 1px solid var(--s-hair);
+}
+
+/* --- inline add row ------------------------------------------------------ */
+
+.sd__addrow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4375rem 0.875rem;
+  border-top: 1px solid var(--s-line);
+  background: var(--s-cardhead);
+}
+
+.sd__addplus {
+  flex-shrink: 0;
+  color: var(--s-faint);
+  font-size: 0.9375rem;
+  line-height: 1;
+}
+
+.sd__addinput {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8125rem;
+  padding: 0.1875rem 0;
+}
+
+.sd__addinput:focus {
+  outline: none;
+}
+
+.sd__addinput::placeholder {
+  color: var(--s-faint);
+}
+
+.sd__addrow:focus-within {
+  background: var(--s-hover);
+  box-shadow: inset 0 0 0 1px var(--s-accent);
+}
+
+/* --- calendar ------------------------------------------------------------ */
+
+.sd__calbar {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.5rem 0.875rem;
+  border-bottom: 1px solid var(--s-line);
+}
+
+.sd__calbtn {
+  padding: 0.25rem 0.625rem;
+  border: 1px solid var(--s-line);
+  border-radius: calc(var(--s-radius) * 0.5);
+  background: none;
+  color: var(--s-dim);
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.sd__calbtn[aria-pressed="true"] {
+  background: var(--s-accent);
+  border-color: var(--s-accent);
+  color: var(--s-oncheck);
+}
+
+.sd__calbtn:focus-visible {
+  outline: 2px solid var(--s-accent);
+  outline-offset: 1px;
+}
+
+.sd__calspacer {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--s-faint);
+}
+
+.sd__dowrow,
+.sd__grid7 {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--s-line);
+}
+
+.sd__dowrow {
+  border-bottom: 1px solid var(--s-line);
+}
+
+.sd__dow {
+  background: var(--s-card);
+  padding: 0.3125rem;
+  text-align: center;
+  font-size: 0.625rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--s-faint);
+}
+
+.sd__cell {
+  background: var(--s-card);
+  border: 0;
+  color: inherit;
+  font: inherit;
+  padding: 0.375rem;
+  min-height: 6rem;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+  vertical-align: top;
+}
+
+.sd__cell:hover {
+  background: var(--s-hover);
+}
+
+.sd__cell[data-today="true"] {
+  background: var(--s-todaycell);
+  box-shadow: inset 0 2px 0 var(--s-accent);
+}
+
+.sd__cell[data-sel="true"] {
+  box-shadow: inset 0 0 0 2px var(--s-accent);
+}
+
+.sd__cell:focus-visible {
+  outline: 2px solid var(--s-accent);
+  outline-offset: -2px;
+}
+
+.sd__cellnum {
+  font-size: 0.75rem;
+  color: var(--s-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.sd__cell[data-today="true"] .sd__cellnum {
+  color: var(--s-accent);
+  font-weight: 650;
+}
+
+.sd__cellitem {
+  display: block;
+  margin-top: 0.1875rem;
+  font-size: 0.6875rem;
+  line-height: 1.25;
+  padding: 0.0625rem 0.3125rem;
+  border-radius: calc(var(--s-radius) * 0.35);
+  background: var(--s-chip);
+  color: var(--s-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sd__cellitem[data-k="meal"] {
+  background: color-mix(in oklab, var(--s-warm) 20%, transparent);
+  color: var(--s-warm);
+}
+.sd__cellitem[data-k="event"] {
+  background: color-mix(in oklab, var(--s-accent) 16%, transparent);
+  color: var(--s-accent);
+}
+
+/* --- sidebar ------------------------------------------------------------- */
+
+.sd__side {
+  background: var(--s-side);
+  border-left: 1px solid var(--s-line);
+  padding: 1rem;
+  min-width: 0;
+}
+
+@media (min-width: 70rem) {
+  .sd__side {
+    position: sticky;
+    top: var(--s-chrome);
+    align-self: start;
+    /* The old version used top:0 / 100svh and slid under the two sticky bars,
+       putting its last ~100px permanently out of reach. */
+    max-height: calc(100svh - var(--s-chrome));
+    overflow-y: auto;
+  }
+}
+
+@media (max-width: 69.99rem) {
+  .sd__side {
+    border-left: 0;
+    border-top: 1px solid var(--s-line);
+  }
+}
+
+.sd__sgroup + .sd__sgroup {
+  margin-top: 1.125rem;
+}
+
+.sd__slabel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.6875rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--s-faint);
+  margin-bottom: 0.375rem;
+}
+
+.sd__slabelbtns {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.sd__sjump {
+  border: 0;
+  background: none;
+  color: var(--s-accent);
+  font: inherit;
+  font-size: 0.6875rem;
+  cursor: pointer;
+  padding: 0;
+}
+
+.sd__sjump:hover {
+  text-decoration: underline;
+}
+
+.sd__sitem {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  color: var(--s-dim);
+  width: 100%;
+  border: 0;
+  background: none;
+  text-align: left;
+  font-family: inherit;
+}
+
+button.sd__sitem {
+  cursor: pointer;
+}
+
+button.sd__sitem:hover b {
+  color: var(--s-accent);
+}
+
+.sd__sitem b {
+  font-weight: 400;
+  color: var(--s-ink);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sd__sitem[data-on="true"] b {
+  color: var(--s-faint);
+  text-decoration: line-through;
+}
+
+.sd__snum {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: var(--s-faint);
+}
+
+.sd__smore {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--s-faint);
+}
+
+/* --- omnibar (Slate only) ------------------------------------------------ */
+
+.om {
+  flex: 1;
+  min-width: 14rem;
+  max-width: 30rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.625rem;
+  border: 1px solid var(--s-line);
+  border-radius: var(--s-radius);
+  background: var(--s-bg);
+}
+
+.om:focus-within {
+  border-color: var(--s-accent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--s-accent) 18%, transparent);
+}
+
+.om__plus {
+  color: var(--s-faint);
+  font-size: 0.9375rem;
+  line-height: 1;
+}
+
+.om__input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8125rem;
+}
+
+.om__input:focus {
+  outline: none;
+}
+
+.om__input::placeholder {
+  color: var(--s-faint);
+}
+
+/* The parser shows where it will land BEFORE you commit. Guessing silently is
+   what makes this pattern untrustworthy. */
+.om__dest {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.6875rem;
+  color: var(--s-accent);
+  white-space: nowrap;
+}
+
+.om__dest kbd {
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 0.625rem;
+  padding: 0.0625rem 0.25rem;
+  border: 1px solid var(--s-line);
+  border-radius: 0.1875rem;
+  color: var(--s-faint);
+}
