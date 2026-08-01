@@ -419,10 +419,9 @@
     mask-image: radial-gradient(circle, black 0 42%, transparent 72%);
     background: radial-gradient(
       circle,
-      hsl(28 96% 58% / 0.025),
+      hsl(28 96% 58% / 0.035),
       transparent 68%
     );
-    backdrop-filter: blur(0.7px) saturate(1.04);
     will-change: transform, opacity;
   }
 

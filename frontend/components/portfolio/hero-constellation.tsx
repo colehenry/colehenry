@@ -11,6 +11,7 @@ import {
 } from "@/components/portfolio/galaxy-scene-data";
 
 const CONNECTOR_RADIUS = 240;
+const CONNECTOR_RADIUS_SQUARED = CONNECTOR_RADIUS * CONNECTOR_RADIUS;
 const MAX_CONNECTORS = 7;
 const GRAVITY_RADIUS = 360;
 const MAX_GRAVITY_PULL = 18;
@@ -88,10 +89,13 @@ export function HeroConstellation() {
     );
     let objectTops = new Map<HTMLElement, number>();
     let objectCenters = new Map<HTMLElement, { x: number; y: number }>();
+    let starCenters: Array<{ x: number; y: number }> = [];
+    let sceneDocumentTop = 0;
     let scrollFrame = 0;
     let pointerFrame = 0;
     let pointerX = -1;
     let pointerY = -1;
+    let pointerVisible = false;
 
     const setAuthoredPositions = () => {
       objects.forEach((node, index) => {
@@ -110,9 +114,10 @@ export function HeroConstellation() {
     };
 
     const measure = () => {
-      const sceneTop = scene.getBoundingClientRect().top + window.scrollY;
+      sceneDocumentTop =
+        scene.getBoundingClientRect().top + window.scrollY;
       objectTops = new Map(
-        objects.map((node) => [node, sceneTop + node.offsetTop]),
+        objects.map((node) => [node, sceneDocumentTop + node.offsetTop]),
       );
       objectCenters = new Map(
         objects.map((node) => [
@@ -123,6 +128,10 @@ export function HeroConstellation() {
           },
         ]),
       );
+      starCenters = stars.map((star) => ({
+        x: star.offsetLeft + star.offsetWidth / 2,
+        y: star.offsetTop + star.offsetHeight / 2,
+      }));
     };
 
     const update = () => {
@@ -184,9 +193,12 @@ export function HeroConstellation() {
     const clearPointerEffects = () => {
       clearConnectors();
       clearGravity();
-      warp.style.opacity = "0";
-      blackHole.style.opacity = "0";
-      blackHole.removeAttribute("data-active");
+      if (pointerVisible) {
+        warp.style.opacity = "0";
+        blackHole.style.opacity = "0";
+        blackHole.removeAttribute("data-active");
+        pointerVisible = false;
+      }
     };
 
     const syncCursorMode = () => {
@@ -204,17 +216,19 @@ export function HeroConstellation() {
         return;
       }
 
-      const sceneRect = scene.getBoundingClientRect();
-      const x = pointerX - sceneRect.left;
-      const y = pointerY - sceneRect.top;
+      const x = pointerX;
+      const y = pointerY + window.scrollY - sceneDocumentTop;
       const warpLeft = pointerX - WARP_RADIUS;
       const warpTop = pointerY - WARP_RADIUS;
 
       blackHole.style.transform = `translate3d(${(pointerX - BLACK_HOLE_RADIUS).toFixed(2)}px, ${(pointerY - BLACK_HOLE_RADIUS).toFixed(2)}px, 0)`;
-      blackHole.style.opacity = "1";
-      blackHole.setAttribute("data-active", "true");
       warp.style.transform = `translate3d(${warpLeft.toFixed(2)}px, ${warpTop.toFixed(2)}px, 0)`;
-      warp.style.opacity = "0.58";
+      if (!pointerVisible) {
+        blackHole.style.opacity = "1";
+        blackHole.setAttribute("data-active", "true");
+        warp.style.opacity = "0.58";
+        pointerVisible = true;
+      }
 
       objects.forEach((node) => {
         const center = objectCenters.get(node);
@@ -239,24 +253,27 @@ export function HeroConstellation() {
         );
       });
 
-      const nearestStars = stars
-        .map((star, index) => {
-          const starRect = star.getBoundingClientRect();
-          const starX = starRect.left + starRect.width / 2 - sceneRect.left;
-          const starY = starRect.top + starRect.height / 2 - sceneRect.top;
+      const nearestStars = starCenters
+        .map(({ x: starX, y: starY }) => {
+          const dx = starX - x;
+          const dy = starY - y;
           return {
-            distance: Math.hypot(starX - x, starY - y),
-            line: connectors[index],
+            distanceSquared: dx * dx + dy * dy,
             starX,
             starY,
           };
         })
-        .filter(({ distance }) => distance <= CONNECTOR_RADIUS)
-        .sort((a, b) => a.distance - b.distance)
+        .filter(
+          ({ distanceSquared }) =>
+            distanceSquared <= CONNECTOR_RADIUS_SQUARED,
+        )
+        .sort((a, b) => a.distanceSquared - b.distanceSquared)
         .slice(0, MAX_CONNECTORS);
 
       clearConnectors();
-      nearestStars.forEach(({ distance, line, starX, starY }) => {
+      nearestStars.forEach(({ distanceSquared, starX, starY }, index) => {
+        const line = connectors[index];
+        const distance = Math.sqrt(distanceSquared);
         line.setAttribute("x1", starX.toFixed(2));
         line.setAttribute("y1", starY.toFixed(2));
         line.setAttribute("x2", x.toFixed(2));
@@ -312,10 +329,10 @@ export function HeroConstellation() {
         <div className="galaxy-grid" />
 
         <svg className="galaxy-connectors">
-          {GALAXY_STARS.map((star) => (
+          {Array.from({ length: MAX_CONNECTORS }, (_, index) => (
             <line
-              key={star.id}
-              data-galaxy-connector={star.id}
+              key={index}
+              data-galaxy-connector={index}
               opacity="0"
             />
           ))}

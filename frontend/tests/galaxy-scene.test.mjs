@@ -64,11 +64,14 @@ test("scene removes random animation but connects nearby field stars", () => {
   assert.doesNotMatch(component, /inSafeGutter|CONTENT_RAIL_WIDTH/);
   assert.match(component, /CONNECTOR_RADIUS = 240/);
   assert.match(component, /MAX_CONNECTORS = 7/);
+  assert.match(component, /CONNECTOR_RADIUS_SQUARED/);
   assert.match(component, /GRAVITY_RADIUS = 360/);
   assert.match(component, /MAX_GRAVITY_PULL = 18/);
   assert.match(component, /galaxy-black-hole/);
   assert.match(component, /galaxy-warp/);
   assert.match(component, /slice\(0, MAX_CONNECTORS\)/);
+  assert.match(component, /starCenters = stars\.map/);
+  assert.match(component, /Array\.from\(\{ length: MAX_CONNECTORS \}/);
   assert.doesNotMatch(component, /galaxy-orbits|GALAXY_ORBITS/);
   assert.match(component, /--galaxy-shift/);
   assert.match(component, /--galaxy-object-opacity/);
@@ -85,13 +88,24 @@ test("scroll spins objects and moves the layered eclipse without idle animation"
   assert.doesNotMatch(component, /function step|const step/);
 });
 
-test("cursor warp does not redraw a second grid", () => {
+test("cursor warp avoids expensive duplicated paint and backdrop filters", () => {
   const warpStyles = styles.slice(
     styles.indexOf(".galaxy-warp"),
     styles.indexOf(".galaxy-black-hole"),
   );
-  assert.doesNotMatch(warpStyles, /background-size: 48px|--warp-grid/);
-  assert.match(warpStyles, /backdrop-filter: blur\(0\.7px\)/);
+  assert.doesNotMatch(
+    warpStyles,
+    /background-size: 48px|--warp-grid|backdrop-filter/,
+  );
+});
+
+test("pointer hot path uses cached star geometry", () => {
+  const pointerPath = component.slice(
+    component.indexOf("const drawPointerEffects"),
+    component.indexOf("const onPointerMove"),
+  );
+  assert.doesNotMatch(pointerPath, /getBoundingClientRect|offsetLeft|offsetTop/);
+  assert.match(pointerPath, /starCenters/);
 });
 
 test("black-hole cursor uses a neutral core and orange energy only", () => {
