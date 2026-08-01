@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 
 const QUERY_KEY = ["challenges", "dashboard"];
 
-/** Window a completion date landed in — completions only count there. */
+/** Window a completion date landed in - completions only count there. */
 function windowFor(date: string, windows: ChallengeWindow[]): number | null {
   for (const w of windows) if (date <= w.end) return w.index;
   return null; // post-window tail before the finish date
@@ -298,7 +298,7 @@ export function ChallengesPage() {
                 >
                   <button
                     type="button"
-                    aria-label={`Reorder ${challenge.title} — arrow keys move it`}
+                    aria-label={`Reorder ${challenge.title} - arrow keys move it`}
                     className="flex w-9 shrink-0 cursor-grab touch-none items-center justify-center border-r text-muted-foreground/50 hover:text-muted-foreground active:cursor-grabbing"
                     onPointerDown={(e) => startDrag(e, id)}
                     onKeyDown={(e) => {

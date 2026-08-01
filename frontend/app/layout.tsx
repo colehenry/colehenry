@@ -22,11 +22,26 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://colehenry.dev"),
   title: {
-    default: "colehenry.dev",
+    default: "Cole Henry | AI SWE",
     template: "%s · colehenry.dev",
   },
   description:
-    "Software engineer building agents, data tools, and personal systems.",
+    "AI software engineer building production AI agents, RAG systems, and data tools with Python, TypeScript, and React.",
+  openGraph: {
+    type: "website",
+    url: "/",
+    siteName: "Cole Henry",
+    title: "Cole Henry | AI SWE",
+    description:
+      "Production AI agents, RAG systems, and data tools built with Python, TypeScript, and React.",
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary",
+    title: "Cole Henry | AI SWE",
+    description:
+      "Production AI agents, RAG systems, and data tools built with Python, TypeScript, and React.",
+  },
 };
 
 export default function RootLayout({

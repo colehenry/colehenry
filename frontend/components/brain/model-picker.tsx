@@ -14,16 +14,28 @@ export function ModelPicker({
   model,
   onChange,
   placement = "down",
+  modelSlugs,
+  dimBackground = true,
+  modal = true,
 }: {
   model: string;
   onChange: (slug: string) => void;
   placement?: "down" | "up";
+  modelSlugs?: string[];
+  dimBackground?: boolean;
+  modal?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [popupStyle, setPopupStyle] = useState<PopupStyle>();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
-  const current = CHAT_MODELS.find((m) => m.slug === model) ?? CHAT_MODELS[0];
+  const models = modelSlugs
+    ? CHAT_MODELS.filter((candidate) => modelSlugs.includes(candidate.slug))
+    : CHAT_MODELS;
+  const current =
+    models.find((candidate) => candidate.slug === model) ??
+    models[0] ??
+    CHAT_MODELS[0];
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -45,7 +57,7 @@ export function ModelPicker({
       const computed = getComputedStyle(trigger!);
       setPopupStyle({
         position: "fixed",
-        zIndex: 1001,
+        zIndex: modal ? 1001 : 60,
         width,
         maxHeight: Math.min(576, availableHeight),
         left: Math.max(viewportGap, Math.min(rect.right - width, window.innerWidth - width - viewportGap)),
@@ -63,7 +75,7 @@ export function ModelPicker({
     positionPopup();
     window.addEventListener("resize", positionPopup);
     return () => window.removeEventListener("resize", positionPopup);
-  }, [open, placement]);
+  }, [modal, open, placement]);
 
   useEffect(() => {
     if (!open) return;
@@ -73,9 +85,11 @@ export function ModelPicker({
     const wasInert = appRoot?.inert ?? false;
     const bodyOverflow = document.body.style.overflow;
     const htmlOverflow = document.documentElement.style.overflow;
-    if (appRoot) appRoot.inert = true;
-    document.body.style.overflow = "hidden";
-    document.documentElement.style.overflow = "hidden";
+    if (modal) {
+      if (appRoot) appRoot.inert = true;
+      document.body.style.overflow = "hidden";
+      document.documentElement.style.overflow = "hidden";
+    }
 
     const blockBackgroundScroll = (event: WheelEvent | TouchEvent) => {
       if (!popupRef.current?.contains(event.target as Node)) event.preventDefault();
@@ -83,8 +97,10 @@ export function ModelPicker({
     const keyboard = (event: KeyboardEvent) => {
       if (event.key === "Escape") setOpen(false);
     };
-    document.addEventListener("wheel", blockBackgroundScroll, { passive: false });
-    document.addEventListener("touchmove", blockBackgroundScroll, { passive: false });
+    if (modal) {
+      document.addEventListener("wheel", blockBackgroundScroll, { passive: false });
+      document.addEventListener("touchmove", blockBackgroundScroll, { passive: false });
+    }
     document.addEventListener("keydown", keyboard);
     const focusFrame = requestAnimationFrame(() => {
       popupRef.current?.querySelector<HTMLButtonElement>("[aria-selected='true']")?.focus();
@@ -92,21 +108,26 @@ export function ModelPicker({
 
     return () => {
       cancelAnimationFrame(focusFrame);
-      document.removeEventListener("wheel", blockBackgroundScroll);
-      document.removeEventListener("touchmove", blockBackgroundScroll);
+      if (modal) {
+        document.removeEventListener("wheel", blockBackgroundScroll);
+        document.removeEventListener("touchmove", blockBackgroundScroll);
+      }
       document.removeEventListener("keydown", keyboard);
-      document.body.style.overflow = bodyOverflow;
-      document.documentElement.style.overflow = htmlOverflow;
-      if (appRoot) appRoot.inert = wasInert;
+      if (modal) {
+        document.body.style.overflow = bodyOverflow;
+        document.documentElement.style.overflow = htmlOverflow;
+        if (appRoot) appRoot.inert = wasInert;
+      }
       trigger?.focus();
     };
-  }, [open]);
+  }, [modal, open]);
 
   const popup = open && popupStyle ? createPortal(
-    <div className="model-picker-portal fixed inset-0" style={{ zIndex: 1000 }}>
+    <>
       <button
         type="button"
-        className="absolute inset-0 cursor-default bg-black/30 backdrop-blur-[1px]"
+        style={{ zIndex: modal ? 1000 : 40 }}
+        className={`fixed inset-0 cursor-default ${dimBackground ? "bg-black/30 backdrop-blur-[1px]" : "bg-transparent"}`}
         aria-label="Close model selector"
         onClick={() => setOpen(false)}
       />
@@ -118,7 +139,7 @@ export function ModelPicker({
         className="overflow-y-auto overscroll-contain rounded-md border border-[var(--term-line)] bg-[var(--term-bg-2)] py-1 shadow-[0_1.5rem_4rem_rgba(0,0,0,0.5)]"
       >
         <p className="px-3 py-1 text-[10px] text-[var(--term-dim)]">input / output · USD per 1M tokens</p>
-        {CHAT_MODELS.map((m) => (
+        {models.map((m) => (
           <button
             key={m.slug}
             type="button"
@@ -139,7 +160,7 @@ export function ModelPicker({
           </button>
         ))}
       </div>
-    </div>,
+    </>,
     document.body,
   ) : null;
 

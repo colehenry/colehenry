@@ -106,7 +106,7 @@ export function TextsView({
 }
 
 /* -------------------------------------------------------------------------- */
-/* Library — Explorer details view                                             */
+/* Library - Explorer details view                                             */
 /* -------------------------------------------------------------------------- */
 
 function Library({
@@ -362,7 +362,7 @@ function TextFormFields({
 }
 
 /* -------------------------------------------------------------------------- */
-/* Reader — document well + XP tooltip + annotation dialog                     */
+/* Reader - document well + XP tooltip + annotation dialog                     */
 /* -------------------------------------------------------------------------- */
 
 function Reader({
@@ -759,7 +759,7 @@ function Reader({
         </>
       )}
 
-      {/* annotation popover — hover to peek, click to pin */}
+      {/* annotation popover - hover to peek, click to pin */}
       {popoverAnnotation && popover && text && (
         <div
           className="xp-tooltip is-interactive"
@@ -816,7 +816,7 @@ function Reader({
         </div>
       )}
 
-      {/* selection popup — auto-looked-up data + add-note action */}
+      {/* selection popup - auto-looked-up data + add-note action */}
       {selection && selectionPoint && text && (
         <div
           className="xp-tooltip is-interactive"
@@ -877,7 +877,7 @@ function Reader({
           <div className="xp-dialog" role="dialog" aria-label="Annotation">
             <div className="xp-titlebar">
               <span className="xp-title-text">
-                Annotation — {editAnnotation.selected_text}
+                Annotation - {editAnnotation.selected_text}
               </span>
               <button
                 type="button"
@@ -971,7 +971,7 @@ function Reader({
                       patchDraft({ gender: event.target.value })
                     }
                   >
-                    <option value="">—</option>
+                    <option value="">-</option>
                     <option value="m">masculine</option>
                     <option value="f">feminine</option>
                   </select>
@@ -1029,7 +1029,7 @@ function Reader({
                       )}
                       {compatibleDecks.map((d) => (
                         <option key={d.id} value={d.id}>
-                          {d.name}{existingDeckIds.has(d.id) ? " — already added" : ""}
+                          {d.name}{existingDeckIds.has(d.id) ? " - already added" : ""}
                         </option>
                       ))}
                     </select>

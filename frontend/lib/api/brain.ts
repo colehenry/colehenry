@@ -185,7 +185,7 @@ async function* readSSE(res: Response): AsyncGenerator<ChatEvent> {
   }
 }
 
-/** Stateless chat (no persistence) — kept for completeness. */
+/** Stateless chat (no persistence) - kept for completeness. */
 export async function* streamBrainChat(
   messages: ChatMessage[],
   model: string | null,

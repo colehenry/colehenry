@@ -15,18 +15,18 @@ type Star = {
 
 /** height of the sticky header (h-14 = 3.5rem) the canvas tucks under */
 const HEADER_OFFSET = 56;
-/** grid cell size (px) — small, like a sheet of graph paper */
+/** grid cell size (px) - small, like a sheet of graph paper */
 const CELL = 24;
-/** sample step along bent lines (px) — smaller = smoother curves */
+/** sample step along bent lines (px) - smaller = smoother curves */
 const STEP = 14;
 /** diameter of the soft cursor glow that floats above the content */
 const GLOW_SIZE = 480;
-/** gravity well radius (px) and max pull (px) — wide and gentle */
+/** gravity well radius (px) and max pull (px) - wide and gentle */
 const WELL_R = 420;
 const WELL_PULL = 50;
 /** extra geometry beyond the canvas so edge warps have room to enter */
 const GRID_PAD = WELL_R + WELL_PULL + CELL;
-/** spring that drags the well after the cursor — stiff and heavily damped so
+/** spring that drags the well after the cursor - stiff and heavily damped so
     it snaps hard onto the cursor with barely one overshoot: intense gravity */
 const STIFF = 0.22;
 const DAMP = 0.62;
@@ -43,7 +43,7 @@ const STAR_AREA = 9000;
 
 /**
  * Full-page "spacetime" background. A square grid mesh is bent by a gravity
- * well that springs after the cursor — lines pinch toward the mouse like a
+ * well that springs after the cursor - lines pinch toward the mouse like a
  * mass on a rubber sheet and bounce straight again when it leaves. Drifting,
  * twinkling stars ride on top (pulled by the well too) and link to the cursor.
  * Fixed behind the page content (below the header, above the opaque footer),
@@ -58,7 +58,7 @@ export function HeroConstellation() {
   // site-wide meant every route paid a full-viewport 60fps canvas loop for a
   // background only the landing page shows
   const homeOnly = pathname === "/";
-  // catan has its own hex-board backdrop — no spacetime there
+  // catan has its own hex-board backdrop - no spacetime there
   const disabled = pathname.startsWith("/catan") || !homeOnly;
   // the carolina cursor glow rides above the content on the home page
   const showGlow = homeOnly;
@@ -127,7 +127,7 @@ export function HeroConstellation() {
 
     const resize = () => {
       // cap DPR below the retina 2× so the full-viewport clear+redraw each
-      // frame moves ~44% fewer pixels — imperceptible on a faint grid
+      // frame moves ~44% fewer pixels - imperceptible on a faint grid
       const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
       const rect = canvas.getBoundingClientRect();
       rectLeft = rect.left;
@@ -151,7 +151,7 @@ export function HeroConstellation() {
 
     // one grid line: a straight two-point segment when outside the well's
     // reach, a sampled + warped polyline when it passes near it. Appends to
-    // the caller's open path rather than stroking — every line shares one
+    // the caller's open path rather than stroking - every line shares one
     // strokeStyle, so the whole grid is a single batched stroke.
     const gridLine = (
       x0: number,
@@ -295,7 +295,7 @@ export function HeroConstellation() {
     };
 
     const onMove = (e: MouseEvent) => {
-      // cached rect — no layout work on the hot path
+      // cached rect - no layout work on the hot path
       const x = e.clientX - rectLeft;
       const y = e.clientY - rectTop;
       const inside = y >= 0 && y <= height && x >= 0 && x <= width;
@@ -385,7 +385,7 @@ export function HeroConstellation() {
         }}
       />
       {/* soft cursor glow above the content (below the z-50 header) so the
-          well stays visible even over opaque cards — home page only */}
+          well stays visible even over opaque cards - home page only */}
       {showGlow && (
         <div
           ref={glowRef}

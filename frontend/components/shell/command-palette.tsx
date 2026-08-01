@@ -9,7 +9,7 @@ const CommandPaletteDialog = dynamic(
 );
 
 /**
- * The site-wide ⌘K palette — mounted once in the root layout.
+ * The site-wide ⌘K palette - mounted once in the root layout.
  * Also opens via the header button (a custom "open-command-palette" event).
  *
  * Only the trigger lives here. The contents pull in `cmdk` and its Radix

@@ -41,7 +41,7 @@ const PATHS: Record<ResourceName, React.ReactNode> = {
       <path d="M12 8c0-3 1-4.5 2.5-5.5" />
     </>
   ),
-  // longest road — winding path with segments
+  // longest road - winding path with segments
   road: (
     <>
       <path d="M4 19c5 0 4-6 8-7s8-1 8-6" />

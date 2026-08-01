@@ -37,7 +37,7 @@ import { sections } from "@/lib/sections";
 const EMAIL = "crhenry81@gmail.com";
 
 /**
- * The palette's contents — everything that needs `cmdk`. Split out of
+ * The palette's contents - everything that needs `cmdk`. Split out of
  * `command-palette.tsx` so this chunk (~33KB gzipped) loads on first open
  * rather than on every page, since the palette is closed until ⌘K.
  * The open state and its key handler live in the parent.

@@ -393,7 +393,7 @@ export function createCardFromAnnotation(
 }
 
 // ---------------------------------------------------------------------------
-// speak — generic tap-to-hear
+// speak - generic tap-to-hear
 // ---------------------------------------------------------------------------
 
 /** Cached TTS URL for arbitrary text; "" when the server can't synthesize. */
@@ -467,7 +467,7 @@ export const wikiOutSchema = z.object({
 });
 export type WikiResult = z.infer<typeof wikiOutSchema>;
 
-/** Language the definitions are shown in — English or machine-translated. */
+/** Language the definitions are shown in - English or machine-translated. */
 export type WikiDefsLanguage = "en" | LanguageCode;
 
 export function wikiLookup(
@@ -611,7 +611,7 @@ export async function removeVerbFromSet(
 }
 
 // ---------------------------------------------------------------------------
-// bulk import — paste a word list, or upload a Kobo highlight database
+// bulk import - paste a word list, or upload a Kobo highlight database
 // ---------------------------------------------------------------------------
 
 export const importItemSchema = z.object({

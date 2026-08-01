@@ -46,7 +46,7 @@ export function NoteReader({
           components={{
             a({ href, children }) {
               // A wikilink ([[…]], rewritten above) or a relative markdown link
-              // to another note ([label](path.md)) — both open in-app.
+              // to another note ([label](path.md)) - both open in-app.
               const internalTarget = (() => {
                 if (!href) return null;
                 if (href.startsWith(WIKILINK_HREF)) {
@@ -71,7 +71,7 @@ export function NoteReader({
                     </button>
                   );
                 }
-                // Unresolved note reference — show as a dead link, never a 404.
+                // Unresolved note reference - show as a dead link, never a 404.
                 if (internalTarget.endsWith(".md") || href?.startsWith(WIKILINK_HREF)) {
                   return <span className="brain-wikilink-dead">{children}</span>;
                 }

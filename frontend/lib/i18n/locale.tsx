@@ -12,7 +12,7 @@ import {
 export type Locale = "en" | "es";
 
 /**
- * A value with one variant per site language — `t()` from useLocale picks the
+ * A value with one variant per site language - `t()` from useLocale picks the
  * active one. Typing content as Localized<T> makes a missing translation a
  * compile error, which is the whole maintainability story: add text in one
  * language and the build breaks until the other exists.

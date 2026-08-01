@@ -7,7 +7,7 @@
 /* ---------------------------------------------------------------------------
  * colehenry.dev design tokens
  *
- * The raw HSL triplets (--bg, --fg, --accent, ...) are the source of truth —
+ * The raw HSL triplets (--bg, --fg, --accent, ...) are the source of truth -
  * Carolina blue brand (#7BAFD4), UNC navy companion (#13294B), cool
  * blue-tinted neutrals. Sections reskin themselves by overriding --accent via
  * a `data-section` attribute; everything downstream (buttons, rings,
@@ -16,7 +16,7 @@
  * ------------------------------------------------------------------------- */
 
 :root {
-  /* neutral base — faint blue tint, constant site-wide */
+  /* neutral base - faint blue tint, constant site-wide */
   --bg: 210 20% 99%;
   --fg: 215 25% 12%;
   --muted-hsl: 215 10% 45%;
@@ -25,14 +25,14 @@
   --radius: 0.75rem;
 
   /* brand */
-  --accent: 205 51% 45%; /* carolina blue, deepened for light-mode contrast */
+  --accent: 205 51% 42%; /* functional blue: 4.9:1 on the light background */
   --accent-2: 216 60% 18%; /* UNC navy #13294B companion */
   --accent-contrast: 0 0% 100%; /* text on solid accent */
-  /* true #7BAFD4, both modes — for display moments (name, logo cursor),
-     not functional UI that needs contrast */
-  --carolina: 205 51% 66%;
+  /* display blue keeps the Carolina character while clearing 3:1 for large
+     type on the light background; functional/small text uses --accent */
+  --carolina: 205 51% 55%;
 
-  /* motion scale — one easing, few durations */
+  /* motion scale - one easing, few durations */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --dur-fast: 150ms;
   --dur-base: 250ms;
@@ -59,11 +59,11 @@
   --ring: hsl(var(--accent) / 0.45);
 }
 
-/* section skins — one line reskins a section */
+/* section skins - one line reskins a section */
 [data-section="catan"] {
   --accent: 38 92% 52%; /* amber */
   --accent-contrast: 30 60% 10%;
-  /* per-player chart colors — brick, ore, wheat, plum, wood.
+  /* per-player chart colors - brick, ore, wheat, plum, wood.
      Validated (CVD + contrast) in this order; see components/catan/colors.ts */
   --catan-p1: #c14e33;
   --catan-p2: #4173ae;
@@ -83,7 +83,7 @@
 }
 
 [data-section="brain"] {
-  --accent: 262 52% 52%; /* violet — the second brain */
+  --accent: 262 52% 52%; /* violet - the second brain */
   --accent-contrast: 0 0% 100%;
 }
 /* all other sections inherit the site-wide Carolina blue */
@@ -97,6 +97,7 @@
   --accent: 205 51% 66%; /* carolina blue #7BAFD4, verbatim */
   --accent-2: 213 42% 60%; /* navy lifted to steel blue for dark visibility */
   --accent-contrast: 212 60% 10%; /* navy ink on solid carolina */
+  --carolina: 205 51% 66%; /* true Carolina blue remains unchanged in dark */
   --destructive: oklch(0.704 0.191 22.216);
 }
 
@@ -138,7 +139,7 @@
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
-  /* shadcn's "accent" (subtle hover surface) — not the brand accent */
+  /* shadcn's "accent" (subtle hover surface) - not the brand accent */
   --color-accent: var(--accent-subtle);
   --color-accent-foreground: var(--accent-subtle-foreground);
   --color-destructive: var(--destructive);
@@ -218,7 +219,7 @@
     box-shadow: 0 100vmax 0 100vmax var(--background);
   }
 
-  /* mono section label — "01 / projects" */
+  /* mono section label - "01 / projects" */
   .section-label {
     @apply font-mono text-xs uppercase tracking-[0.2em] text-brand;
   }
@@ -293,7 +294,7 @@
   }
 }
 
-/* cmd+k: the signature — selected row gets the solid accent bar */
+/* cmd+k: the signature - selected row gets the solid accent bar */
 [cmdk-item][data-selected="true"] {
   background: hsl(var(--accent));
   color: hsl(var(--accent-contrast));

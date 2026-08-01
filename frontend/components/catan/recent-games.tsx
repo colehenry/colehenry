@@ -67,7 +67,7 @@ export function RecentGamesTable({
               <td className="px-3 py-2.5">
                 <span className="flex items-center gap-2 font-medium">
                   <PlayerMark name={game.winner ?? ""} className="size-4" />
-                  {game.winner ?? "—"}
+                  {game.winner ?? "-"}
                 </span>
               </td>
               <td className="px-3 py-2.5 text-muted-foreground">{game.location}</td>
@@ -75,10 +75,10 @@ export function RecentGamesTable({
                 <PlayerDots names={game.player_names} />
               </td>
               <td className="px-3 py-2.5 text-xs text-muted-foreground">
-                {game.longest.join(", ") || "—"}
+                {game.longest.join(", ") || "-"}
               </td>
               <td className="px-3 py-2.5 text-xs text-muted-foreground">
-                {game.largest.join(", ") || "—"}
+                {game.largest.join(", ") || "-"}
               </td>
               <td className="px-3 py-2.5 pr-4 text-right">
                 {game.notes && (
@@ -104,7 +104,7 @@ export function RecentGamesTable({
               <div className="min-w-0">
                 <p className="flex items-center gap-2 text-sm font-medium">
                   <PlayerMark name={game.winner ?? ""} className="size-4" />
-                  {game.winner ?? "—"}
+                  {game.winner ?? "-"}
                   {game.notes && (
                     <StickyNote className="size-3 shrink-0 text-muted-foreground" />
                   )}

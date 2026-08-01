@@ -104,7 +104,7 @@ export function CatanLeaderboard({
                             role="tooltip"
                             className="pointer-events-none absolute left-full top-1/2 z-20 ml-2 hidden w-max max-w-[240px] -translate-y-1/2 rounded-md border bg-popover px-2.5 py-1.5 text-xs font-normal text-popover-foreground shadow-sm group-hover:block group-focus-visible:block"
                           >
-                            The robber camps on the coldest player —{" "}
+                            The robber camps on the coldest player -{" "}
                             {robber.drought} games since their last win.
                           </span>
                         </span>
@@ -141,7 +141,7 @@ export function CatanLeaderboard({
                 </div>
               </td>
               <td className="px-2 py-2.5 text-center font-mono text-xs sm:px-3">
-                {row.avg_vp ?? "—"}
+                {row.avg_vp ?? "-"}
               </td>
               <td className="px-2 py-2.5 text-center font-mono text-xs sm:px-3">
                 {row.longest_count}

@@ -1,5 +1,5 @@
 /**
- * Brand icons — lucide dropped brand marks in v1, so these live here as
+ * Brand icons - lucide dropped brand marks in v1, so these live here as
  * plain SVGs. They accept className like any lucide icon.
  */
 
@@ -11,7 +11,7 @@ export function GitHubIcon({ className }: { className?: string }) {
   );
 }
 
-/** The Old Well mark from app/icon.svg — fixed Carolina blue + UNC navy. */
+/** The Old Well mark from app/icon.svg - fixed Carolina blue + UNC navy. */
 export function AppLogoIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 64 64" className={className} aria-hidden>

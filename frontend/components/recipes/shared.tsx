@@ -99,7 +99,7 @@ export function toMetric(
 }
 
 /**
- * "2¼ cups all-purpose flour" — the full inline form a token expands to.
+ * "2¼ cups all-purpose flour" - the full inline form a token expands to.
  * In metric mode convertible units render as "540 ml flour" (decimals, no
  * vulgar fractions); everything else falls back to the US form.
  */
@@ -178,7 +178,7 @@ export function localizeRecipe(
   };
 }
 
-/** List items carry translations too — localize just the card face. */
+/** List items carry translations too - localize just the card face. */
 export function localizeListItem(
   item: RecipeListItem,
   locale: Locale,
@@ -198,7 +198,7 @@ export function localizeListItem(
 /**
  * Expand {key} tokens into amount-carrying ingredient mentions. Returns
  * segments so the caller can style mentions (and skip unknown tokens
- * gracefully — validation upstream should make that impossible).
+ * gracefully - validation upstream should make that impossible).
  */
 export function renderStepSegments(
   text: string,
@@ -277,7 +277,7 @@ export function ingredientEmoji(name: string): string {
 
 /* --- stars ------------------------------------------------------------------ */
 
-/** ★★★★½ — the /5 rating as a star row (half-star steps). */
+/** ★★★★½ - the /5 rating as a star row (half-star steps). */
 export function Stars({ rating }: { rating: number }) {
   const five = Math.round(rating * 2) / 2;
   const cells = Array.from({ length: 5 }, (_, i) => {

@@ -5,8 +5,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 
+import { BrainShowcaseLazy } from "@/components/brain/brain-showcase-lazy";
 import { AppLogoIcon, GitHubIcon, LinkedInIcon } from "@/components/icons";
 import { QuenoseteolvideShowcaseLazy } from "@/components/language/quenoseteolvide-showcase-lazy";
+import {
+  HighlightedText,
+  type HighlightableText,
+} from "@/components/portfolio/highlighted-text";
 import { ResumeSection } from "@/components/portfolio/resume-section";
 import { useLocale, type Localized } from "@/lib/i18n/locale";
 import { ui } from "@/lib/i18n/ui";
@@ -68,9 +73,24 @@ const heroResumeSkills = [
   "FastAPI",
 ];
 
-const lapwiseDescription: Localized<string> = {
-  en: "A Formula 1 analytics platform with race results, season standings, telemetry replay, driver pages, discussion threads, and an AI data analyst. Built with Next.js, React, FastAPI, PostgreSQL, and Python data pipelines.",
-  es: "Una plataforma de analítica de Fórmula 1 con resultados de carreras, clasificaciones de temporada, repetición de telemetría, páginas de pilotos, hilos de discusión y un analista de datos con IA. Construida con Next.js, React, FastAPI, PostgreSQL y pipelines de datos en Python.",
+const lapwiseDescription: Localized<HighlightableText> = {
+  en: {
+    text: "Explore race results, season standings, telemetry replay, driver history, discussion, and natural-language analysis. Python pipelines model 76 seasons of race and telemetry data for a FastAPI and PostgreSQL backend.",
+    highlights: ["telemetry replay", "natural-language analysis", "76 seasons"],
+  },
+  es: {
+    text: "Explora resultados de carreras, clasificaciones de temporada, repetición de telemetría, historiales de pilotos, debate y análisis en lenguaje natural. Pipelines en Python modelan 76 temporadas de datos de carreras y telemetría para un backend en FastAPI y PostgreSQL.",
+    highlights: [
+      "repetición de telemetría",
+      "análisis en lenguaje natural",
+      "76 temporadas",
+    ],
+  },
+};
+
+const lapwiseStatus: Localized<string> = {
+  en: "Formula 1 Analytics Platform",
+  es: "Plataforma de Analítica de Fórmula 1",
 };
 
 const lapwiseViews: Array<{
@@ -108,9 +128,59 @@ const lapwiseViews: Array<{
   },
 ];
 
-const quenoseteolvideDescription: Localized<string> = {
-  en: "A language app I built for personal use. I speak Spanish (C1) and have been using it as a bridge into French —> side-by-side FR/ES conjugation tables, Spanish cognate notes on cards and annotations, and faux-ami warnings. This preview is the real app with my live data, read-only.",
-  es: "Una aplicación de idiomas que construí para uso personal. Hablo español (C1) y lo uso como puente hacia el francés —> tablas de conjugación FR/ES en paralelo, notas de cognados en tarjetas y anotaciones, y avisos de falsos amigos. Esta vista previa es la aplicación real con mis datos en vivo, en modo de solo lectura.",
+const brainDescription: Localized<HighlightableText> = {
+  en: {
+    text: "I got tired of switching between projects, LLMs, and tools, so I built one chatbot with all of my personal context in the same place. I now use it every day for quick questions about my projects, deployments, notes, and plans.",
+    highlights: ["all of my personal context in the same place", "every day"],
+  },
+  es: {
+    text: "Me cansé de cambiar entre proyectos, LLM y herramientas, así que construí un solo chatbot con todo mi contexto personal en el mismo lugar. Ahora lo uso todos los días para preguntas rápidas sobre mis proyectos, despliegues, notas y planes.",
+    highlights: [
+      "todo mi contexto personal en el mismo lugar",
+      "todos los días",
+    ],
+  },
+};
+
+const brainSummary: Localized<string> = {
+  en: "Chatbot w/ Personalized Context",
+  es: "Chatbot con Contexto Personal",
+};
+
+const brainExplore: Localized<string> = {
+  en: "Explore example conversations",
+  es: "Explorar conversaciones de ejemplo",
+};
+
+const quenoseteolvideDescription: Localized<HighlightableText[]> = {
+  en: [
+    {
+      text: "I use Spanish (C1) as a bridge into French.",
+      highlights: ["Spanish (C1)", "bridge into French"],
+    },
+    {
+      text: "The read-only React preview uses live FastAPI data for side-by-side FR/ES conjugations, cognate notes, and faux-ami warnings.",
+      highlights: ["read-only React preview", "live FastAPI data"],
+    },
+  ],
+  es: [
+    {
+      text: "Uso mi español (C1) como puente hacia el francés.",
+      highlights: ["español (C1)", "puente hacia el francés"],
+    },
+    {
+      text: "La vista previa de solo lectura en React usa datos en vivo de FastAPI para mostrar conjugaciones FR/ES en paralelo, notas de cognados y avisos de falsos amigos.",
+      highlights: [
+        "vista previa de solo lectura en React",
+        "datos en vivo de FastAPI",
+      ],
+    },
+  ],
+};
+
+const quenoseteolvideStatus: Localized<string> = {
+  en: "French Through Spanish Learning App",
+  es: "Aplicación para Aprender Francés a Través del Español",
 };
 
 const quenoseteolvideOpenPreview: Localized<string> = {
@@ -133,10 +203,21 @@ function LapwiseProjectSection() {
       <div className="mt-6 grid gap-6 lg:grid-cols-[0.78fr_1.22fr] lg:items-start">
         <div>
           <h3 className="font-heading text-3xl font-medium tracking-tight">
-            Lapwise
+            <a
+              href="https://lapwise.dev"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 transition-colors duration-150 hover:text-brand focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand"
+            >
+              Lapwise
+              <ArrowUpRight className="size-5" />
+            </a>
           </h3>
+          <p className="mt-3 font-mono text-[11px] tracking-[0.14em] text-brand uppercase">
+            {t(lapwiseStatus)}
+          </p>
           <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-            {t(lapwiseDescription)}
+            <HighlightedText value={t(lapwiseDescription)} />
           </p>
           <div className="mt-5 flex flex-wrap gap-1.5">
             {["Next.js", "React", "FastAPI", "PostgreSQL", "Python"].map(
@@ -150,6 +231,15 @@ function LapwiseProjectSection() {
               ),
             )}
           </div>
+          <a
+            href="https://lapwise.dev"
+            target="_blank"
+            rel="noreferrer"
+            className="mt-6 inline-flex items-center gap-1.5 font-mono text-xs text-brand underline-offset-4 hover:underline"
+          >
+            {t({ en: "Visit lapwise.dev", es: "Visitar lapwise.dev" })}
+            <ArrowUpRight className="size-3.5" />
+          </a>
         </div>
         <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
           <div className="flex items-center gap-2 border-b bg-muted px-3 py-2">
@@ -225,13 +315,89 @@ function LapwiseProjectSection() {
   );
 }
 
+function BrainProjectSection() {
+  const { t } = useLocale();
+
+  return (
+    <section aria-labelledby="brain-project-title">
+      <div className="mt-6 grid gap-6 lg:grid-cols-[1.22fr_0.78fr] lg:items-start">
+        <div className="lg:order-2">
+          <h3
+            id="brain-project-title"
+            className="font-heading text-3xl font-medium tracking-tight"
+          >
+            <Link
+              href="/brain/examples"
+              className="inline-flex items-center gap-2 transition-colors duration-150 hover:text-brand focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand"
+            >
+              Brain
+              <ArrowUpRight className="size-5" />
+            </Link>
+          </h3>
+          <p className="mt-3 font-mono text-[11px] tracking-[0.14em] text-brand uppercase">
+            {t(brainSummary)}
+          </p>
+          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+            <HighlightedText value={t(brainDescription)} />
+          </p>
+          <div className="mt-5 flex flex-wrap gap-1.5">
+            {[
+              "Next.js",
+              "React",
+              "FastAPI",
+              "PostgreSQL",
+              "Obsidian",
+              "SSE",
+            ].map((tech) => (
+              <span
+                key={tech}
+                className="rounded-full border border-brand/25 bg-card px-3 py-1 font-mono text-[11px] text-muted-foreground"
+              >
+                {tech}
+              </span>
+            ))}
+          </div>
+          <Link
+            href="/brain/examples"
+            className="mt-6 inline-flex items-center gap-1.5 font-mono text-xs text-brand underline-offset-4 hover:underline"
+          >
+            {t(brainExplore)}
+            <ArrowUpRight className="size-3.5" />
+          </Link>
+        </div>
+
+        <div className="overflow-hidden rounded-xl border bg-card shadow-sm lg:order-1">
+          <div className="flex items-center gap-2 border-b bg-muted px-3 py-2">
+            <span className="flex gap-1.5" aria-hidden>
+              <span className="size-2.5 rounded-full bg-destructive/60" />
+              <span className="size-2.5 rounded-full bg-brand-2/70" />
+              <span className="size-2.5 rounded-full bg-brand/60" />
+            </span>
+            <span className="mx-auto truncate rounded-sm bg-background px-3 py-0.5 font-mono text-[11px] text-muted-foreground">
+              colehenry.dev/brain/examples
+            </span>
+            <Link
+              href="/brain/examples"
+              className="text-muted-foreground transition-colors duration-150 hover:text-brand"
+              aria-label="Open the Brain interactive demo"
+            >
+              <ArrowUpRight className="size-4" />
+            </Link>
+          </div>
+          <BrainShowcaseLazy />
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function QuenoseteolvideProjectSection() {
   const { t } = useLocale();
 
   return (
     <section aria-labelledby="quenoseteolvide-project-title">
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1.22fr_0.78fr] lg:items-start">
-        <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+      <div className="mt-6 grid gap-6 lg:grid-cols-[0.78fr_1.22fr] lg:items-start">
+        <div className="order-2 overflow-hidden rounded-xl border bg-card shadow-sm">
           <div className="flex items-center gap-2 border-b bg-muted px-3 py-2">
             <span className="flex gap-1.5" aria-hidden>
               <span className="size-2.5 rounded-full bg-destructive/60" />
@@ -263,7 +429,7 @@ function QuenoseteolvideProjectSection() {
           </Link>
         </div>
 
-        <div>
+        <div className="order-1">
           <h3
             id="quenoseteolvide-project-title"
             className="font-heading text-3xl font-medium tracking-tight"
@@ -276,9 +442,16 @@ function QuenoseteolvideProjectSection() {
               Qué no se te olvide
             </Link>
           </h3>
-          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-            {t(quenoseteolvideDescription)}
+          <p className="mt-3 font-mono text-[11px] tracking-[0.14em] text-brand uppercase">
+            {t(quenoseteolvideStatus)}
           </p>
+          <div className="mt-3 space-y-2 text-sm leading-relaxed text-muted-foreground">
+            {t(quenoseteolvideDescription).map((paragraph) => (
+              <p key={paragraph.text}>
+                <HighlightedText value={paragraph} />
+              </p>
+            ))}
+          </div>
           <div className="mt-5 flex flex-wrap gap-1.5">
             {["Next.js", "React", "TypeScript", "FastAPI", "PostgreSQL"].map(
               (tech) => (
@@ -424,6 +597,7 @@ export default function HomePage() {
       {/* content sections */}
       <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-24 px-4 pb-32 sm:px-6">
         <LapwiseProjectSection />
+        <BrainProjectSection />
         <QuenoseteolvideProjectSection />
         <ResumeSection />
       </div>

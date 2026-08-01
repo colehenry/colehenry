@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 const LOCATIONS = ["Redcliff", "Mariposa"] as const;
 
-/** Where each regular sleeps — their table is the shaded column. */
+/** Where each regular sleeps - their table is the shaded column. */
 const HOME: Record<string, (typeof LOCATIONS)[number]> = {
   cole: "Redcliff",
   aditya: "Redcliff",
@@ -71,7 +71,7 @@ export function HomeAway({ games }: { games: CatanGameSummary[] }) {
                 return (
                   <td
                     key={loc}
-                    title={`${name} — ${tally.wins} wins in ${tally.games} games at ${loc}${home ? " (home board)" : ""}`}
+                    title={`${name} - ${tally.wins} wins in ${tally.games} games at ${loc}${home ? " (home board)" : ""}`}
                     className={cn(
                       "rounded-md border border-border/60 py-2 text-center font-mono text-xs",
                       home && "border-brand/30 bg-brand/8",
@@ -79,7 +79,7 @@ export function HomeAway({ games }: { games: CatanGameSummary[] }) {
                     )}
                   >
                     {tally.games === 0 ? (
-                      "—"
+                      "-"
                     ) : (
                       <>
                         <span className="font-semibold">{tally.wins}</span>

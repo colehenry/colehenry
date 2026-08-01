@@ -60,7 +60,7 @@ export function WikiView({
   const [conjugationLanguage, setConjugationLanguage] =
     useState<LanguageCode>("fr");
 
-  // The sidebar tree drives initialTab after mount too — follow it.
+  // The sidebar tree drives initialTab after mount too - follow it.
   const [lastInitialTab, setLastInitialTab] = useState(initialTab);
   if (initialTab !== lastInitialTab) {
     setLastInitialTab(initialTab);
@@ -123,7 +123,7 @@ export function WikiView({
 }
 
 /* -------------------------------------------------------------------------- */
-/* Search — look up any word                                                   */
+/* Search - look up any word                                                   */
 /* -------------------------------------------------------------------------- */
 
 function WikiSearch({
@@ -208,7 +208,7 @@ function WikiSearch({
         <input
           aria-label="Look up a word"
           className="xp-input flex-1"
-          placeholder="Any word — English works too…"
+          placeholder="Any word - English works too…"
           value={input}
           onChange={(event) => setInput(event.target.value)}
         />
@@ -236,7 +236,7 @@ function WikiSearch({
 
       {!query && (
         <p className="xp-muted text-center">
-          Definitions, gender, pronunciation, and conjugations — for any French
+          Definitions, gender, pronunciation, and conjugations - for any French
           or Spanish word.
         </p>
       )}
@@ -295,7 +295,7 @@ function WikiWordPage({
     enabled: result.is_verb,
   });
 
-  // Saved verbs keep their conjugations in the DB — reuse them for the panel.
+  // Saved verbs keep their conjugations in the DB - reuse them for the panel.
   const savedVerb = useQuery({
     queryKey: ["language", "verb", result.verb_id],
     queryFn: () => getVerb(result.verb_id as number),
@@ -380,7 +380,7 @@ function WikiWordPage({
           {result.lemma ? (
             <>
               {" "}
-              — it may be a form of{" "}
+              - it may be a form of{" "}
               <button
                 type="button"
                 className="xp-link"
@@ -391,7 +391,7 @@ function WikiWordPage({
             </>
           ) : (
             <>
-              . Check the spelling (accents matter) — phrases and rare words can
+              . Check the spelling (accents matter) - phrases and rare words can
               still be heard and added to a deck below.
             </>
           )}
@@ -432,7 +432,7 @@ function WikiWordPage({
 
       {result.source === "llm" && (
         <p className="xp-muted">
-          ✦ AI-generated definition — not in the dictionary, so double-check
+          ✦ AI-generated definition - not in the dictionary, so double-check
           before trusting it.
         </p>
       )}
@@ -523,7 +523,7 @@ function WikiWordPage({
               )}
               {compatibleDecks.map((d) => (
                 <option key={d.id} value={d.id}>
-                  {d.name}{existingDeckIds.has(d.id) ? " — already added" : ""}
+                  {d.name}{existingDeckIds.has(d.id) ? " - already added" : ""}
                 </option>
               ))}
             </select>
@@ -586,7 +586,7 @@ function WikiWordPage({
           </div>
         </div>
 
-        {/* conjugation preview — every verb, tense picker on the right */}
+        {/* conjugation preview - every verb, tense picker on the right */}
         {conjugations.length > 0 && (
           <aside className="w-full lg:w-72 lg:shrink-0">
             <ConjugationPanel
@@ -677,7 +677,7 @@ function ConjugationPanel({
       </table>
       {predicted && (
         <p className="xp-muted mt-2">
-          ⚠ Template inferred — double-check unusual forms.
+          ⚠ Template inferred - double-check unusual forms.
         </p>
       )}
     </fieldset>

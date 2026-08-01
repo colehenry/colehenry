@@ -6,7 +6,7 @@ const SESSION_COOKIE = "ch_session";
 
 /**
  * First auth layer: bounce owner-only routes to /login when the session
- * cookie is missing. This is UX only — the API validates the JWT on every
+ * cookie is missing. This is UX only - the API validates the JWT on every
  * protected endpoint, so a forged cookie gets an empty page, not data.
  */
 export function proxy(request: NextRequest) {
@@ -19,10 +19,12 @@ export function proxy(request: NextRequest) {
     ["localhost", "127.0.0.1"].includes(request.nextUrl.hostname);
   if (isLocalCodingDev) return NextResponse.next();
 
-  // The curated showcase contains no owner data and is intentionally public.
+  // Curated example routes contain no owner data and are intentionally public.
   if (
     request.nextUrl.pathname === "/quenoseteolvide/showcase" ||
-    request.nextUrl.pathname.startsWith("/quenoseteolvide/showcase/")
+    request.nextUrl.pathname.startsWith("/quenoseteolvide/showcase/") ||
+    request.nextUrl.pathname === "/brain/examples" ||
+    request.nextUrl.pathname.startsWith("/brain/examples/")
   ) {
     return NextResponse.next();
   }

@@ -60,7 +60,7 @@ export function PerformanceTable({
                 </span>
               </td>
               <td className="w-12 px-2 py-2.5 text-center font-mono text-xs">
-                {row.victory_points ?? "—"}
+                {row.victory_points ?? "-"}
               </td>
               <td className="px-2 py-2.5">
                 <div className="min-w-0">
@@ -68,14 +68,14 @@ export function PerformanceTable({
                     {formatDay(row.played_at, true)}
                   </p>
                   <p className="truncate text-xs text-muted-foreground">
-                    {row.location || "—"}
+                    {row.location || "-"}
                   </p>
                 </div>
               </td>
               <td className="hidden px-2 py-2.5 pr-3 sm:table-cell">
                 <span className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
                   <PlayerMark name={row.winner ?? ""} className="size-3.5 shrink-0" />
-                  <span className="truncate">{row.winner ?? "—"}</span>
+                  <span className="truncate">{row.winner ?? "-"}</span>
                 </span>
               </td>
             </tr>

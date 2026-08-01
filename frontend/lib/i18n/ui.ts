@@ -1,6 +1,6 @@
 /**
  * Site-chrome strings (nav, palette, section labels). Page/resume content
- * lives next to its source as Localized<T> fields instead — see lib/resume.ts.
+ * lives next to its source as Localized<T> fields instead - see lib/resume.ts.
  * `es` is typed against `en`, so a missing key fails the build.
  */
 import type { Locale } from "@/lib/i18n/locale";

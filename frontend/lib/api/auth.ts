@@ -4,8 +4,8 @@ export type User = { id: number; email: string };
 
 /**
  * Hand-written rather than a zod schema. The header and command palette call
- * `getMe` on every route, so a zod schema here put all of zod — its error
- * machinery and locale tables, ~70KB gzipped — into every page's initial
+ * `getMe` on every route, so a zod schema here put all of zod - its error
+ * machinery and locale tables, ~70KB gzipped - into every page's initial
  * bundle to check two fields. Validation still happens; it just costs nothing.
  */
 export const userSchema: Parser<User> = {

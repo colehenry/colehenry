@@ -39,7 +39,7 @@ type StudyInit = {
 };
 type MenuId = "file" | "study" | "view" | "help";
 
-// Title-bar greeting — a new phrase every load, click to hear it.
+// Title-bar greeting - a new phrase every load, click to hear it.
 const TITLE_PHRASES: { text: string; language: LanguageCode }[] = [
   { text: "On y va !", language: "fr" },
   { text: "Petit à petit", language: "fr" },
@@ -68,8 +68,8 @@ const TITLE_PHRASES: { text: string; language: LanguageCode }[] = [
 /**
  * `readOnly` renders the public showcase: same app, live data, but every
  * mutation affordance is hidden and owner-only endpoints are never called.
- * The backend enforces this too (see /backend routers/language.py — the
- * `public` router) — this flag is UX, not security.
+ * The backend enforces this too (see /backend routers/language.py - the
+ * `public` router) - this flag is UX, not security.
  */
 export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
   const router = useRouter();
@@ -87,7 +87,7 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
     (typeof TITLE_PHRASES)[number] | null
   >(null);
 
-  // Picked after mount (in a timeout) — random text can't be server-rendered
+  // Picked after mount (in a timeout) - random text can't be server-rendered
   // without a hydration mismatch.
   useEffect(() => {
     const id = window.setTimeout(() => {
@@ -228,10 +228,10 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
           <div className="xp-titlebar">
             <span className="xp-title-text">
               Qué no se te olvide
-              {titlePhrase && readOnly && <> — {titlePhrase.text}</>}
+              {titlePhrase && readOnly && <> - {titlePhrase.text}</>}
               {titlePhrase && !readOnly && (
                 <>
-                  {" — "}
+                  {" - "}
                   <button
                     type="button"
                     className="xp-title-phrase"
@@ -258,7 +258,7 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
                   </button>
                 </>
               )}
-              {dueTotal > 0 ? ` — ${dueTotal} due` : ""}
+              {dueTotal > 0 ? ` - ${dueTotal} due` : ""}
             </span>
             <button
               type="button"
@@ -505,7 +505,7 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
         </div>
       </div>
 
-      {/* title-phrase popover — play, look up, or capture as a card */}
+      {/* title-phrase popover - play, look up, or capture as a card */}
       {titlePhrase && phrasePoint && (
         <div
           className="xp-tooltip is-interactive"

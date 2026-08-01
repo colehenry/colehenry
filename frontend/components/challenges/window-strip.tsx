@@ -6,7 +6,7 @@ import { fmtDate } from "@/lib/challenges";
 /**
  * The run at a glance: eleven three-week windows as a punch card.
  * purple = met, amber = the live window, destructive = closed empty,
- * outline = not open yet. A count > 1 is printed in the cell — extra
+ * outline = not open yet. A count > 1 is printed in the cell - extra
  * completions never carry forward, so the number stays with its window.
  */
 export function WindowStrip({

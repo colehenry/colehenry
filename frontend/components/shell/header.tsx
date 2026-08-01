@@ -36,6 +36,7 @@ function openPalette() {
 
 export function Header() {
   const pathname = usePathname();
+  const isHome = pathname === "/";
   const [navOpen, setNavOpen] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const openedByHover = useRef(false);
@@ -106,11 +107,11 @@ export function Header() {
               onPointerLeave={(event) => closeAfterHover(event.pointerType)}
             >
               <span className="flex items-baseline gap-1">
-                <span className="text-carolina transition-colors duration-150">
+                <span className="text-brand transition-colors duration-150">
                   ~/
                 </span>
                 <span className="font-medium tracking-tight">colehenry</span>
-                <span className="animate-pulse text-carolina">▊</span>
+                <span className="animate-pulse text-brand">▊</span>
               </span>
               <ChevronDown className="size-3.5 text-muted-foreground transition-transform duration-150 group-data-[state=open]:rotate-180" />
             </button>
@@ -213,7 +214,10 @@ export function Header() {
         <div className="ml-auto flex items-center gap-1.5">
           <button
             onClick={openPalette}
-            className="hidden items-center gap-2 rounded-md border px-2.5 py-1.5 font-mono text-xs text-muted-foreground transition-colors duration-150 hover:border-brand/40 hover:text-foreground sm:flex"
+            className={cn(
+              "items-center gap-2 rounded-md border px-2.5 py-1.5 font-mono text-xs text-muted-foreground transition-colors duration-150 hover:border-brand/40 hover:text-foreground",
+              isHome ? "hidden" : "hidden sm:flex",
+            )}
             aria-label="Open command palette"
           >
             <span>{nav.searchButton}</span>
@@ -241,11 +245,11 @@ export function Header() {
                 {nav.logout}
               </Button>
             </div>
-          ) : (
+          ) : !isHome ? (
             <Button variant="ghost" size="sm" asChild>
               <a href={googleLoginUrl}>{nav.login}</a>
             </Button>
-          )}
+          ) : null}
         </div>
       </div>
     </header>

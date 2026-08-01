@@ -270,8 +270,8 @@ export function RecipeEditor({
       if (Number.isNaN(qty)) {
         setError(
           t({
-            en: `Can't read the amount for "${row.name}" — use numbers like 2, 0.75, or 2 1/4.`,
-            es: `No se entiende la cantidad de "${row.name}" — usa números como 2, 0.75 o 2 1/4.`,
+            en: `Can't read the amount for "${row.name}" - use numbers like 2, 0.75, or 2 1/4.`,
+            es: `No se entiende la cantidad de "${row.name}" - usa números como 2, 0.75 o 2 1/4.`,
           }),
         );
         return;
@@ -431,8 +431,8 @@ export function RecipeEditor({
       <h2 className="rb-heading">{t({ en: "Directions", es: "Preparación" })}</h2>
       <p className="rb-note">
         {t({
-          en: "Type { in a step to mention an ingredient — it always renders with its amount.",
-          es: "Escribe { en un paso para mencionar un ingrediente — siempre se muestra con su cantidad.",
+          en: "Type { in a step to mention an ingredient - it always renders with its amount.",
+          es: "Escribe { en un paso para mencionar un ingrediente - siempre se muestra con su cantidad.",
         })}
       </p>
       {steps.map((step, i) => (
@@ -469,7 +469,7 @@ export function RecipeEditor({
                     insertToken(s.key);
                   }}
                 >
-                  {`{${s.key}}`} — {s.name}
+                  {`{${s.key}}`} - {s.name}
                 </button>
               ))}
             </div>
