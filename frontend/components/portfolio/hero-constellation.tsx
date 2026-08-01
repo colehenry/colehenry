@@ -3,403 +3,360 @@
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 
-type Star = {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  r: number;
-  /** twinkle phase */
-  t: number;
+import {
+  GALAXY_OBJECTS,
+  GALAXY_STARS,
+  galaxyObjectProgress,
+  type GalaxyObject,
+} from "@/components/portfolio/galaxy-scene-data";
+
+const CONNECTOR_RADIUS = 240;
+const MAX_CONNECTORS = 7;
+const GRAVITY_RADIUS = 360;
+const MAX_GRAVITY_PULL = 18;
+const WARP_RADIUS = 110;
+const BLACK_HOLE_RADIUS = 19;
+
+type GalaxyObjectStyle = React.CSSProperties & {
+  "--galaxy-shift": string;
+  "--galaxy-rotation": string;
+  "--galaxy-object-opacity": number;
+  "--galaxy-pull-x": string;
+  "--galaxy-pull-y": string;
+  "--galaxy-pull-turn": string;
+  "--galaxy-eclipse-shift": string;
 };
 
-/** height of the sticky header (h-14 = 3.5rem) the canvas tucks under */
-const HEADER_OFFSET = 56;
-/** grid cell size (px) - small, like a sheet of graph paper */
-const CELL = 24;
-/** sample step along bent lines (px) - smaller = smoother curves */
-const STEP = 14;
-/** diameter of the soft cursor glow that floats above the content */
-const GLOW_SIZE = 480;
-/** gravity well radius (px) and max pull (px) - wide and gentle */
-const WELL_R = 420;
-const WELL_PULL = 50;
-/** extra geometry beyond the canvas so edge warps have room to enter */
-const GRID_PAD = WELL_R + WELL_PULL + CELL;
-/** spring that drags the well after the cursor - stiff and heavily damped so
-    it snaps hard onto the cursor with barely one overshoot: intense gravity */
-const STIFF = 0.22;
-const DAMP = 0.62;
-/** grid scrolls 1:1 with the page (attached); stars lag behind for depth */
-const GRID_PARALLAX = 1;
-const STAR_PARALLAX = 0.4;
-/** base grid line opacity (old blueprint grid was 0.04) */
-const GRID_ALPHA = 0.1;
-/** cursor→star link reach (px) */
-const MOUSE_DIST = 190;
-/** maximum stars and approximate area allotted to each star */
-const MAX_STARS = 180;
-const STAR_AREA = 9000;
+function PlaceholderObject({ object }: { object: GalaxyObject }) {
+  const style: GalaxyObjectStyle = {
+    top: `${object.top}%`,
+    "--galaxy-shift": "0px",
+    "--galaxy-rotation": `${object.angle}deg`,
+    "--galaxy-object-opacity": 1,
+    "--galaxy-pull-x": "0px",
+    "--galaxy-pull-y": "0px",
+    "--galaxy-pull-turn": "0deg",
+    "--galaxy-eclipse-shift": "0px",
+  };
+
+  return (
+    <div
+      data-galaxy-object={object.id}
+      data-kind={object.kind}
+      data-side={object.side}
+      className="galaxy-object"
+      style={style}
+    >
+      <span className="galaxy-object-surface" />
+    </div>
+  );
+}
 
 /**
- * Full-page "spacetime" background. A square grid mesh is bent by a gravity
- * well that springs after the cursor - lines pinch toward the mouse like a
- * mass on a rubber sheet and bounce straight again when it leaves. Drifting,
- * twinkling stars ride on top (pulled by the well too) and link to the cursor.
- * Fixed behind the page content (below the header, above the opaque footer),
- * parallax-scrolls with the page, samples theme HSL tokens for light/dark,
- * and renders statically under reduced-motion.
+ * Homepage-only paper-galaxy prototype. Geometry lives in a separate data
+ * table so Phase 3 can replace the three object surfaces without changing
+ * composition, breakpoints, exclusion zones, or scroll behavior.
  */
 export function HeroConstellation() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const glowRef = useRef<HTMLDivElement>(null);
+  const sceneRef = useRef<HTMLDivElement>(null);
+  const warpRef = useRef<HTMLDivElement>(null);
+  const blackHoleRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
-  // the spacetime backdrop is a home-page-only flourish: mounting/animating it
-  // site-wide meant every route paid a full-viewport 60fps canvas loop for a
-  // background only the landing page shows
-  const homeOnly = pathname === "/";
-  // catan has its own hex-board backdrop - no spacetime there
-  const disabled = pathname.startsWith("/catan") || !homeOnly;
-  // the carolina cursor glow rides above the content on the home page
-  const showGlow = homeOnly;
+  const disabled = pathname !== "/";
 
   useEffect(() => {
     if (disabled) return;
-    const canvas = canvasRef.current;
-    const glow = glowRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    const scene = sceneRef.current;
+    const warp = warpRef.current;
+    const blackHole = blackHoleRef.current;
+    if (!scene || !warp || !blackHole) return;
 
-    const reduced = window.matchMedia(
+    const objects = Array.from(
+      scene.querySelectorAll<HTMLElement>("[data-galaxy-object]"),
+    );
+    const stars = Array.from(
+      scene.querySelectorAll<HTMLElement>("[data-galaxy-star]"),
+    );
+    const connectors = Array.from(
+      scene.querySelectorAll<SVGLineElement>("[data-galaxy-connector]"),
+    );
+    const reducedMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
-    ).matches;
+    );
+    const hoverCapable = window.matchMedia(
+      "(min-width: 1180px) and (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)",
+    );
+    let objectTops = new Map<HTMLElement, number>();
+    let objectCenters = new Map<HTMLElement, { x: number; y: number }>();
+    let scrollFrame = 0;
+    let pointerFrame = 0;
+    let pointerX = -1;
+    let pointerY = -1;
 
-    // Sample theme tokens (HSL triplets like "205 51% 66%") for light/dark.
-    let fgHsl = "215 25% 12%";
-    let bgHsl = "210 20% 99%";
-    let carolinaHsl = "205 51% 66%";
-    const sampleColors = () => {
-      const s = getComputedStyle(document.documentElement);
-      fgHsl = s.getPropertyValue("--fg").trim() || fgHsl;
-      bgHsl = s.getPropertyValue("--bg").trim() || bgHsl;
-      carolinaHsl = s.getPropertyValue("--carolina").trim() || carolinaHsl;
-    };
-    sampleColors();
-
-    let width = 0;
-    let height = 0;
-    let rectLeft = 0;
-    let rectTop = HEADER_OFFSET;
-    let stars: Star[] = [];
-
-    const mouse = { x: -9999, y: -9999, active: false };
-    // the well springs after the cursor; power eases 0→1 on enter/leave
-    let wx = 0;
-    let wy = 0;
-    let wvx = 0;
-    let wvy = 0;
-    let power = 0;
-
-    // gravity-well displacement: pulls a point toward the well, zero at the
-    // well's center (no singularity) and fading smoothly past WELL_R
-    let warpX = 0;
-    let warpY = 0;
-    const warp = (x: number, y: number) => {
-      warpX = x;
-      warpY = y;
-      if (power < 0.01) return;
-      const dx = wx - x;
-      const dy = wy - y;
-      if (dx > WELL_R || dx < -WELL_R || dy > WELL_R || dy < -WELL_R) return;
-      // sqrt, not hypot: hypot's overflow guarding costs several times more
-      // and this runs per grid sample per star per frame
-      const r = Math.sqrt(dx * dx + dy * dy);
-      if (r < 0.0001 || r > WELL_R) return;
-      const n = r / WELL_R;
-      // smooth radial bump: zero displacement AND zero slope at the edge, so
-      // the warp melts into the flat grid with no visible boundary
-      const e = 1 - n * n;
-      const g = ((WELL_PULL * power * 3.5 * n * e * e) / r);
-      warpX = x + dx * g;
-      warpY = y + dy * g;
-    };
-
-    const resize = () => {
-      // cap DPR below the retina 2× so the full-viewport clear+redraw each
-      // frame moves ~44% fewer pixels - imperceptible on a faint grid
-      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-      const rect = canvas.getBoundingClientRect();
-      rectLeft = rect.left;
-      rectTop = rect.top;
-      width = rect.width;
-      height = rect.height;
-      canvas.width = Math.floor(width * dpr);
-      canvas.height = Math.floor(height * dpr);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-      const count = Math.min(MAX_STARS, Math.floor((width * height) / STAR_AREA));
-      stars = Array.from({ length: count }, () => ({
-        x: Math.random() * width,
-        y: Math.random() * height,
-        vx: (Math.random() - 0.5) * 0.12,
-        vy: (Math.random() - 0.5) * 0.12,
-        r: Math.random() * 1.3 + 0.6,
-        t: Math.random() * Math.PI * 2,
-      }));
-    };
-
-    // one grid line: a straight two-point segment when outside the well's
-    // reach, a sampled + warped polyline when it passes near it. Appends to
-    // the caller's open path rather than stroking - every line shares one
-    // strokeStyle, so the whole grid is a single batched stroke.
-    const gridLine = (
-      x0: number,
-      y0: number,
-      x1: number,
-      y1: number,
-      nearWell: boolean,
-    ) => {
-      if (!nearWell) {
-        ctx.moveTo(x0, y0);
-        ctx.lineTo(x1, y1);
-        return;
-      }
-      const dx = x1 - x0;
-      const dy = y1 - y0;
-      const steps = Math.ceil(Math.sqrt(dx * dx + dy * dy) / STEP);
-      warp(x0, y0);
-      ctx.moveTo(warpX, warpY);
-      for (let s = 1; s <= steps; s++) {
-        const t = s / steps;
-        warp(x0 + dx * t, y0 + dy * t);
-        ctx.lineTo(warpX, warpY);
-      }
-    };
-
-    const drawGrid = (scrollY: number) => {
-      const active = power >= 0.01;
-      const offY = CELL - ((scrollY * GRID_PARALLAX) % CELL);
-
-      ctx.lineWidth = 1;
-      ctx.strokeStyle = `hsl(${fgHsl} / ${GRID_ALPHA})`;
-      ctx.beginPath();
-
-      // Draw well beyond the viewport. The canvas clips the excess, while the
-      // off-screen geometry keeps a near-edge warp from exposing a hard end.
-      const gridStart = -Math.ceil(GRID_PAD / CELL) * CELL;
-      const gridEndX = width + GRID_PAD;
-      const gridEndY = height + GRID_PAD;
-
-      // vertical lines
-      for (let x = gridStart; x <= gridEndX; x += CELL) {
-        const near = active && Math.abs(x - wx) < WELL_R + WELL_PULL;
-        gridLine(x, -GRID_PAD, x, gridEndY, near);
-      }
-      // horizontal lines, shifted by parallax scroll
-      const horizontalStart = offY - GRID_PAD;
-      for (let y = horizontalStart; y <= gridEndY; y += CELL) {
-        const near = active && Math.abs(y - wy) < WELL_R + WELL_PULL;
-        gridLine(-GRID_PAD, y, width + GRID_PAD, y, near);
-      }
-      ctx.stroke();
-
-      // soft-fade the grid toward the cursor: warped lines dissolve and blur
-      // into the background instead of glowing, so focus stays readable
-      if (active) {
-        const fade = ctx.createRadialGradient(wx, wy, 0, wx, wy, WELL_R);
-        fade.addColorStop(0, `hsl(${bgHsl} / ${0.6 * power})`);
-        fade.addColorStop(0.6, `hsl(${bgHsl} / ${0.25 * power})`);
-        fade.addColorStop(1, `hsl(${bgHsl} / 0)`);
-        ctx.fillStyle = fade;
-        ctx.fillRect(wx - WELL_R, wy - WELL_R, WELL_R * 2, WELL_R * 2);
-      }
-    };
-
-    const drawStars = (scrollY: number) => {
-      const scroll = scrollY * STAR_PARALLAX;
-      ctx.lineWidth = 1;
-      for (const a of stars) {
-        // parallax scroll (wrapped), then pulled by the well like the grid
-        const fy = ((((a.y - scroll) % height) + height) % height);
-        warp(a.x, fy);
-        const px = warpX;
-        const py = warpY;
-
-        if (mouse.active) {
-          // compare squared distances so the sqrt only runs for the few
-          // stars actually close enough to draw a link
-          const ldx = px - mouse.x;
-          const ldy = py - mouse.y;
-          const d2 = ldx * ldx + ldy * ldy;
-          if (d2 < MOUSE_DIST * MOUSE_DIST) {
-            const alpha = (1 - Math.sqrt(d2) / MOUSE_DIST) * 0.6;
-            ctx.strokeStyle = `hsl(${carolinaHsl} / ${alpha})`;
-            ctx.beginPath();
-            ctx.moveTo(px, py);
-            ctx.lineTo(mouse.x, mouse.y);
-            ctx.stroke();
-          }
-        }
-
-        const twinkle = reduced ? 0.7 : 0.55 + Math.sin(a.t) * 0.3;
-        ctx.fillStyle = `hsl(${fgHsl} / ${twinkle})`;
-        ctx.beginPath();
-        ctx.arc(px, py, a.r, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    };
-
-    const draw = () => {
-      // one scrollY read per frame: it can force a layout flush, and the grid
-      // and the stars both want it
-      const scrollY = window.scrollY;
-      ctx.clearRect(0, 0, width, height);
-      drawGrid(scrollY);
-      drawStars(scrollY);
-    };
-
-    let raf = 0;
-    const step = () => {
-      // spring the well after the cursor; ease its power in/out
-      if (mouse.active) {
-        wvx = (wvx + (mouse.x - wx) * STIFF) * DAMP;
-        wvy = (wvy + (mouse.y - wy) * STIFF) * DAMP;
-        wx += wvx;
-        wy += wvy;
-        power += (1 - power) * 0.2; // gravity engages fast
-      } else {
-        power += (0 - power) * 0.06;
-      }
-
-      for (const a of stars) {
-        a.x += a.vx;
-        a.y += a.vy;
-        a.t += 0.02;
-        if (a.x < 0) a.x = width;
-        else if (a.x > width) a.x = 0;
-        if (a.y < 0) a.y = height;
-        else if (a.y > height) a.y = 0;
-      }
-      draw();
-
-      // the glow floats above the content, riding the same springy well, so
-      // the cursor never feels dead over opaque cards
-      if (glow) {
-        const gx = wx - GLOW_SIZE / 2;
-        const gy = wy + rectTop - GLOW_SIZE / 2;
-        glow.style.transform = `translate3d(${gx}px, ${gy}px, 0)`;
-        glow.style.opacity = String(power);
-      }
-      raf = requestAnimationFrame(step);
-    };
-
-    const onMove = (e: MouseEvent) => {
-      // cached rect - no layout work on the hot path
-      const x = e.clientX - rectLeft;
-      const y = e.clientY - rectTop;
-      const inside = y >= 0 && y <= height && x >= 0 && x <= width;
-      if (inside && !mouse.active) {
-        // well appears where the cursor enters instead of flying across
-        wx = x;
-        wy = y;
-        wvx = 0;
-        wvy = 0;
-      }
-      mouse.x = x;
-      mouse.y = y;
-      mouse.active = inside;
-    };
-    const onLeave = () => {
-      mouse.active = false;
-    };
-    const onVisibility = () => {
-      if (document.hidden) {
-        cancelAnimationFrame(raf);
-        raf = 0;
-      } else if (!reduced && !raf) {
-        raf = requestAnimationFrame(step);
-      }
-    };
-    // reduced-motion: no loop, but still track scroll for the parallax
-    let staticRaf = 0;
-    const onScrollStatic = () => {
-      if (staticRaf) return;
-      staticRaf = requestAnimationFrame(() => {
-        staticRaf = 0;
-        draw();
+    const setAuthoredPositions = () => {
+      objects.forEach((node, index) => {
+        const object = GALAXY_OBJECTS[index];
+        node.style.setProperty("--galaxy-shift", "0px");
+        node.style.setProperty(
+          "--galaxy-rotation",
+          `${object.angle}deg`,
+        );
+        node.style.setProperty("--galaxy-object-opacity", "1");
+        node.style.setProperty("--galaxy-pull-x", "0px");
+        node.style.setProperty("--galaxy-pull-y", "0px");
+        node.style.setProperty("--galaxy-pull-turn", "0deg");
+        node.style.setProperty("--galaxy-eclipse-shift", "0px");
       });
     };
 
-    const themeObserver = new MutationObserver(() => {
-      sampleColors();
-      if (reduced) draw();
-    });
-    themeObserver.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["class", "style"],
-    });
+    const measure = () => {
+      const sceneTop = scene.getBoundingClientRect().top + window.scrollY;
+      objectTops = new Map(
+        objects.map((node) => [node, sceneTop + node.offsetTop]),
+      );
+      objectCenters = new Map(
+        objects.map((node) => [
+          node,
+          {
+            x: node.offsetLeft + node.offsetWidth / 2,
+            y: node.offsetTop + node.offsetHeight / 2,
+          },
+        ]),
+      );
+    };
 
-    resize();
-    window.addEventListener("resize", resize);
-    window.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseleave", onLeave);
-    document.addEventListener("visibilitychange", onVisibility);
+    const update = () => {
+      scrollFrame = 0;
+      if (reducedMotion.matches) {
+        setAuthoredPositions();
+        return;
+      }
 
-    if (reduced) {
-      draw();
-      window.addEventListener("scroll", onScrollStatic, { passive: true });
-    } else {
-      raf = requestAnimationFrame(step);
-    }
+      objects.forEach((node, index) => {
+        const object = GALAXY_OBJECTS[index];
+        const top = objectTops.get(node) ?? 0;
+        const progress = galaxyObjectProgress(
+          window.scrollY,
+          window.innerHeight,
+          top,
+        );
+        const centered = progress - 0.5;
+        const opacity = 0.45 + Math.sin(progress * Math.PI) * 0.55;
+
+        node.style.setProperty(
+          "--galaxy-shift",
+          `${(centered * object.travel).toFixed(2)}px`,
+        );
+        node.style.setProperty(
+          "--galaxy-rotation",
+          `${(object.angle + centered * object.turn).toFixed(2)}deg`,
+        );
+        node.style.setProperty(
+          "--galaxy-object-opacity",
+          opacity.toFixed(3),
+        );
+        node.style.setProperty(
+          "--galaxy-eclipse-shift",
+          `${(centered * 18).toFixed(2)}px`,
+        );
+      });
+    };
+
+    const scheduleUpdate = () => {
+      if (!scrollFrame) scrollFrame = window.requestAnimationFrame(update);
+      if (pointerX >= 0 && !pointerFrame) {
+        pointerFrame = window.requestAnimationFrame(drawPointerEffects);
+      }
+    };
+
+    const clearConnectors = () => {
+      connectors.forEach((line) => line.setAttribute("opacity", "0"));
+    };
+
+    const clearGravity = () => {
+      objects.forEach((node) => {
+        node.style.setProperty("--galaxy-pull-x", "0px");
+        node.style.setProperty("--galaxy-pull-y", "0px");
+        node.style.setProperty("--galaxy-pull-turn", "0deg");
+      });
+    };
+
+    const clearPointerEffects = () => {
+      clearConnectors();
+      clearGravity();
+      warp.style.opacity = "0";
+      blackHole.style.opacity = "0";
+      blackHole.removeAttribute("data-active");
+    };
+
+    const syncCursorMode = () => {
+      document.documentElement.classList.toggle(
+        "galaxy-cursor-active",
+        hoverCapable.matches,
+      );
+      if (!hoverCapable.matches) clearPointerEffects();
+    };
+
+    const drawPointerEffects = () => {
+      pointerFrame = 0;
+      if (!hoverCapable.matches) {
+        clearPointerEffects();
+        return;
+      }
+
+      const sceneRect = scene.getBoundingClientRect();
+      const x = pointerX - sceneRect.left;
+      const y = pointerY - sceneRect.top;
+      const warpLeft = pointerX - WARP_RADIUS;
+      const warpTop = pointerY - WARP_RADIUS;
+
+      blackHole.style.transform = `translate3d(${(pointerX - BLACK_HOLE_RADIUS).toFixed(2)}px, ${(pointerY - BLACK_HOLE_RADIUS).toFixed(2)}px, 0)`;
+      blackHole.style.opacity = "1";
+      blackHole.setAttribute("data-active", "true");
+      warp.style.transform = `translate3d(${warpLeft.toFixed(2)}px, ${warpTop.toFixed(2)}px, 0)`;
+      warp.style.opacity = "0.58";
+
+      objects.forEach((node) => {
+        const center = objectCenters.get(node);
+        if (!center) return;
+        const dx = x - center.x;
+        const dy = y - center.y;
+        const distance = Math.hypot(dx, dy);
+        const strength = Math.max(0, 1 - distance / GRAVITY_RADIUS) ** 2;
+        const scale = distance > 0 ? (MAX_GRAVITY_PULL * strength) / distance : 0;
+
+        node.style.setProperty(
+          "--galaxy-pull-x",
+          `${(dx * scale).toFixed(2)}px`,
+        );
+        node.style.setProperty(
+          "--galaxy-pull-y",
+          `${(dy * scale).toFixed(2)}px`,
+        );
+        node.style.setProperty(
+          "--galaxy-pull-turn",
+          `${((dx / GRAVITY_RADIUS) * strength * 3).toFixed(2)}deg`,
+        );
+      });
+
+      const nearestStars = stars
+        .map((star, index) => {
+          const starRect = star.getBoundingClientRect();
+          const starX = starRect.left + starRect.width / 2 - sceneRect.left;
+          const starY = starRect.top + starRect.height / 2 - sceneRect.top;
+          return {
+            distance: Math.hypot(starX - x, starY - y),
+            line: connectors[index],
+            starX,
+            starY,
+          };
+        })
+        .filter(({ distance }) => distance <= CONNECTOR_RADIUS)
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, MAX_CONNECTORS);
+
+      clearConnectors();
+      nearestStars.forEach(({ distance, line, starX, starY }) => {
+        line.setAttribute("x1", starX.toFixed(2));
+        line.setAttribute("y1", starY.toFixed(2));
+        line.setAttribute("x2", x.toFixed(2));
+        line.setAttribute("y2", y.toFixed(2));
+        line.setAttribute(
+          "opacity",
+          ((1 - distance / CONNECTOR_RADIUS) * 0.36).toFixed(3),
+        );
+      });
+    };
+
+    const onPointerMove = (event: PointerEvent) => {
+      pointerX = event.clientX;
+      pointerY = event.clientY;
+      if (pointerFrame) return;
+      pointerFrame = window.requestAnimationFrame(drawPointerEffects);
+    };
+
+    const onResize = () => {
+      measure();
+      clearPointerEffects();
+      scheduleUpdate();
+    };
+
+    measure();
+    update();
+    syncCursorMode();
+    window.addEventListener("scroll", scheduleUpdate, { passive: true });
+    window.addEventListener("resize", onResize);
+    window.addEventListener("pointermove", onPointerMove, { passive: true });
+    document.addEventListener("pointerleave", clearPointerEffects);
+    reducedMotion.addEventListener("change", scheduleUpdate);
+    hoverCapable.addEventListener("change", syncCursorMode);
 
     return () => {
-      cancelAnimationFrame(raf);
-      cancelAnimationFrame(staticRaf);
-      themeObserver.disconnect();
-      window.removeEventListener("resize", resize);
-      window.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseleave", onLeave);
-      document.removeEventListener("visibilitychange", onVisibility);
-      window.removeEventListener("scroll", onScrollStatic);
+      window.cancelAnimationFrame(scrollFrame);
+      window.cancelAnimationFrame(pointerFrame);
+      window.removeEventListener("scroll", scheduleUpdate);
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("pointerleave", clearPointerEffects);
+      reducedMotion.removeEventListener("change", scheduleUpdate);
+      hoverCapable.removeEventListener("change", syncCursorMode);
+      document.documentElement.classList.remove("galaxy-cursor-active");
     };
-  }, [disabled, showGlow]);
+  }, [disabled]);
 
   if (disabled) return null;
 
   return (
     <>
-      <canvas
-        ref={canvasRef}
-        aria-hidden
-        // canvas is a replaced element: `inset` doesn't stretch it, so width
-        // and height must be explicit or it collapses to its 300×150 intrinsic.
-        // Viewport-sized and fixed, never document-sized: the grid is periodic
-        // in CELL and the stars wrap, so one screen of pixels reproduces the
-        // whole backdrop while a document-tall buffer would clear+repaint
-        // megapixels of off-screen geometry every frame.
-        className="pointer-events-none fixed top-14 left-0 z-0"
-        style={{
-          width: "100vw",
-          height: `calc(100svh - ${HEADER_OFFSET}px)`,
-        }}
-      />
-      {/* soft cursor glow above the content (below the z-50 header) so the
-          well stays visible even over opaque cards - home page only */}
-      {showGlow && (
-        <div
-          ref={glowRef}
-          aria-hidden
-          className="pointer-events-none fixed top-0 left-0 z-40 rounded-full opacity-0"
-          style={{
-            width: GLOW_SIZE,
-            height: GLOW_SIZE,
-            background:
-              "radial-gradient(circle closest-side, hsl(var(--carolina) / 0.06), transparent 70%)",
-            willChange: "transform, opacity",
-          }}
-        />
-      )}
+      <div ref={sceneRef} className="galaxy-scene" aria-hidden="true">
+        <div className="galaxy-grid" />
+
+        <svg className="galaxy-connectors">
+          {GALAXY_STARS.map((star) => (
+            <line
+              key={star.id}
+              data-galaxy-connector={star.id}
+              opacity="0"
+            />
+          ))}
+        </svg>
+
+        <div className="galaxy-stars">
+          {GALAXY_STARS.map((star) => (
+            <span
+              key={star.id}
+              className="galaxy-star"
+              data-galaxy-star={star.id}
+              data-size={star.size}
+              data-tone={star.tone}
+              data-zone={
+                star.x <= 4.5 || star.x >= 95.5 ? "gutter" : "field"
+              }
+              style={{ left: `${star.x}%`, top: `${star.y}%` }}
+            />
+          ))}
+        </div>
+
+        {GALAXY_OBJECTS.map((object) => (
+          <PlaceholderObject key={object.id} object={object} />
+        ))}
+
+        <span className="galaxy-mobile-accent" />
+      </div>
+      <div ref={warpRef} className="galaxy-warp" aria-hidden="true" />
+      <div
+        ref={blackHoleRef}
+        className="galaxy-black-hole"
+        aria-hidden="true"
+      >
+        <span className="galaxy-black-hole-core" />
+        <span className="galaxy-black-hole-particle" />
+        <span className="galaxy-black-hole-particle" />
+        <span className="galaxy-black-hole-particle" />
+        <span className="galaxy-black-hole-particle" />
+        <span className="galaxy-black-hole-particle" />
+        <span className="galaxy-black-hole-particle" />
+      </div>
     </>
   );
 }
