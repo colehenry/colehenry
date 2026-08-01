@@ -71,5 +71,27 @@ export function ProviderLogo({
           <path fill="#6E4DF5" d="M9.1 9.2h2.2l1.1 2.2 1.1-2.2h2.2l-2.2 4.1 2.1 3.5h-2.2l-1-1.9-1 1.9H9.2l2.1-3.5z" />
         </svg>
       );
+    case "zai":
+      return (
+        <svg viewBox="0 0 24 24" className={className} aria-hidden>
+          <circle cx="12" cy="12" r="9" fill="#111827" />
+          <path fill="#fff" d="M6.7 7.2h10.8v2.1l-6.8 5.5h6.8v2.1H6.4v-2l6.9-5.6H6.7z" />
+        </svg>
+      );
+    case "moonshot":
+      return (
+        <svg viewBox="0 0 24 24" className={className} aria-hidden>
+          <circle cx="12" cy="12" r="9" fill="#111827" />
+          <path fill="#fff" d="M14.9 5.8a6.9 6.9 0 1 0 3.3 11.7 7.7 7.7 0 0 1-3.3-11.7Z" />
+          <circle cx="17.4" cy="7" r="1" fill="#fff" />
+        </svg>
+      );
+    case "xai":
+      return (
+        <svg viewBox="0 0 24 24" className={className} aria-hidden>
+          <circle cx="12" cy="12" r="9" fill="#111" />
+          <path fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" d="m7.2 7.2 9.6 9.6m0-9.6-9.6 9.6" />
+        </svg>
+      );
   }
 }
