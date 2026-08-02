@@ -85,6 +85,30 @@ test("seaside scene uses generated art with reduced-motion-safe ambience", () =>
   assert.match(styles, /prefers-reduced-motion[\s\S]*?cb-seaside-shimmer/);
 });
 
+test("coffee shop uses generated art with a quiet motion-safe ambience", () => {
+  assert.match(backdrop, /cb-cafe-photo/);
+  assert.match(backdrop, /cb-cafe-glow/);
+  assert.match(styles, /cafe-v1\.jpg/);
+  assert.match(styles, /rgb\(101 54 25 \/ 0\.16\)/);
+  assert.match(styles, /@keyframes cb-cafe-glow/);
+  assert.match(
+    styles,
+    /prefers-reduced-motion[\s\S]*?cb-cafe-glow,[\s\S]*?cb-cafe-steam/,
+  );
+});
+
+test("medieval tavern uses generated art with warm motion-safe firelight", () => {
+  assert.match(backdrop, /cb-tavern-photo/);
+  assert.match(backdrop, /cb-tavern-firelight/);
+  assert.match(styles, /tavern-v1\.jpg/);
+  assert.match(styles, /rgb\(92 49 26 \/ 0\.22\)/);
+  assert.match(styles, /@keyframes cb-tavern-firelight/);
+  assert.match(
+    styles,
+    /prefers-reduced-motion[\s\S]*?cb-tavern-firelight \{ animation: none/,
+  );
+});
+
 test("rooms require explicit readiness before the opening reveal", () => {
   assert.match(table, /ready: \(\) => void/);
   assert.match(table, /Ready for next round/);

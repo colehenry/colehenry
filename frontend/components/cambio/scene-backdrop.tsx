@@ -15,8 +15,21 @@ export function SceneBackdrop({ scene }: { scene: Scene }) {
           <div className="cb-seaside-shimmer" />
         </>
       )}
-      {scene === "cafe" && <Cafe />}
-      {scene === "tavern" && <Tavern />}
+      {scene === "cafe" && (
+        <>
+          <Cafe />
+          <div className="cb-cafe-photo" />
+          <div className="cb-cafe-glow" />
+          <div className="cb-cafe-steam" />
+        </>
+      )}
+      {scene === "tavern" && (
+        <>
+          <Tavern />
+          <div className="cb-tavern-photo" />
+          <div className="cb-tavern-firelight" />
+        </>
+      )}
     </div>
   );
 }
