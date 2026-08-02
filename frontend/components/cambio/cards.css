@@ -1,0 +1,196 @@
+/* ---------------------------------------------------------------------------
+ * Cambio cards. Skins style ONLY the cards (faces, backs, borders, fonts);
+ * geometry is constant across skins so animations never care which skin is
+ * active. Skin class goes on the table root: .cb-skin-xp / -medieval / -art.
+ * ------------------------------------------------------------------------- */
+
+.cbc {
+  /* height scales with the viewport so the whole board always fits (no scroll) */
+  --cbc-h: clamp(60px, 13vh, 120px);
+  --cbc-w: calc(var(--cbc-h) * 0.71);
+  --cbc-radius: 7px;
+  width: var(--cbc-w);
+  height: var(--cbc-h);
+  perspective: 900px;
+  display: inline-block;
+  position: relative;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.cbc.cbc-sm {
+  --cbc-w: 40px;
+  --cbc-h: 56px;
+  --cbc-radius: 4px;
+}
+
+.cbc-inner {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transition: transform 0.45s cubic-bezier(0.3, 0.9, 0.4, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cbc-inner {
+    transition: none;
+  }
+}
+.cbc.is-down .cbc-inner {
+  transform: rotateY(180deg);
+}
+
+.cbc-face,
+.cbc-back {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--cbc-radius);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.4);
+}
+.cbc-back {
+  transform: rotateY(180deg);
+}
+
+/* face layout: two index corners + center */
+.cbc-face {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cbc-corner {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+  font-size: 12px;
+  font-weight: 700;
+}
+.cbc-corner.is-tl {
+  top: 3px;
+  left: 4px;
+}
+.cbc-corner.is-br {
+  bottom: 3px;
+  right: 4px;
+  transform: rotate(180deg);
+}
+.cbc-corner .cbc-suit {
+  font-size: 9px;
+}
+.cbc-center {
+  font-size: 24px;
+  line-height: 1;
+}
+.cbc-sm .cbc-corner {
+  font-size: 9px;
+}
+.cbc-sm .cbc-corner .cbc-suit {
+  font-size: 7px;
+}
+.cbc-sm .cbc-center {
+  font-size: 16px;
+}
+
+/* ============================== XP skin ================================== */
+
+.cb-skin-xp .cbc-face {
+  background: #ffffff;
+  border: 1px solid #9a9a8e;
+}
+.cb-skin-xp .cbc-face.is-red {
+  color: #c40000;
+}
+.cb-skin-xp .cbc-face.is-black {
+  color: #101010;
+}
+.cb-skin-xp .cbc-face.is-joker {
+  color: #7a3fb5;
+}
+/* classic Solitaire beveled blue-diamond back */
+.cb-skin-xp .cbc-back {
+  border: 1px solid #9a9a8e;
+  background:
+    repeating-linear-gradient(
+      45deg,
+      #2a5bd7 0 6px,
+      #1d47ad 6px 12px
+    ),
+    #2a5bd7;
+  box-shadow:
+    inset 0 0 0 3px #ffffff,
+    inset 0 0 0 4px #1d47ad,
+    0 1px 3px rgb(0 0 0 / 0.4);
+}
+
+/* =========================== Medieval skin =============================== */
+
+.cb-skin-medieval .cbc-face {
+  background:
+    radial-gradient(ellipse at 30% 20%, rgb(255 250 230 / 0.9), transparent 60%),
+    #efdfb4;
+  border: 1px solid #8a6d1f;
+  box-shadow:
+    inset 0 0 0 2px #c9a63c,
+    inset 0 0 12px rgb(138 109 31 / 0.35),
+    0 1px 3px rgb(0 0 0 / 0.4);
+  font-family: Luminari, "UnifrakturMaguntia", "Palatino Linotype", Georgia, serif;
+}
+.cb-skin-medieval .cbc-face.is-red {
+  color: #8c1f13;
+}
+.cb-skin-medieval .cbc-face.is-black {
+  color: #2e2417;
+}
+.cb-skin-medieval .cbc-face.is-joker {
+  color: #5c4a12;
+}
+.cb-skin-medieval .cbc-back {
+  border: 1px solid #8a6d1f;
+  background:
+    repeating-conic-gradient(from 45deg, #7c1a10 0deg 90deg, #5e1109 90deg 180deg),
+    #7c1a10;
+  background-size: 14px 14px;
+  box-shadow:
+    inset 0 0 0 2px #c9a63c,
+    inset 0 0 0 4px #7c1a10,
+    inset 0 0 0 5px #c9a63c,
+    0 1px 3px rgb(0 0 0 / 0.4);
+}
+
+/* ============================== Art skin ================================= */
+/* Fine-art plates ON the cards: linen mat, thin frame, museum-label corner
+ * indices; court cards + center get a generated modernist composition. */
+
+.cb-skin-art .cbc-face {
+  background: #f4f0e6;
+  border: 1px solid #3a3630;
+  box-shadow:
+    inset 0 0 0 3px #f4f0e6,
+    inset 0 0 0 4px #3a3630,
+    0 1px 3px rgb(0 0 0 / 0.4);
+  font-family: "Futura", "Avenir Next", "Century Gothic", sans-serif;
+}
+.cb-skin-art .cbc-face.is-red {
+  color: #a33327;
+}
+.cb-skin-art .cbc-face.is-black {
+  color: #22201c;
+}
+.cb-skin-art .cbc-face.is-joker {
+  color: #1f5f8b;
+}
+.cb-skin-art .cbc-center svg {
+  display: block;
+}
+.cb-skin-art .cbc-back {
+  border: 1px solid #3a3630;
+  background:
+    linear-gradient(135deg, #a33327 0 30%, #e0a92f 30% 46%, #f4f0e6 46% 54%, #22406b 54% 74%, #22201c 74%),
+    #f4f0e6;
+  box-shadow:
+    inset 0 0 0 3px #f4f0e6,
+    inset 0 0 0 4px #22201c,
+    0 1px 3px rgb(0 0 0 / 0.4);
+}

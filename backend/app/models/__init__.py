@@ -1,5 +1,6 @@
 from app.models.base import Base
 from app.models.brain import BrainConversation, BrainLink, BrainMessage, BrainNote
+from app.models.cambio import CambioGame, CambioMove, CambioPlayer, CambioRound
 from app.models.coding import CodingDevice, CodingEvent, CodingPairingCode, CodingTask
 from app.models.catan import CatanGame, CatanPlayer, CatanResult
 from app.models.challenge import ChallengeCompletion, ChallengeState
@@ -37,6 +38,10 @@ __all__ = [
     "BrainLink",
     "BrainMessage",
     "BrainNote",
+    "CambioGame",
+    "CambioMove",
+    "CambioPlayer",
+    "CambioRound",
     "CodingDevice",
     "CodingEvent",
     "CodingPairingCode",
