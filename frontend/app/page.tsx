@@ -510,7 +510,7 @@ function ResumeSnapshot() {
               {" "}
               {t({
                 en: "Computer Science, Statistics & Analytics",
-                es: "Ciencias de la Computación, Estadística y Analítica",
+                es: "Informática, Estadística y Analítica",
               })}
             </span>
           </p>

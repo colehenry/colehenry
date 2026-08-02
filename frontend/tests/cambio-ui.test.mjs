@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   cardInteractionClass,
   deriveMoment,
+  eventsAfter,
 } from "../components/cambio/table-state.ts";
 
 const readSource = (path) =>
@@ -161,12 +162,34 @@ test("Cambio calls create a slapstick impact and last-turn warning", () => {
   assert.match(table, /className="cb-cambio-impact"/);
   assert.match(table, /"Your last turn!"/);
   assert.match(styles, /@keyframes cb-table-wham/);
+  assert.match(
+    styles,
+    /\.cb-cambio-impact strong \{[\s\S]*?-webkit-text-stroke: 3px #27211d/,
+  );
+  assert.match(
+    styles,
+    /\.cb-cambio-impact span \{[\s\S]*?background: #27211d;[\s\S]*?color: #ffd84f/,
+  );
+});
+
+test("Cambio impact survives the rolling event-buffer boundary", () => {
+  const existing = Array.from({ length: 81 }, (_, id) => ({ id }));
+  const lastProcessed = existing.at(-1);
+  const cambio = { id: 82, type: "cambio_called", seat: 1 };
+  const rolled = [...existing.slice(-80), cambio];
+
+  assert.equal(rolled.length, existing.length);
+  assert.deepEqual(eventsAfter(rolled, lastProcessed), [cambio]);
+  assert.match(table, /eventsAfter\(events, processedEventRef\.current\)/);
 });
 
 test("fullscreen control uses a conventional SVG without twisting", () => {
   assert.match(table, /function FullscreenIcon/);
   assert.match(table, /<FullscreenIcon active=\{isFull\}/);
   assert.match(styles, /\.cb-gear:hover \{\s*transform: scale\(1\.06\);/);
+  assert.match(styles, /\.cb-gear:active \{[\s\S]*?color: #2a2320/);
+  assert.match(styles, /\.cb-gear:focus-visible \{[\s\S]*?color: #2a2320/);
+  assert.match(styles, /\.cb-game:fullscreen \.cb-gear \{[\s\S]*?color: #2a2320/);
 });
 
 test("inactive cards stay neutral while legal targets alone are emphasized", () => {

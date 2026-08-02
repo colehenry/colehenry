@@ -86,3 +86,12 @@ export function cardInteractionClass({
   if (intent) return `is-target is-${intent}`;
   return "is-neutral";
 }
+
+/** Return events appended after the exact last object we processed. The room
+ * keeps a rolling event buffer, so an array-length cursor eventually stalls
+ * when one old event is removed for every new event added. */
+export function eventsAfter<T>(events: T[], lastEvent: T | null): T[] {
+  if (lastEvent === null) return events;
+  const lastIndex = events.indexOf(lastEvent);
+  return lastIndex === -1 ? events : events.slice(lastIndex + 1);
+}

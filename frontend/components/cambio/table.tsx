@@ -14,7 +14,11 @@ import { PlayingCard } from "./card";
 import { SceneBackdrop } from "./scene-backdrop";
 import type { Skin } from "./skins";
 import type { Scene } from "./scenes";
-import { cardInteractionClass, deriveMoment } from "./table-state";
+import {
+  cardInteractionClass,
+  deriveMoment,
+  eventsAfter,
+} from "./table-state";
 import "./table.css";
 import "./cards.css";
 
@@ -203,21 +207,20 @@ export function CambioTable({
     null,
   );
   const previousDiscardRef = useRef<CardFace | null>(view.discard_top);
-  const processedRef = useRef<number | null>(null);
+  const processedEventRef = useRef<GameEvent | null | undefined>(undefined);
   /* Incoming WebSocket events are an external stream. Projecting a new reveal
    * event into temporary UI state is the synchronization this effect owns. */
   useLayoutEffect(() => {
-    // On first mount, keep the round-opening reveal but skip stale move history
-    // delivered during a reconnect.
-    if (processedRef.current === null) {
-      processedRef.current = events.some(
-        (event) => event.type === "opening_peek",
-      )
-        ? 0
-        : events.length;
+    // A mount or reconnect starts from the current state without replaying old
+    // table theatrics. Once mounted, object identity survives the rolling
+    // buffer in use-room and gives us a stable event cursor.
+    if (processedEventRef.current === undefined) {
+      processedEventRef.current = events.at(-1) ?? null;
+      previousDiscardRef.current = view.discard_top;
+      return;
     }
-    const fresh = events.slice(processedRef.current);
-    processedRef.current = events.length;
+    const fresh = eventsAfter(events, processedEventRef.current);
+    processedEventRef.current = events.at(-1) ?? processedEventRef.current;
     let map: Record<number, CardFace> | null = null;
     let ms = 0;
     let opponentSwapSeat: number | null = null;
