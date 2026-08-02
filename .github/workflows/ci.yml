@@ -35,11 +35,14 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-          cache-dependency-path: backend/requirements.txt
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-test.txt
       # verbecc is optional at runtime (conjugation degrades gracefully when
       # it's absent) and pulls heavy ML wheels, so CI skips it.
       - run: grep -v '^verbecc' requirements.txt | pip install -r /dev/stdin
-      - run: python -m unittest discover -s tests
+      - run: python -m pip install -r requirements-test.txt
+      - run: python -m pytest tests
 
   agent:
     runs-on: macos-latest
