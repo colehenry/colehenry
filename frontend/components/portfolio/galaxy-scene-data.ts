@@ -7,8 +7,8 @@ export type GalaxyStar = {
 };
 
 export type GalaxyObject = {
-  id: "asteroid" | "lapwise-planet" | "bilingual-moon";
-  kind: "asteroid" | "ring-planet" | "layered-moon";
+  id: "asteroid" | "lapwise-planet" | "brain-galaxy" | "bilingual-moon";
+  kind: "asteroid" | "ring-planet" | "spiral-galaxy" | "layered-moon";
   side: "left" | "right";
   top: number;
   travel: number;
@@ -109,27 +109,36 @@ export const GALAXY_OBJECTS: readonly GalaxyObject[] = [
     kind: "asteroid",
     side: "right",
     top: 5.5,
-    travel: 34,
-    turn: 30,
-    angle: -8,
+    travel: 88,
+    turn: 132,
+    angle: -14,
   },
   {
     id: "lapwise-planet",
     kind: "ring-planet",
     side: "left",
     top: 20.5,
-    travel: 56,
-    turn: -44,
-    angle: -12,
+    travel: 46,
+    turn: -28,
+    angle: -8,
+  },
+  {
+    id: "brain-galaxy",
+    kind: "spiral-galaxy",
+    side: "right",
+    top: 34.5,
+    travel: 42,
+    turn: 96,
+    angle: -4,
   },
   {
     id: "bilingual-moon",
     kind: "layered-moon",
-    side: "right",
+    side: "left",
     top: 49,
-    travel: 44,
-    turn: 24,
-    angle: 7,
+    travel: 52,
+    turn: 42,
+    angle: 5,
   },
 ] as const;
 

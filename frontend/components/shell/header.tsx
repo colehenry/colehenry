@@ -23,7 +23,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { googleLoginUrl } from "@/lib/api/auth";
 import { useLogout, useMe } from "@/lib/hooks/use-me";
 import { useLocale } from "@/lib/i18n/locale";
 import { ui } from "@/lib/i18n/ui";
@@ -245,10 +244,6 @@ export function Header() {
                 {nav.logout}
               </Button>
             </div>
-          ) : !isHome ? (
-            <Button variant="ghost" size="sm" asChild>
-              <a href={googleLoginUrl}>{nav.login}</a>
-            </Button>
           ) : null}
         </div>
       </div>

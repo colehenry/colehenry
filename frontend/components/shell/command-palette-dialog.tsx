@@ -5,7 +5,6 @@ import {
   FileText,
   FolderGit2,
   Home,
-  LogIn,
   LogOut,
   Moon,
   PenLine,
@@ -28,7 +27,6 @@ import {
   CommandShortcut,
 } from "@/components/ui/command";
 import { Command } from "@/components/ui/command";
-import { googleLoginUrl } from "@/lib/api/auth";
 import { useLogout, useMe } from "@/lib/hooks/use-me";
 import { useLocale } from "@/lib/i18n/locale";
 import { ui } from "@/lib/i18n/ui";
@@ -134,11 +132,10 @@ export function CommandPaletteDialog({
             </CommandItem>
           </CommandGroup>
 
-          <CommandSeparator />
-
-          <CommandGroup heading={p.owner}>
-            {me ? (
-              <>
+          {me && (
+            <>
+              <CommandSeparator />
+              <CommandGroup heading={p.owner}>
                 {/* TODO Build 2+: quick actions (log catan game, new post…) */}
                 <CommandItem disabled>
                   <PenLine />
@@ -149,16 +146,9 @@ export function CommandPaletteDialog({
                   <LogOut />
                   {p.logout}
                 </CommandItem>
-              </>
-            ) : (
-              <CommandItem
-                onSelect={() => run(() => (window.location.href = googleLoginUrl))}
-              >
-                <LogIn />
-                {p.loginGoogle}
-              </CommandItem>
-            )}
-          </CommandGroup>
+              </CommandGroup>
+            </>
+          )}
         </CommandList>
       </Command>
     </CommandDialog>

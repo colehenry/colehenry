@@ -9,6 +9,7 @@ const homepage = readSource("app/page.tsx");
 const layout = readSource("app/layout.tsx");
 const resume = readSource("lib/resume.ts");
 const header = readSource("components/shell/header.tsx");
+const commandPalette = readSource("components/shell/command-palette-dialog.tsx");
 const styles = readSource("app/globals.css");
 
 test("homepage identifies the AI software engineer role in both locales", () => {
@@ -70,11 +71,13 @@ test("frontend source contains no em dashes", () => {
   }
 });
 
-test("public homepage header defers login and prominent search", () => {
+test("public navigation hides login and defers prominent search", () => {
   assert.match(header, /const isHome = pathname === "\/"/);
   assert.match(header, /isHome \? "hidden" : "hidden sm:flex"/);
-  assert.match(header, /\) : !isHome \? \(/);
   assert.match(header, /me \? \(/);
+  assert.doesNotMatch(header, /googleLoginUrl|nav\.login/);
+  assert.doesNotMatch(commandPalette, /googleLoginUrl|loginGoogle|<LogIn/);
+  assert.doesNotMatch(readSource("lib/i18n/ui.ts"), /login:/);
 });
 
 function hslToRgb([h, s, l]) {

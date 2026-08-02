@@ -14,9 +14,14 @@ const CONNECTOR_RADIUS = 240;
 const CONNECTOR_RADIUS_SQUARED = CONNECTOR_RADIUS * CONNECTOR_RADIUS;
 const MAX_CONNECTORS = 7;
 const GRAVITY_RADIUS = 360;
-const MAX_GRAVITY_PULL = 18;
+const MAX_GRAVITY_PULL = 14;
 const WARP_RADIUS = 110;
 const BLACK_HOLE_RADIUS = 19;
+const ECLIPSE_START_GAP = 110;
+const ECLIPSE_END_GAP = -94;
+const ECLIPSE_STATIC_GAP = 8;
+const SCROLL_RESPONSE = [0.11, 0.14, 0.09, 0.13] as const;
+const SCROLL_SETTLE_EPSILON = 0.0005;
 
 type GalaxyObjectStyle = React.CSSProperties & {
   "--galaxy-shift": string;
@@ -28,7 +33,7 @@ type GalaxyObjectStyle = React.CSSProperties & {
   "--galaxy-eclipse-shift": string;
 };
 
-function PlaceholderObject({ object }: { object: GalaxyObject }) {
+function GalaxyArtwork({ object }: { object: GalaxyObject }) {
   const style: GalaxyObjectStyle = {
     top: `${object.top}%`,
     "--galaxy-shift": "0px",
@@ -37,7 +42,7 @@ function PlaceholderObject({ object }: { object: GalaxyObject }) {
     "--galaxy-pull-x": "0px",
     "--galaxy-pull-y": "0px",
     "--galaxy-pull-turn": "0deg",
-    "--galaxy-eclipse-shift": "0px",
+    "--galaxy-eclipse-shift": `${ECLIPSE_START_GAP}px`,
   };
 
   return (
@@ -48,15 +53,26 @@ function PlaceholderObject({ object }: { object: GalaxyObject }) {
       className="galaxy-object"
       style={style}
     >
-      <span className="galaxy-object-surface" />
+      <span className="galaxy-object-surface">
+        {object.id === "bilingual-moon" ? (
+          <>
+            <span className="galaxy-object-image galaxy-moon-base" />
+            <span className="galaxy-object-image galaxy-moon-overlay" />
+          </>
+        ) : (
+          <span
+            className={`galaxy-object-image galaxy-${object.id}-sprite`}
+          />
+        )}
+      </span>
     </div>
   );
 }
 
 /**
- * Homepage-only paper-galaxy prototype. Geometry lives in a separate data
- * table so Phase 3 can replace the three object surfaces without changing
- * composition, breakpoints, exclusion zones, or scroll behavior.
+ * Homepage-only 8-bit galaxy. Geometry lives in a separate data table so the
+ * final sprites share the approved composition,
+ * breakpoints, exclusion zones, and scroll behavior.
  */
 export function HeroConstellation() {
   const sceneRef = useRef<HTMLDivElement>(null);
@@ -92,6 +108,8 @@ export function HeroConstellation() {
     let starCenters: Array<{ x: number; y: number }> = [];
     let sceneDocumentTop = 0;
     let scrollFrame = 0;
+    let currentProgress = GALAXY_OBJECTS.map(() => 0);
+    let targetProgress = GALAXY_OBJECTS.map(() => 0);
     let pointerFrame = 0;
     let pointerX = -1;
     let pointerY = -1;
@@ -109,7 +127,10 @@ export function HeroConstellation() {
         node.style.setProperty("--galaxy-pull-x", "0px");
         node.style.setProperty("--galaxy-pull-y", "0px");
         node.style.setProperty("--galaxy-pull-turn", "0deg");
-        node.style.setProperty("--galaxy-eclipse-shift", "0px");
+        node.style.setProperty(
+          "--galaxy-eclipse-shift",
+          `${ECLIPSE_STATIC_GAP}px`,
+        );
       });
     };
 
@@ -134,45 +155,85 @@ export function HeroConstellation() {
       }));
     };
 
-    const update = () => {
+    const renderObjectProgress = (
+      node: HTMLElement,
+      index: number,
+      progress: number,
+    ) => {
+      const object = GALAXY_OBJECTS[index];
+      const centered = progress - 0.5;
+      const opacity = 0.45 + Math.sin(progress * Math.PI) * 0.55;
+
+      node.style.setProperty(
+        "--galaxy-shift",
+        `${(centered * object.travel).toFixed(2)}px`,
+      );
+      node.style.setProperty(
+        "--galaxy-rotation",
+        `${(object.angle + centered * object.turn).toFixed(2)}deg`,
+      );
+      node.style.setProperty(
+        "--galaxy-object-opacity",
+        opacity.toFixed(3),
+      );
+      node.style.setProperty(
+        "--galaxy-eclipse-shift",
+        `${(ECLIPSE_END_GAP + (1 - progress) * (ECLIPSE_START_GAP - ECLIPSE_END_GAP)).toFixed(2)}px`,
+      );
+    };
+
+    const readScrollTargets = () => {
+      targetProgress = objects.map((node) => {
+        const top = objectTops.get(node) ?? 0;
+        return galaxyObjectProgress(
+          window.scrollY,
+          window.innerHeight,
+          top,
+        );
+      });
+    };
+
+    const renderCurrentProgress = () => {
+      objects.forEach((node, index) => {
+        renderObjectProgress(node, index, currentProgress[index]);
+      });
+    };
+
+    const animateScrollMotion = () => {
       scrollFrame = 0;
       if (reducedMotion.matches) {
         setAuthoredPositions();
         return;
       }
 
-      objects.forEach((node, index) => {
-        const object = GALAXY_OBJECTS[index];
-        const top = objectTops.get(node) ?? 0;
-        const progress = galaxyObjectProgress(
-          window.scrollY,
-          window.innerHeight,
-          top,
-        );
-        const centered = progress - 0.5;
-        const opacity = 0.45 + Math.sin(progress * Math.PI) * 0.55;
+      let stillMoving = false;
+      currentProgress = currentProgress.map((progress, index) => {
+        const delta = targetProgress[index] - progress;
+        if (Math.abs(delta) <= SCROLL_SETTLE_EPSILON) {
+          return targetProgress[index];
+        }
 
-        node.style.setProperty(
-          "--galaxy-shift",
-          `${(centered * object.travel).toFixed(2)}px`,
-        );
-        node.style.setProperty(
-          "--galaxy-rotation",
-          `${(object.angle + centered * object.turn).toFixed(2)}deg`,
-        );
-        node.style.setProperty(
-          "--galaxy-object-opacity",
-          opacity.toFixed(3),
-        );
-        node.style.setProperty(
-          "--galaxy-eclipse-shift",
-          `${(centered * 18).toFixed(2)}px`,
-        );
+        stillMoving = true;
+        return progress + delta * SCROLL_RESPONSE[index];
       });
+      renderCurrentProgress();
+
+      if (stillMoving) {
+        scrollFrame = window.requestAnimationFrame(animateScrollMotion);
+      }
+    };
+
+    const snapScrollMotion = () => {
+      readScrollTargets();
+      currentProgress = [...targetProgress];
+      renderCurrentProgress();
     };
 
     const scheduleUpdate = () => {
-      if (!scrollFrame) scrollFrame = window.requestAnimationFrame(update);
+      readScrollTargets();
+      if (!scrollFrame) {
+        scrollFrame = window.requestAnimationFrame(animateScrollMotion);
+      }
       if (pointerX >= 0 && !pointerFrame) {
         pointerFrame = window.requestAnimationFrame(drawPointerEffects);
       }
@@ -249,7 +310,7 @@ export function HeroConstellation() {
         );
         node.style.setProperty(
           "--galaxy-pull-turn",
-          `${((dx / GRAVITY_RADIUS) * strength * 3).toFixed(2)}deg`,
+          `${((dx / GRAVITY_RADIUS) * strength * 1.5).toFixed(2)}deg`,
         );
       });
 
@@ -295,11 +356,11 @@ export function HeroConstellation() {
     const onResize = () => {
       measure();
       clearPointerEffects();
-      scheduleUpdate();
+      snapScrollMotion();
     };
 
     measure();
-    update();
+    snapScrollMotion();
     syncCursorMode();
     window.addEventListener("scroll", scheduleUpdate, { passive: true });
     window.addEventListener("resize", onResize);
@@ -355,10 +416,9 @@ export function HeroConstellation() {
         </div>
 
         {GALAXY_OBJECTS.map((object) => (
-          <PlaceholderObject key={object.id} object={object} />
+          <GalaxyArtwork key={object.id} object={object} />
         ))}
 
-        <span className="galaxy-mobile-accent" />
       </div>
       <div ref={warpRef} className="galaxy-warp" aria-hidden="true" />
       <div

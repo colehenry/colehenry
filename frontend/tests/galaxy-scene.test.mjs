@@ -33,14 +33,13 @@ test("galaxy composition keeps bright stars in gutters and center stars quiet", 
     [
       ["asteroid", "right"],
       ["lapwise-planet", "left"],
-      ["bilingual-moon", "right"],
+      ["brain-galaxy", "right"],
+      ["bilingual-moon", "left"],
     ],
   );
-  assert.ok(
-    GALAXY_OBJECTS.every(
-      ({ travel }) => travel >= 30 && travel <= 60,
-    ),
-  );
+  assert.ok(GALAXY_OBJECTS.every(({ travel }) => travel >= 40 && travel <= 90));
+  const asteroid = GALAXY_OBJECTS.find(({ id }) => id === "asteroid");
+  assert.ok(asteroid && asteroid.travel >= 80 && asteroid.turn <= 140);
 });
 
 test("scroll progress is clamped and centered on an object's active range", () => {
@@ -66,7 +65,7 @@ test("scene removes random animation but connects nearby field stars", () => {
   assert.match(component, /MAX_CONNECTORS = 7/);
   assert.match(component, /CONNECTOR_RADIUS_SQUARED/);
   assert.match(component, /GRAVITY_RADIUS = 360/);
-  assert.match(component, /MAX_GRAVITY_PULL = 18/);
+  assert.match(component, /MAX_GRAVITY_PULL = 14/);
   assert.match(component, /galaxy-black-hole/);
   assert.match(component, /galaxy-warp/);
   assert.match(component, /slice\(0, MAX_CONNECTORS\)/);
@@ -78,14 +77,55 @@ test("scene removes random animation but connects nearby field stars", () => {
   assert.match(component, /--galaxy-eclipse-shift/);
 });
 
-test("scroll spins objects and moves the layered eclipse without idle animation", () => {
-  assert.ok(GALAXY_OBJECTS.every(({ turn }) => Math.abs(turn) >= 20));
+test("scroll gives objects controlled rotation and moves the layered eclipse", () => {
+  assert.ok(
+    GALAXY_OBJECTS.every(
+      ({ turn }) => Math.abs(turn) >= 20 && Math.abs(turn) <= 140,
+    ),
+  );
+  assert.match(component, /SCROLL_RESPONSE = \[0\.11, 0\.14, 0\.09, 0\.13\]/);
+  assert.match(component, /SCROLL_SETTLE_EPSILON = 0\.0005/);
+  assert.match(component, /progress \+ delta \* SCROLL_RESPONSE\[index\]/);
+  assert.match(component, /requestAnimationFrame\(animateScrollMotion\)/);
+  assert.doesNotMatch(styles, /transform 160ms cubic-bezier/);
   assert.match(styles, /translateX\(var\(--galaxy-eclipse-shift\)\)/);
   assert.match(styles, /animation-play-state: paused/);
   assert.match(styles, /black-hole-accretion/);
   assert.match(styles, /black-hole-infall/);
   assert.match(styles, /rotateX\(66deg\)/);
   assert.doesNotMatch(component, /function step|const step/);
+});
+
+test("final pixel assets replace the CSS placeholder surfaces", () => {
+  assert.match(styles, /pixel-asteroid\.png/);
+  assert.match(styles, /pixel-lapwise-planet\.png/);
+  assert.match(styles, /pixel-brain-galaxy\.png/);
+  assert.match(styles, /pixel-bilingual-moon-base\.png/);
+  assert.match(styles, /pixel-bilingual-moon-overlay\.png/);
+  assert.match(component, /galaxy-moon-base/);
+  assert.match(component, /galaxy-moon-overlay/);
+  assert.doesNotMatch(component, /PlaceholderObject/);
+  assert.match(styles, /image-rendering: pixelated/);
+
+  const objectStyles = styles.slice(
+    styles.indexOf(".galaxy-object-surface"),
+    styles.indexOf(".galaxy-warp"),
+  );
+  assert.doesNotMatch(objectStyles, /clip-path|radial-gradient|double/);
+});
+
+test("eclipse discs cross each other as scroll progress increases", () => {
+  assert.match(component, /ECLIPSE_START_GAP = 110/);
+  assert.match(component, /ECLIPSE_END_GAP = -94/);
+  assert.match(component, /ECLIPSE_STATIC_GAP = 8/);
+  assert.match(component, /\(1 - progress\)/);
+});
+
+test("sprite assets stay visible on laptops and are omitted on phones", () => {
+  assert.doesNotMatch(component, /galaxy-mobile-accent/);
+  assert.match(styles, /@media \(min-width: 768px\)[\s\S]*pixel-asteroid\.png/);
+  assert.match(styles, /@media \(min-width: 768px\) and \(max-width: 1179px\)[\s\S]*?left: -2\.75rem/);
+  assert.match(styles, /@media \(max-width: 767px\)[\s\S]*?\.galaxy-object,[\s\S]*?display: none/);
 });
 
 test("cursor warp avoids expensive duplicated paint and backdrop filters", () => {
@@ -120,8 +160,10 @@ test("black-hole cursor uses a neutral core and orange energy only", () => {
 });
 
 test("responsive and reduced-motion layouts are deliberate", () => {
-  assert.match(styles, /@media \(max-width: 1179px\)[\s\S]*?\.galaxy-object,[\s\S]*?display: none/);
-  assert.match(styles, /@media \(max-width: 767px\)[\s\S]*?\.galaxy-mobile-accent/);
+  assert.match(styles, /@media \(min-width: 768px\) and \(max-width: 1179px\)[\s\S]*?\.galaxy-object\[data-side="right"\]/);
+  assert.match(styles, /@media \(max-width: 767px\)[\s\S]*?\.galaxy-object,[\s\S]*?display: none/);
+  assert.match(styles, /@media \(max-width: 767px\)[\s\S]*?\.galaxy-grid,[\s\S]*?display: none/);
+  assert.doesNotMatch(component, /galaxy-mobile-accent/);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.galaxy-object/);
   assert.match(component, /setAuthoredPositions/);
   assert.match(component, /reducedMotion\.matches/);

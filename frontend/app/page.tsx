@@ -155,8 +155,8 @@ const brainExplore: Localized<string> = {
 const quenoseteolvideDescription: Localized<HighlightableText[]> = {
   en: [
     {
-      text: "I use Spanish (C1) as a bridge into French.",
-      highlights: ["Spanish (C1)", "bridge into French"],
+      text: "I use Spanish as a bridge into French.",
+      highlights: ["Spanish", "bridge into French"],
     },
     {
       text: "The read-only React preview uses live FastAPI data for side-by-side FR/ES conjugations, cognate notes, and faux-ami warnings.",

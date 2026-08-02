@@ -318,7 +318,6 @@
       )
       rotate(calc(var(--galaxy-rotation) + var(--galaxy-pull-turn)));
     transform-origin: center;
-    transition: transform 90ms linear;
     will-change: transform, opacity;
   }
 
@@ -330,55 +329,43 @@
     left: calc(50% + 34rem);
   }
 
-  .galaxy-object-surface,
-  .galaxy-object-surface::before,
-  .galaxy-object-surface::after {
+  .galaxy-object-surface {
     position: absolute;
+    inset: 0;
     display: block;
-    content: "";
+  }
+
+  .galaxy-object-image {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: contain;
+    object-fit: contain;
+    image-rendering: pixelated;
+    pointer-events: none;
+    user-select: none;
+    filter: drop-shadow(
+      0 0.75rem 0.85rem hsl(var(--galaxy-paper-shadow) / 0.16)
+    );
   }
 
   .galaxy-object[data-kind="asteroid"] {
-    width: 7rem;
-    height: 6rem;
-  }
-
-  .galaxy-object[data-kind="asteroid"] .galaxy-object-surface {
-    inset: 0.3rem;
-    border: 1px solid hsl(var(--fg) / 0.18);
-    background:
-      radial-gradient(circle at 33% 36%, hsl(var(--fg) / 0.1) 0 7%, transparent 8%),
-      radial-gradient(circle at 68% 63%, hsl(var(--fg) / 0.08) 0 9%, transparent 10%),
-      hsl(var(--galaxy-paper));
-    clip-path: polygon(20% 4%, 69% 0, 96% 27%, 88% 71%, 58% 98%, 14% 83%, 0 40%);
-    filter: drop-shadow(0 0.7rem 0.7rem hsl(var(--galaxy-paper-shadow) / 0.12));
+    width: 8rem;
+    height: 8rem;
   }
 
   .galaxy-object[data-kind="ring-planet"] {
     width: 11rem;
+    height: 11rem;
+  }
+
+  .galaxy-object[data-kind="spiral-galaxy"] {
+    width: 9rem;
     height: 9rem;
-  }
-
-  .galaxy-object[data-kind="ring-planet"] .galaxy-object-surface {
-    inset: 1.25rem 2.5rem;
-    z-index: 1;
-    border: 1px solid hsl(var(--fg) / 0.18);
-    border-radius: 50%;
-    background:
-      linear-gradient(115deg, transparent 0 44%, hsl(var(--bg) / 0.16) 45% 51%, transparent 52%),
-      hsl(var(--galaxy-blue-paper));
-    box-shadow: 0 0.8rem 1.2rem hsl(var(--galaxy-paper-shadow) / 0.13);
-  }
-
-  .galaxy-object[data-kind="ring-planet"] .galaxy-object-surface::before {
-    z-index: -1;
-    inset: 41% -2.2rem auto;
-    height: 1.35rem;
-    border: 0.38rem double hsl(var(--galaxy-navy-paper));
-    border-right-color: transparent;
-    border-left-color: transparent;
-    border-radius: 50%;
-    transform: rotate(-5deg);
   }
 
   .galaxy-object[data-kind="layered-moon"] {
@@ -386,23 +373,39 @@
     height: 8.5rem;
   }
 
-  .galaxy-object[data-kind="layered-moon"] .galaxy-object-surface {
-    inset: 0.7rem 1.2rem 1.2rem 0.7rem;
-    border: 1px solid hsl(var(--fg) / 0.16);
-    border-radius: 50%;
-    background: hsl(var(--galaxy-paper));
-    box-shadow: 0 0.8rem 1.2rem hsl(var(--galaxy-paper-shadow) / 0.12);
+  .galaxy-moon-base {
+    z-index: 0;
   }
 
-  .galaxy-object[data-kind="layered-moon"] .galaxy-object-surface::after {
-    inset: 9% -18% -9% 29%;
-    border: 1px solid hsl(var(--fg) / 0.12);
-    border-radius: 50%;
-    background: hsl(var(--galaxy-blue-paper));
-    clip-path: circle(50% at 50% 50%);
-    opacity: 0.88;
+  .galaxy-moon-overlay {
+    z-index: 1;
+    top: 6%;
+    left: 6%;
+    width: 88%;
+    height: 88%;
     transform: translateX(var(--galaxy-eclipse-shift));
-    transition: transform 90ms linear;
+  }
+
+  @media (min-width: 768px) {
+    .galaxy-asteroid-sprite {
+      background-image: url("/portfolio/galaxy/pixel-asteroid.png");
+    }
+
+    .galaxy-lapwise-planet-sprite {
+      background-image: url("/portfolio/galaxy/pixel-lapwise-planet.png");
+    }
+
+    .galaxy-brain-galaxy-sprite {
+      background-image: url("/portfolio/galaxy/pixel-brain-galaxy.png");
+    }
+
+    .galaxy-moon-base {
+      background-image: url("/portfolio/galaxy/pixel-bilingual-moon-base.png");
+    }
+
+    .galaxy-moon-overlay {
+      background-image: url("/portfolio/galaxy/pixel-bilingual-moon-overlay.png");
+    }
   }
 
   .galaxy-warp {
@@ -541,14 +544,38 @@
     }
   }
 
-  .galaxy-mobile-accent {
-    display: none;
-  }
+  @media (min-width: 768px) and (max-width: 1179px) {
+    .galaxy-object[data-side="left"] {
+      right: auto;
+      left: -2.75rem;
+    }
 
-  @media (max-width: 1179px) {
-    .galaxy-object,
-    .galaxy-connectors,
-    .galaxy-stars {
+    .galaxy-object[data-side="right"] {
+      right: -2.75rem;
+      left: auto;
+    }
+
+    .galaxy-object[data-kind="asteroid"] {
+      width: 6.75rem;
+      height: 6.75rem;
+    }
+
+    .galaxy-object[data-kind="ring-planet"] {
+      width: 8.5rem;
+      height: 8.5rem;
+    }
+
+    .galaxy-object[data-kind="spiral-galaxy"] {
+      width: 7.5rem;
+      height: 7.5rem;
+    }
+
+    .galaxy-object[data-kind="layered-moon"] {
+      width: 7rem;
+      height: 7rem;
+    }
+
+    .galaxy-connectors {
       display: none;
     }
 
@@ -559,23 +586,16 @@
   }
 
   @media (max-width: 767px) {
+    .galaxy-object,
     .galaxy-grid,
     .galaxy-connectors,
     .galaxy-stars {
       display: none;
     }
 
-    .galaxy-mobile-accent {
-      position: absolute;
-      top: 2.2rem;
-      right: -1.1rem;
-      display: block;
-      width: 3.4rem;
-      height: 2.8rem;
-      border: 1px solid hsl(var(--fg) / 0.12);
-      background: hsl(var(--galaxy-paper) / 0.65);
-      clip-path: polygon(17% 7%, 72% 0, 100% 38%, 77% 91%, 26% 100%, 0 57%);
-      transform: rotate(13deg);
+    .galaxy-warp,
+    .galaxy-black-hole {
+      display: none;
     }
   }
 
