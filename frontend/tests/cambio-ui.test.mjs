@@ -99,6 +99,13 @@ test("coffee shop uses generated art with a quiet motion-safe ambience", () => {
   );
 });
 
+test("cafe and tavern keep illustrated detail in the mobile crop", () => {
+  assert.match(
+    styles,
+    /@media \(max-width: 680px\)[\s\S]*?\.cb-cafe-photo\s*\{\s*background-position: 10% center;[\s\S]*?\.cb-tavern-photo\s*\{\s*background-position: 22% center;/,
+  );
+});
+
 test("medieval tavern uses generated art with warm motion-safe firelight", () => {
   assert.match(backdrop, /cb-tavern-photo/);
   assert.match(backdrop, /cb-tavern-firelight/);
@@ -107,7 +114,7 @@ test("medieval tavern uses generated art with warm motion-safe firelight", () =>
   assert.match(styles, /@keyframes cb-tavern-firelight/);
   assert.match(
     styles,
-    /prefers-reduced-motion[\s\S]*?cb-tavern-firelight \{ animation: none/,
+    /prefers-reduced-motion[\s\S]*?cb-tavern-firelight\s*\{\s*animation: none/,
   );
 });
 
