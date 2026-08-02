@@ -388,13 +388,6 @@
   box-shadow: none;
   opacity: 0.5;
 }
-.cb-hold-tag {
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: rgb(255 255 255 / 0.18);
-  font-size: 10px;
-}
-
 /* --- hands: the 2×N grid + floating odd card ------------------------------ */
 
 .cb-hand {
@@ -431,24 +424,27 @@
 }
 .cb-slot .cbc,
 .cb-draw .cbc {
-  transition: transform 0.16s ease, filter 0.2s ease, opacity 0.2s ease;
+  transition: transform 0.16s ease;
 }
-.cb-slot.is-disabled .cbc,
-.cb-draw.is-disabled .cbc,
-.cb-draw.is-disabled .cb-pile-empty {
-  filter: grayscale(0.95) brightness(0.62);
-  opacity: 0.48;
+.cb-slot.is-revealing {
+  z-index: 7;
+  animation: cb-reveal-focus 0.8s ease-in-out infinite alternate;
 }
-.cb-slot.is-opening .cbc {
-  filter: none;
-  opacity: 1;
+.cb-slot.is-revealing .cbc {
+  box-shadow: 0 0 0 3px #c08be0, 0 0 22px rgb(192 139 224 / 0.9);
 }
-.cb-draw.is-disabled {
+@keyframes cb-reveal-focus {
+  from { transform: translateY(0) scale(1); }
+  to { transform: translateY(-8px) scale(1.06); }
+}
+.cb-slot.is-neutral,
+.cb-draw.is-neutral {
   cursor: default;
 }
 /* can touch → grows + lifts */
 .cb-slot.is-target,
-.cb-draw.is-target {
+.cb-draw.is-target,
+.cb-draw.is-drop {
   cursor: pointer;
 }
 .cb-slot.is-target:hover,
@@ -479,23 +475,6 @@
 .cb-slot.is-picked { --ring: var(--cb-glow-own); }
 .cb-draw.is-target { --ring: var(--cb-glow-draw); }
 
-/* cannot touch → not-allowed + a quick shake + red deny ring (on the card) */
-.cb-slot:not(.is-target):not(.is-opening):hover {
-  cursor: not-allowed;
-}
-.cb-slot:not(.is-target):not(.is-opening):hover .cbc {
-  animation: cb-nope 0.36s ease;
-}
-.cb-slot:not(.is-target):not(.is-opening):hover .cbc::after {
-  content: "";
-  position: absolute;
-  inset: -3px;
-  border-radius: calc(var(--cbc-radius) + 3px);
-  border: 2px solid var(--cb-glow-opp);
-  opacity: 0.75;
-  pointer-events: none;
-}
-
 /* play drop-zone (drag the drawn card onto the discard) */
 .cb-draw.is-drop::after {
   content: "";
@@ -507,14 +486,8 @@
   pointer-events: none;
   animation: cb-pulse 1.3s ease-in-out infinite;
 }
-@keyframes cb-nope {
-  0%, 100% { transform: translateX(0); }
-  20% { transform: translateX(-5px) rotate(-2deg); }
-  50% { transform: translateX(5px) rotate(2deg); }
-  80% { transform: translateX(-3px) rotate(-1deg); }
-}
 @media (prefers-reduced-motion: reduce) {
-  .cb-slot:not(.is-target):not(.is-opening):hover .cbc { animation: none; }
+  .cb-slot.is-revealing { animation: none; }
 }
 @keyframes cb-pulse {
   0%, 100% { opacity: 0.55; }
@@ -587,21 +560,10 @@
 .cb-cambio-mobile {
   display: none;
 }
-.cb-skip {
-  margin-top: 8px;
-  padding: 5px 14px;
-  border: 1px solid var(--cb-panel-line);
-  border-radius: 999px;
-  background: var(--cb-panel);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-
 /* --- drawn card held in hand (plan §6.3) ---------------------------------- */
 
-/* the drawn card (draggable) / a peeked card pops up BIG in the left center cell,
- * mirroring CAMBIO on the right (plan §6.3). */
+/* Every player's drawn card uses this same held position. The active player
+ * sees its face; everyone else sees the same card back. */
 .cb-held {
   display: flex;
   flex-direction: column;
@@ -614,15 +576,9 @@
   --cbc-radius: 12px;
 }
 .cb-held-card {
-  cursor: grab;
+  cursor: default;
   filter: drop-shadow(0 16px 24px rgb(0 0 0 / 0.5));
-  touch-action: none;
-}
-.cb-held-card:active {
-  cursor: grabbing;
-}
-.cb-held-static {
-  filter: drop-shadow(0 16px 24px rgb(0 0 0 / 0.5));
+  touch-action: auto;
 }
 .cb-play-btn {
   padding: 9px 20px;
@@ -708,18 +664,7 @@
 .cb-prompt.is-power { border-color: #c08be0; }
 .cb-prompt.is-good { border-color: #57b877; }
 
-/* turn signaling: dim the inactive player, pulse the active nameplate */
-.cb-player {
-  transition: opacity 0.4s ease, filter 0.4s ease;
-}
-.cb-player.is-dim {
-  opacity: 0.38;
-  filter: grayscale(0.5);
-}
-.cb-felt.is-draw-step .cb-piles {
-  filter: none;
-  opacity: 1;
-}
+/* turn signaling lives in the nameplate; card backs stay equally legible. */
 .cb-nameplate.is-active {
   animation: cb-namepulse 1.6s ease-in-out infinite;
 }
@@ -783,30 +728,6 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .cb-chevron, .cb-nameplate.is-active { animation: none; }
-}
-
-/* --- mascot --------------------------------------------------------------- */
-
-.cb-mascot {
-  position: absolute;
-  right: 20px;
-  bottom: 16px;
-  z-index: 55;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  cursor: pointer;
-}
-.cb-mascot-bubble {
-  margin-bottom: 4px;
-  padding: 6px 14px;
-  border-radius: 14px 14px 14px 3px;
-  background: #fff;
-  color: var(--cb-accent);
-  font-family: var(--cb-deck-font);
-  font-size: 18px;
-  font-weight: 800;
-  box-shadow: 0 3px 10px rgb(0 0 0 / 0.3);
 }
 
 /* --- round-end overlay ---------------------------------------------------- */
@@ -877,30 +798,18 @@
   box-shadow: 0 4px 14px rgb(0 0 0 / 0.35);
 }
 
-/* Public opponent draw cue: a back travels from the center pile toward the
- * opponent hand. It never receives a face from the masked server view. */
-.cb-opponent-draw {
-  position: absolute;
-  left: calc(50% - 42px);
-  top: 52%;
-  z-index: 36;
-  pointer-events: none;
-  filter: drop-shadow(0 10px 18px rgb(0 0 0 / 0.42));
+.cb-discard-stage {
+  position: relative;
 }
-.cb-opponent-draw .cbc {
-  --cbc-h: clamp(72px, 12vh, 108px);
+.cb-discard-space {
+  visibility: hidden;
 }
-
 .cb-opponent-swap-discard {
   position: absolute;
-  left: calc(50% + 42px);
-  top: 52%;
-  z-index: 37;
+  inset: 0;
+  z-index: 4;
   pointer-events: none;
   filter: drop-shadow(0 10px 18px rgb(0 0 0 / 0.45));
-}
-.cb-opponent-swap-discard .cbc {
-  --cbc-h: clamp(72px, 12vh, 108px);
 }
 
 .cb-cambio-impact {
@@ -956,12 +865,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cb-opponent-draw {
-    top: 25%;
-  }
-  .cb-opponent-swap-discard {
-    top: 48%;
-  }
   .cb-game.is-cambio-hit .cb-felt {
     animation: none;
   }
@@ -985,14 +888,6 @@
   .cb-cambio-mobile {
     padding: 0;
     font-size: 12px;
-  }
-  .cb-opponent-draw {
-    left: calc(50% - 22px);
-    top: 52%;
-  }
-  .cb-opponent-swap-discard {
-    left: calc(50% + 28px);
-    top: 52%;
   }
   .cb-cambio-impact {
     top: 38%;

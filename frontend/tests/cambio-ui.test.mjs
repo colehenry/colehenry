@@ -2,10 +2,16 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
+import {
+  cardInteractionClass,
+  deriveMoment,
+} from "../components/cambio/table-state.ts";
+
 const readSource = (path) =>
   readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
 const table = readSource("components/cambio/table.tsx");
+const tableState = readSource("components/cambio/table-state.ts");
 const styles = readSource("components/cambio/table.css");
 const backdrop = readSource("components/cambio/scene-backdrop.tsx");
 const header = readSource("components/shell/header.tsx");
@@ -21,35 +27,54 @@ test("mobile turn rails move toward the active player", () => {
   assert.match(mobile, /translateY\(calc\(-50% \+ var\(--rail-shift\)\)\)/);
 });
 
-test("opponent targeting dims only the player's hand", () => {
-  assert.match(table, /const targetingOpponent =[\s\S]*?phase === "peek_opp"/);
-  assert.match(table, /phase === "blind_swap" \|\| phase === "king"/);
-  assert.match(table, /!isTurn && !targetingOpponent/);
-  assert.match(table, /view\.turn !== seat\) \|\|\s*targetingOpponent/);
+test("opponent targets derive from legal moves without dimming either hand", () => {
+  assert.match(table, /const legal = view\.legal_moves \?\? \[\]/);
+  assert.match(
+    table,
+    /move\.type === "king_look" &&[\s\S]*?move\.target === target/,
+  );
+  assert.doesNotMatch(table, /targetingOpponent|is-dim/);
+  assert.doesNotMatch(styles, /\.cb-player\.is-dim/);
 });
 
-test("temporary reveals and snap windows show accurate countdowns", () => {
+test("temporary flips are bound to one move while server phases own countdowns", () => {
   assert.match(table, /function ActionCountdown/);
-  assert.match(table, /deadline: Date\.now\(\) \+ ms/);
+  assert.match(table, /revealSeq === view\.move_seq/);
+  assert.match(table, /setRevealSeq\(view\.move_seq\)/);
   assert.match(table, /label="Snap"/);
-  assert.match(table, /label: countdownLabel/);
+  assert.match(table, /room\.opening_deadline_ms/);
+  assert.match(table, /room\.power_reveal_deadline_ms/);
   assert.match(styles, /\.cb-action-countdown-track/);
 });
 
-test("opponent stock draws animate only a face-down card", () => {
-  assert.match(table, /e\.type === "draw"[\s\S]*?e\.source === "stock"/);
-  assert.match(table, /e\.seat !== seat/);
-  assert.match(table, /className="cb-opponent-draw"/);
-  assert.match(table, /<PlayingCard face=\{null\} up=\{false\}/);
-  assert.match(styles, /\.cb-opponent-draw/);
+test("both players share one held-card animation with a private face", () => {
+  assert.match(table, /const heldDrawn = view\.drawn/);
+  assert.match(table, /layoutId=\{`card-\$\{heldDrawn\.uid\}`\}/);
+  assert.match(table, /face=\{heldByMe \? \(heldDrawn\.card \?\? null\) : null\}/);
+  assert.match(table, /up=\{heldByMe && heldDrawn\.card != null\}/);
+  assert.doesNotMatch(table, /opponentDraw|cb-opponent-draw/);
 });
 
-test("opponent swaps animate the replaced card into the discard", () => {
+test("opponent swaps land cleanly in the discard before replacing its top", () => {
   assert.match(table, /e\.type === "swap_in"[\s\S]*?e\.seat !== seat/);
   assert.match(table, /e\.type === "discard"[\s\S]*?e\.source === "swap"/);
-  assert.match(table, /function OpponentSwapAnimation/);
+  const landing = table.slice(
+    table.indexOf("function OpponentDiscardLanding"),
+    table.indexOf("function ActionCountdown"),
+  );
+  assert.match(landing, /initial=\{\{ y: "-30vh" \}\}/);
+  assert.match(landing, /animate=\{\{ y: 0 \}\}/);
+  assert.doesNotMatch(landing, /opacity|rotate|scale/);
+  assert.match(
+    table,
+    /opponentSwapIsTop \? \([\s\S]*?<OpponentDiscardLanding[\s\S]*?: view\.discard_top \? \(/,
+  );
+  assert.match(table, /face=\{opponentSwap\.previous\}/);
+  assert.match(table, /className="cb-discard-space"/);
   assert.match(table, /className="cb-opponent-swap-discard"/);
   assert.match(styles, /\.cb-opponent-swap-discard/);
+  assert.match(styles, /\.cb-discard-space \{[\s\S]*?visibility: hidden/);
+  assert.doesNotMatch(styles, /\.cb-opponent-swap-discard \.cbc/);
 });
 
 test("seaside scene uses generated art with reduced-motion-safe ambience", () => {
@@ -70,15 +95,56 @@ test("opening and power peeks are blocking, in-place reveal states", () => {
   assert.match(table, /phase === "power_reveal"/);
   assert.match(table, /view\.active_reveal\?\.target === playerSeat/);
   assert.match(table, /view\.active_reveal\.slot === i/);
+  assert.match(table, /powerSelected \? \(view\.active_reveal\?\.card \?\? null\) : null/);
+  assert.match(table, /powerSelected \? "is-revealing"/);
+  assert.match(styles, /@keyframes cb-reveal-focus/);
   assert.doesNotMatch(table, /peekPop|cb-held-static/);
   assert.doesNotMatch(api, /skip_power/);
 });
 
+test("snap leaves non-target cards fully visible after a failed attempt", () => {
+  assert.equal(
+    cardInteractionClass({ intent: null }),
+    "is-neutral",
+  );
+  assert.equal(
+    cardInteractionClass({ intent: "opp" }),
+    "is-target is-opp",
+  );
+  assert.doesNotMatch(styles, /\.cb-slot\.is-neutral \.cbc/);
+});
+
+test("prompt priority distinguishes snap-give and available snap without duplicate reveal pills", () => {
+  const giveIndex = tableState.indexOf('if (phase === "snap_give")');
+  const snapIndex = tableState.indexOf("if (iMaySnap)", giveIndex);
+  assert.ok(giveIndex >= 0 && snapIndex > giveIndex);
+  assert.match(table, /label=\{view\.active_reveal\?\.card \? "Remember card" : "Opponent peeking"\}/);
+  assert.doesNotMatch(tableState, /hint: "Remember this card"/);
+  assert.equal(
+    deriveMoment({ phase: "power_reveal", moveSeq: 3, myTurn: true, iMaySnap: false, iMayGive: false, hasPrivateReveal: true, hasPickedCard: false, kingLooked: false }).hint,
+    null,
+  );
+});
+
+test("every authoritative phase has one deterministic prompt policy", () => {
+  const base = { moveSeq: 4, myTurn: true, iMaySnap: false, iMayGive: false, hasPrivateReveal: false, hasPickedCard: false, kingLooked: false };
+  assert.equal(deriveMoment({ ...base, phase: "opening" }).hint, null);
+  assert.equal(deriveMoment({ ...base, phase: "turn" }).hint, "Draw a card");
+  assert.equal(deriveMoment({ ...base, phase: "drawn" }).hint, null);
+  assert.equal(deriveMoment({ ...base, phase: "peek_own" }).hint, "Peek one of yours");
+  assert.equal(deriveMoment({ ...base, phase: "peek_opp" }).hint, "Peek an opponent card");
+  assert.equal(deriveMoment({ ...base, phase: "blind_swap" }).hint, "Blind swap - pick yours");
+  assert.equal(deriveMoment({ ...base, phase: "king" }).hint, "Black King - look at a card");
+  assert.equal(deriveMoment({ ...base, phase: "round_end" }).hint, null);
+  assert.equal(deriveMoment({ ...base, phase: "turn", myTurn: false }).hint, null);
+  assert.equal(deriveMoment({ ...base, phase: "turn", iMaySnap: true, snapRank: "JO" }).hint, "Snap the Joker");
+  assert.equal(deriveMoment({ ...base, phase: "snap_give", iMaySnap: true, iMayGive: true }).hint, "Give a card");
+});
+
 test("normal turns emphasize drawing before hand actions", () => {
-  assert.match(table, /hint: "Draw a card"/);
-  assert.match(table, /const targetingDraw = myTurn && phase === "turn"/);
+  assert.match(tableState, /hint: "Draw a card"/);
   assert.doesNotMatch(table, /draw_discard/);
-  assert.match(table, /targetingOpponent \|\|\s*targetingDraw/);
+  assert.match(table, /view\.stock_count > 0 \? "is-target" : "is-neutral"/);
 });
 
 test("mobile piles stay centered and Cambio floats independently", () => {
@@ -103,11 +169,18 @@ test("fullscreen control uses a conventional SVG without twisting", () => {
   assert.match(styles, /\.cb-gear:hover \{\s*transform: scale\(1\.06\);/);
 });
 
-test("untouchable cards and piles are always dimmed", () => {
-  assert.match(table, /intent \? `is-target is-\$\{intent\}` : "is-disabled"/);
-  assert.match(table, /view\.stock_count > 0 \? "is-target" : "is-disabled"/);
-  assert.match(styles, /\.cb-slot\.is-disabled \.cbc/);
-  assert.match(styles, /filter: grayscale\(0\.95\) brightness\(0\.62\)/);
+test("inactive cards stay neutral while legal targets alone are emphasized", () => {
+  assert.equal(
+    cardInteractionClass({ intent: null }),
+    "is-neutral",
+  );
+  assert.equal(
+    cardInteractionClass({ intent: "own" }),
+    "is-target is-own",
+  );
+  assert.match(table, /canPlayDrawn \? "is-drop" : "is-neutral"/);
+  assert.doesNotMatch(styles, /filter: grayscale/);
+  assert.doesNotMatch(styles, /@keyframes cb-nope/);
 });
 
 test("three-card hands retain their two-column positions", () => {

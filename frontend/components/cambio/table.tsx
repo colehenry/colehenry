@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
 
 import type {
@@ -11,16 +11,12 @@ import type {
   RoomInfo,
 } from "@/lib/api/cambio";
 import { PlayingCard } from "./card";
-import { Mascot } from "./mascot";
 import { SceneBackdrop } from "./scene-backdrop";
 import type { Skin } from "./skins";
 import type { Scene } from "./scenes";
+import { cardInteractionClass, deriveMoment } from "./table-state";
 import "./table.css";
 import "./cards.css";
-
-function rankLabel(rank: string): string {
-  return rank === "JO" ? "Joker" : rank;
-}
 
 /** Top of the discard. Shares `layoutId` with the card's previous position (a
  * hand slot or the held card) so it SLIDES here, then FLIPS face-up on arrival -
@@ -48,17 +44,16 @@ function DiscardTop({ face, skinArt }: { face: CardFace; skinArt: boolean }) {
 /** Local pick state for the two-step swap powers (J/Q and black king). */
 type Picked = { slot: number } | null;
 
-/** Turn/decision state that drives the top prompt + side rails. `hint` is null
- * for plain draw/swap (the glowing targets carry those), so text stays minimal. */
-type Tone = "you" | "snap" | "power" | "good" | "neutral";
-type Moment = { key: string; tone: Tone; hint: string | null };
 type RevealCountdown = {
   deadline: number;
   duration: number;
   label: string;
 };
-type OpponentDraw = { key: number; seat: number };
-type OpponentSwapDiscard = { key: number; seat: number; card: CardFace };
+type OpponentSwapDiscard = {
+  key: number;
+  card: CardFace;
+  previous: CardFace | null;
+};
 type CambioImpact = { key: number; seat: number };
 
 function FullscreenIcon({ active }: { active: boolean }) {
@@ -73,7 +68,7 @@ function FullscreenIcon({ active }: { active: boolean }) {
   );
 }
 
-function OpponentSwapAnimation({
+function OpponentDiscardLanding({
   card,
   skinArt,
 }: {
@@ -82,7 +77,7 @@ function OpponentSwapAnimation({
 }) {
   const [up, setUp] = useState(false);
   useEffect(() => {
-    const timer = window.setTimeout(() => setUp(true), 320);
+    const timer = window.setTimeout(() => setUp(true), 180);
     return () => window.clearTimeout(timer);
   }, []);
 
@@ -90,18 +85,11 @@ function OpponentSwapAnimation({
     <motion.div
       className="cb-opponent-swap-discard"
       aria-label="Opponent's replaced card moved to the discard"
-      initial={{ opacity: 0, x: "-50%", y: "-30vh", scale: 0.86, rotate: -5 }}
-      animate={{
-        opacity: [0, 1, 1, 0],
-        y: ["-30vh", "-18vh", "0vh", "1vh"],
-        scale: [0.86, 1, 1, 0.96],
-        rotate: [-5, 3, 0, 0],
-      }}
-      exit={{ opacity: 0 }}
+      initial={{ y: "-30vh" }}
+      animate={{ y: 0 }}
       transition={{
-        duration: 1.05,
-        times: [0, 0.18, 0.82, 1],
-        ease: "easeInOut",
+        duration: 0.72,
+        ease: [0.22, 0.8, 0.2, 1],
       }}
     >
       <PlayingCard face={card} up={up} skinArt={skinArt} />
@@ -171,7 +159,6 @@ export function CambioTable({
     slot: number;
     seq: number;
   } | null>(null);
-  const [mascot, setMascot] = useState(false);
   const [isFull, setIsFull] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -202,33 +189,24 @@ export function CambioTable({
     else rootRef.current?.requestFullscreen?.();
   }
 
-  /* --- reveals: opening peek + power peeks (fixes peek-opponent). A "peek"
-   * event carries the single card I'm entitled to see; "opening_peek" carries my
-   * bottom two. Both flip the card(s) face-up on the board briefly, keyed by uid
-   * so opponent cards reveal too. A single power-peek also pops up big (left). */
+  /* Snap flips are the only transient client reveal. Opening and power peeks
+   * are authoritative server phases, so reconnecting cannot leave a face up. */
 
   const [reveal, setReveal] = useState<Record<number, CardFace>>({});
-  const [opponentDraw, setOpponentDraw] = useState<OpponentDraw | null>(null);
+  const [revealSeq, setRevealSeq] = useState<number | null>(null);
   const [opponentSwap, setOpponentSwap] = useState<OpponentSwapDiscard | null>(
     null,
   );
   const [cambioImpact, setCambioImpact] = useState<CambioImpact | null>(null);
-  const [revealCountdown, setRevealCountdown] =
-    useState<RevealCountdown | null>(null);
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const opponentDrawTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
-  const opponentSwapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
   const cambioImpactTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  const previousDiscardRef = useRef<CardFace | null>(view.discard_top);
   const processedRef = useRef<number | null>(null);
   /* Incoming WebSocket events are an external stream. Projecting a new reveal
    * event into temporary UI state is the synchronization this effect owns. */
-  useEffect(() => {
+  useLayoutEffect(() => {
     // On first mount, keep the round-opening reveal but skip stale move history
     // delivered during a reconnect.
     if (processedRef.current === null) {
@@ -242,7 +220,6 @@ export function CambioTable({
     processedRef.current = events.length;
     let map: Record<number, CardFace> | null = null;
     let ms = 0;
-    const countdownLabel = "Reveal";
     let opponentSwapSeat: number | null = null;
     for (const e of fresh) {
       if (e.type === "snap_attempt" && e.card) {
@@ -251,19 +228,6 @@ export function CambioTable({
         const c = e.card as CardFace;
         map = { ...(map ?? {}), [c.uid]: c };
         ms = Math.max(ms, 2200);
-      } else if (
-        e.type === "draw" &&
-        e.source === "stock" &&
-        typeof e.seat === "number" &&
-        e.seat !== seat
-      ) {
-        if (opponentDrawTimerRef.current)
-          clearTimeout(opponentDrawTimerRef.current);
-        setOpponentDraw({ key: Date.now(), seat: e.seat });
-        opponentDrawTimerRef.current = setTimeout(() => {
-          setOpponentDraw(null);
-          opponentDrawTimerRef.current = null;
-        }, 950);
       } else if (
         e.type === "swap_in" &&
         typeof e.seat === "number" &&
@@ -276,17 +240,11 @@ export function CambioTable({
         e.card &&
         opponentSwapSeat !== null
       ) {
-        if (opponentSwapTimerRef.current)
-          clearTimeout(opponentSwapTimerRef.current);
         setOpponentSwap({
           key: Date.now(),
-          seat: opponentSwapSeat,
           card: e.card as CardFace,
+          previous: previousDiscardRef.current,
         });
-        opponentSwapTimerRef.current = setTimeout(() => {
-          setOpponentSwap(null);
-          opponentSwapTimerRef.current = null;
-        }, 1100);
       } else if (e.type === "cambio_called" && typeof e.seat === "number") {
         if (cambioImpactTimerRef.current)
           clearTimeout(cambioImpactTimerRef.current);
@@ -300,25 +258,18 @@ export function CambioTable({
     if (map) {
       if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
       setReveal(map);
-      setRevealCountdown({
-        deadline: Date.now() + ms,
-        duration: ms,
-        label: countdownLabel,
-      });
+      setRevealSeq(view.move_seq);
       revealTimerRef.current = setTimeout(() => {
         setReveal({});
-        setRevealCountdown(null);
+        setRevealSeq(null);
         revealTimerRef.current = null;
       }, ms);
     }
-  }, [events, seat]);
+    previousDiscardRef.current = view.discard_top;
+  }, [events, seat, view.discard_top, view.move_seq]);
   useEffect(
     () => () => {
       if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
-      if (opponentDrawTimerRef.current)
-        clearTimeout(opponentDrawTimerRef.current);
-      if (opponentSwapTimerRef.current)
-        clearTimeout(opponentSwapTimerRef.current);
       if (cambioImpactTimerRef.current)
         clearTimeout(cambioImpactTimerRef.current);
     },
@@ -327,43 +278,85 @@ export function CambioTable({
 
   /* --- what is clickable right now ---------------------------------------- */
 
+  /* View contract:
+   * opening       own opening faces clear; no legal moves
+   * turn          stock + Cambio glow; every hand stays clear and neutral
+   * drawn         shared held position; holder sees face and may play/swap
+   * peek/swap     only server-listed targets glow
+   * power_reveal  chosen slot lifts; face exists only in the viewer's payload
+   * snap overlay  legal snap targets glow; all other cards remain neutral
+   * snap_give     only the giver's legal offload cards glow
+   * round_end     dialog owns the fully revealed result
+   */
+
   const snapOpen = view.snap != null;
-  const iMayGive = phase === "snap_give" && view.snap?.giver === seat;
-  const iMaySnap =
-    snapOpen && phase !== "snap_give" && !view.snap!.attempted.includes(seat);
+  const legal = view.legal_moves ?? [];
+  const iMayGive = legal.some((move) => move.type === "snap_give");
+  const iMaySnap = legal.some((move) => move.type === "snap");
+  const canDraw = legal.some((move) => move.type === "draw_stock");
+  const canCallCambio = legal.some((move) => move.type === "cambio");
+  const canPlayDrawn = legal.some((move) => move.type === "play");
+  const heldDrawn = view.drawn;
+  const heldByMe = heldDrawn?.holder === seat;
 
   function slotAction(target: number, slot: number): Move | "pick" | null {
-    if (iMaySnap) return { type: "snap", target, slot };
-    if (iMayGive && target === seat) return { type: "snap_give", slot };
-    if (phase === "snap_give") return null;
-    if (!myTurn) return null;
-    if (phase === "drawn" && target === seat) return { type: "swap", slot };
-    if (phase === "peek_own" && target === seat)
-      return { type: "peek", target, slot };
-    if (phase === "peek_opp" && target !== seat)
-      return { type: "peek", target, slot };
+    const snap = legal.find(
+      (move) =>
+        move.type === "snap" && move.target === target && move.slot === slot,
+    );
+    if (snap) return snap;
+
+    const give = legal.find(
+      (move) =>
+        move.type === "snap_give" && target === seat && move.slot === slot,
+    );
+    if (give) return give;
+
+    const swap = legal.find(
+      (move) => move.type === "swap" && target === seat && move.slot === slot,
+    );
+    if (swap) return swap;
+
+    const peek = legal.find(
+      (move) =>
+        move.type === "peek" && move.target === target && move.slot === slot,
+    );
+    if (peek) return peek;
+
     if (phase === "blind_swap") {
-      if (picked == null) return target === seat ? "pick" : null;
-      if (target !== seat)
-        return {
-          type: "blind_swap",
-          slot: picked.slot,
-          target,
-          target_slot: slot,
-        };
-      return "pick";
+      const swaps = legal.filter((move) => move.type === "blind_swap");
+      if (target === seat && swaps.some((move) => move.slot === slot))
+        return "pick";
+      if (picked)
+        return (
+          swaps.find(
+            (move) =>
+              move.slot === picked.slot &&
+              move.target === target &&
+              move.target_slot === slot,
+          ) ?? null
+        );
     }
     if (phase === "king") {
-      if (!view.king_looked) return { type: "king_look", target, slot };
-      if (picked == null) return target === seat ? "pick" : null;
-      if (target !== seat)
-        return {
-          type: "king_swap",
-          slot: picked.slot,
-          target,
-          target_slot: slot,
-        };
-      return "pick";
+      const look = legal.find(
+        (move) =>
+          move.type === "king_look" &&
+          move.target === target &&
+          move.slot === slot,
+      );
+      if (look) return look;
+      const swaps = legal.filter((move) => move.type === "king_swap");
+      if (target === seat && swaps.some((move) => move.slot === slot))
+        return "pick";
+      if (picked)
+        return (
+          swaps.find(
+            (move) =>
+              move.slot === picked.slot &&
+              move.target === target &&
+              move.target_slot === slot,
+          ) ?? null
+        );
     }
     return null;
   }
@@ -382,106 +375,37 @@ export function CambioTable({
   /* --- the "moment": tone for rails/dim + a minimal prompt (only when a word
    * actually helps - plain draw/swap rely on the glowing targets) ----------- */
 
-  const moment: Moment = useMemo(() => {
-    if (phase === "round_end")
-      return { key: "end", tone: "neutral", hint: null };
-    if (phase === "opening")
-      return { key: "opening", tone: "neutral", hint: "Memorize your cards" };
-    if (phase === "power_reveal")
-      return {
-        key: `reveal-${view.move_seq}`,
-        tone: "power",
-        hint: "Remember this card",
-      };
-    if (snapOpen)
-      return {
-        key: `snap-${view.move_seq}`,
-        tone: "snap",
-        hint: `Snap the ${rankLabel(view.snap!.rank)}`,
-      };
-    if (phase === "snap_give")
-      return iMayGive
-        ? { key: `give-${view.move_seq}`, tone: "good", hint: "Give a card" }
-        : { key: `give2-${view.move_seq}`, tone: "neutral", hint: null };
-    if (!myTurn)
-      return { key: `opp-${view.turn}`, tone: "neutral", hint: null };
-    switch (phase) {
-      case "turn":
-        return {
-          key: `turn-${view.move_seq}`,
-          tone: "you",
-          hint: "Draw a card",
-        };
-      case "drawn":
-        return { key: `drawn-${view.move_seq}`, tone: "you", hint: null };
-      case "peek_own":
-        return {
-          key: `po-${view.move_seq}`,
-          tone: "power",
-          hint: "Peek one of yours",
-        };
-      case "peek_opp":
-        return {
-          key: `pp-${view.move_seq}`,
-          tone: "power",
-          hint: "Peek an opponent card",
-        };
-      case "blind_swap":
-        return picked
-          ? {
-              key: `bs1-${view.move_seq}-${picked.slot}`,
-              tone: "power",
-              hint: "Pick a card to swap with",
-            }
-          : {
-              key: `bs0-${view.move_seq}`,
-              tone: "power",
-              hint: "Blind swap - pick yours",
-            };
-      case "king":
-        if (!view.king_looked)
-          return {
-            key: `k0-${view.move_seq}`,
-            tone: "power",
-            hint: "Black King - look at a card",
-          };
-        return picked
-          ? {
-              key: `k2-${view.move_seq}-${picked.slot}`,
-              tone: "power",
-              hint: "Pick the card to take",
-            }
-          : {
-              key: `k1-${view.move_seq}`,
-              tone: "power",
-              hint: "Now pick one of yours to swap",
-            };
-      default:
-        return { key: `x-${view.move_seq}`, tone: "neutral", hint: null };
-    }
-  }, [phase, snapOpen, iMayGive, myTurn, picked, view]);
+  const moment = useMemo(
+    () =>
+      deriveMoment({
+        phase,
+        moveSeq: view.move_seq,
+        myTurn,
+        iMaySnap,
+        iMayGive,
+        snapRank: view.snap?.rank,
+        hasPrivateReveal: view.active_reveal?.card != null,
+        hasPickedCard: picked != null,
+        kingLooked: view.king_looked,
+      }),
+    [phase, iMayGive, iMaySnap, myTurn, picked, view],
+  );
 
-  // Whose turn it is drives dim/glow; during snap both can act, so nobody dims.
+  // Turn ownership drives the nameplate and rails. Cards remain fully visible;
+  // only server-authorized targets gain interaction styling.
   const normalTurn =
     !snapOpen &&
     !["opening", "power_reveal", "snap_give", "round_end"].includes(phase);
-  const targetingOpponent =
-    phase === "peek_opp" ||
-    ((phase === "blind_swap" || phase === "king") && picked !== null);
-  const railToMe = snapOpen ? true : view.turn === seat;
-  const targetingDraw = myTurn && phase === "turn";
+  const railToMe = iMaySnap || iMayGive ? true : view.turn === seat;
+  const opponentSwapIsTop =
+    opponentSwap !== null &&
+    view.discard_top !== null &&
+    opponentSwap.card.uid === view.discard_top.uid;
 
   /* --- draw / drawn / cambio ---------------------------------------------- */
 
-  const canDraw = myTurn && phase === "turn";
-  const canCallCambio = canDraw && view.cambio_caller == null;
-  const myDrawn = view.drawn && view.drawn.holder === seat ? view.drawn : null;
-  const canPlayDrawn = myTurn && phase === "drawn";
-
   function callCambio() {
     send({ type: "cambio" });
-    setMascot(true);
-    setTimeout(() => setMascot(false), 2600);
   }
 
   /* --- hand rendering (2×N grid + floating odd card) ---------------------- */
@@ -500,24 +424,26 @@ export function CambioTable({
       (phase === "blind_swap" || phase === "king");
     const openingFace =
       phase === "opening" && mine ? view.known[String(uid)] : null;
-    const powerFace =
+    const powerSelected =
       phase === "power_reveal" &&
       view.active_reveal?.target === playerSeat &&
-      view.active_reveal.slot === i
-        ? view.active_reveal.card
-        : null;
+      view.active_reveal.slot === i;
+    const powerFace = powerSelected ? (view.active_reveal?.card ?? null) : null;
+    const snapFace = revealSeq === view.move_seq ? reveal[uid] : null;
     const revealed =
       phase === "round_end"
         ? view.known[String(uid)]
-        : (openingFace ?? powerFace ?? reveal[uid] ?? null);
-    const openingCard = phase === "opening" && mine && openingFace != null;
+        : (openingFace ?? powerFace ?? snapFace ?? null);
+    const interactionClass = cardInteractionClass({
+      intent,
+    });
     return (
       <motion.div
         key={uid}
         layout
         layoutId={`card-${uid}`}
         transition={{ type: "spring", stiffness: 420, damping: 34 }}
-        className={`cb-slot ${intent ? `is-target is-${intent}` : "is-disabled"} ${isPicked ? "is-picked" : ""} ${openingCard ? "is-opening" : ""}`}
+        className={`cb-slot ${interactionClass} ${isPicked ? "is-picked" : ""} ${powerSelected ? "is-revealing" : ""}`}
         onClick={() => clickSlot(playerSeat, i)}
       >
         <PlayingCard
@@ -582,29 +508,23 @@ export function CambioTable({
         <ActionCountdown
           deadline={room.opening_deadline_ms}
           duration={Number(view.config.opening_peek_ms ?? 5000)}
-          label="Memorize"
+          label="Memorize cards"
           tone="peek"
         />
       ) : phase === "power_reveal" && room.power_reveal_deadline_ms ? (
         <ActionCountdown
           deadline={room.power_reveal_deadline_ms}
           duration={Number(view.config.power_reveal_ms ?? 2500)}
-          label="Peek"
+          label={view.active_reveal?.card ? "Remember card" : "Opponent peeking"}
           tone="peek"
         />
-      ) : snapOpen && snapDeadline ? (
+      ) : iMaySnap && snapDeadline ? (
         <ActionCountdown
           key={snapDeadline}
           deadline={snapDeadline}
           duration={room.snap_window_ms ?? 3000}
           label="Snap"
           tone="snap"
-        />
-      ) : revealCountdown ? (
-        <ActionCountdown
-          key={revealCountdown.deadline}
-          {...revealCountdown}
-          tone="peek"
         />
       ) : null}
 
@@ -631,28 +551,21 @@ export function CambioTable({
       )}
 
       <LayoutGroup>
-        <div className={`cb-felt ${targetingDraw ? "is-draw-step" : ""}`}>
+        <div className="cb-felt">
           {/* opponent(s) */}
           <div className="cb-zone cb-zone-opp">
             {opponents.map((p) => {
-              const holding = view.drawn && view.drawn.holder === p.seat;
               const connected = room.seats.find(
                 (s) => s.seat === p.seat,
               )?.connected;
               const isTurn = view.turn === p.seat;
               return (
-                <div
-                  key={p.seat}
-                  className={`cb-player ${normalTurn && !isTurn && !targetingOpponent ? "is-dim" : ""}`}
-                >
+                <div key={p.seat} className="cb-player">
                   <div
                     className={`cb-nameplate ${normalTurn && isTurn ? "is-active" : ""}`}
                   >
                     <span className={`cb-dot ${connected ? "" : "is-off"}`} />
                     {seatName(p.seat)} · {p.hand.length}
-                    {holding && (
-                      <span className="cb-hold-tag">drew a card</span>
-                    )}
                   </div>
                   {renderHand(p.seat, p.hand, false)}
                 </div>
@@ -662,23 +575,27 @@ export function CambioTable({
 
           {/* center: [drawn card]  ·  pile · discard  ·  [CAMBIO] - symmetric */}
           <div className="cb-zone cb-zone-center">
-            {/* left cell: the drawn card (tap a slot to swap) or a peeked card */}
+            {/* Every player uses this same held-card position. Only the holder
+                receives the face; opponents see the identical card back. */}
             <div className="cb-center-side is-left">
-              {myDrawn ? (
+              {heldDrawn ? (
                 <div className="cb-held">
                   <motion.div
-                    className="cb-held-card"
-                    layout
-                    layoutId={
-                      myDrawn.card ? `card-${myDrawn.card.uid}` : "held-back"
+                    className={`cb-held-card ${heldByMe ? "is-mine" : "is-opponent"}`}
+                    aria-label={
+                      heldByMe
+                        ? "Your drawn card"
+                        : `${seatName(heldDrawn.holder)} drew a face-down card`
                     }
+                    layout
+                    layoutId={`card-${heldDrawn.uid}`}
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ type: "spring", stiffness: 380, damping: 30 }}
                   >
                     <PlayingCard
-                      face={myDrawn.card ?? null}
-                      up={myDrawn.card != null}
+                      face={heldByMe ? (heldDrawn.card ?? null) : null}
+                      up={heldByMe && heldDrawn.card != null}
                       skinArt={skin === "art"}
                     />
                   </motion.div>
@@ -697,7 +614,7 @@ export function CambioTable({
             <div className="cb-piles">
               <div className="cb-pile">
                 <div
-                  className={`cb-draw ${canDraw && view.stock_count > 0 ? "is-target" : "is-disabled"}`}
+                  className={`cb-draw ${canDraw && view.stock_count > 0 ? "is-target" : "is-neutral"}`}
                   onClick={() =>
                     canDraw &&
                     view.stock_count > 0 &&
@@ -716,14 +633,33 @@ export function CambioTable({
               <div className="cb-pile">
                 <div
                   className={`cb-draw ${
-                    canPlayDrawn ? "is-drop" : "is-disabled"
+                    canPlayDrawn ? "is-drop" : "is-neutral"
                   }`}
                   onClick={() => {
                     if (canPlayDrawn) send({ type: "play" });
                   }}
                   title={canPlayDrawn ? "Play the drawn card" : undefined}
                 >
-                  {view.discard_top ? (
+                  {opponentSwapIsTop ? (
+                    <div className="cb-discard-stage">
+                      {opponentSwap.previous ? (
+                        <PlayingCard
+                          face={opponentSwap.previous}
+                          up
+                          skinArt={skin === "art"}
+                        />
+                      ) : (
+                        <div className="cb-discard-space" aria-hidden>
+                          <PlayingCard face={null} up={false} />
+                        </div>
+                      )}
+                      <OpponentDiscardLanding
+                        key={opponentSwap.key}
+                        card={opponentSwap.card}
+                        skinArt={skin === "art"}
+                      />
+                    </div>
+                  ) : view.discard_top ? (
                     <DiscardTop
                       key={view.discard_top.uid}
                       face={view.discard_top}
@@ -752,15 +688,7 @@ export function CambioTable({
 
           {/* me */}
           <div className="cb-zone cb-zone-me">
-            <div
-              className={`cb-player ${
-                (normalTurn && view.turn !== seat) ||
-                targetingOpponent ||
-                targetingDraw
-                  ? "is-dim"
-                  : ""
-              }`}
-            >
+            <div className="cb-player">
               {renderHand(seat, me.hand, true)}
               <div
                 className={`cb-nameplate ${normalTurn && view.turn === seat ? "is-active is-you" : ""}`}
@@ -822,54 +750,7 @@ export function CambioTable({
         )}
       </AnimatePresence>
 
-      {/* Italian mascot on Cambio call */}
-      <AnimatePresence>
-        {mascot && <Mascot onClick={() => setMascot(false)} />}
-      </AnimatePresence>
-
       {error && <div className="cb-toast">{error}</div>}
-
-      <AnimatePresence>
-        {opponentDraw && (
-          <motion.div
-            key={opponentDraw.key}
-            className="cb-opponent-draw"
-            aria-label={`${seatName(opponentDraw.seat)} drew a face-down card`}
-            initial={{
-              opacity: 0,
-              x: "-58%",
-              y: "4vh",
-              scale: 0.82,
-              rotate: -5,
-            }}
-            animate={{
-              opacity: [0, 1, 1, 0],
-              x: ["-58%", "-50%", "-50%", "-50%"],
-              y: ["4vh", "-10vh", "-27vh", "-31vh"],
-              scale: [0.82, 1, 0.92, 0.84],
-              rotate: [-5, 2, -2, 0],
-            }}
-            exit={{ opacity: 0 }}
-            transition={{
-              duration: 0.9,
-              times: [0, 0.24, 0.78, 1],
-              ease: "easeInOut",
-            }}
-          >
-            <PlayingCard face={null} up={false} skinArt={skin === "art"} />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {opponentSwap && (
-          <OpponentSwapAnimation
-            key={opponentSwap.key}
-            card={opponentSwap.card}
-            skinArt={skin === "art"}
-          />
-        )}
-      </AnimatePresence>
 
       {/* round end */}
       {phase === "round_end" && view.scores && (

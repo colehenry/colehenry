@@ -175,7 +175,8 @@ def test_peek_own_78():
     assert target_uid in s.knowledge[0]
     assert s.phase == E.POWER_REVEAL
     assert view_for(s, 0)["active_reveal"]["card"]["uid"] == target_uid
-    assert view_for(s, 1)["active_reveal"] is None
+    observer_reveal = view_for(s, 1)["active_reveal"]
+    assert observer_reveal == {"target": 0, "slot": 0}
     assert legal_moves(s, 0) == [] and legal_moves(s, 1) == []
     reduce(s, E.SERVER_SEAT, {"type": "close_power_reveal"})
     close_snap(s)
@@ -283,6 +284,21 @@ def test_snap_own_correct_sheds_card():
     close_snap(s)
 
 
+def test_multiple_correct_snaps_are_allowed_in_one_window():
+    s = snap_setup("4")
+    put(s, 1, 0, "4", "C")
+    put(s, 1, 1, "4", "S")
+
+    reduce(s, 1, {"type": "snap", "target": 1, "slot": 0})
+    assert any(move["type"] == "snap" for move in legal_moves(s, 1))
+
+    # The second matching card shifted into slot 0 after the first was shed.
+    reduce(s, 1, {"type": "snap", "target": 1, "slot": 0})
+    assert len(s.players[1]) == 2
+    assert [card.rank for card in s.discard[-2:]] == ["4", "4"]
+    assert 1 not in s.snap.attempted
+
+
 def test_snap_wrong_draws_penalty_and_publicizes():
     s = snap_setup("4")
     put(s, 1, 0, "9", "C")
@@ -291,7 +307,7 @@ def test_snap_wrong_draws_penalty_and_publicizes():
     assert len(s.players[1]) == 5  # kept + penalty
     # The flip revealed the card to everyone.
     assert uid in s.knowledge[0] and uid in s.knowledge[1]
-    # One attempt per window.
+    # A wrong snap blocks further attempts for this player in the window.
     with pytest.raises(IllegalMove):
         reduce(s, 1, {"type": "snap", "target": 1, "slot": 1})
 
@@ -463,8 +479,11 @@ def test_view_masks_drawn_card():
     s = make_state()
     reduce(s, 0, {"type": "draw_stock"})
     v0, v1 = view_for(s, 0), view_for(s, 1)
+    assert v0["drawn"]["uid"] == v1["drawn"]["uid"] == s.drawn.uid
     assert "card" in v0["drawn"]
     assert "card" not in v1["drawn"]
+    assert v0["legal_moves"] == legal_moves(s, 0)
+    assert v1["legal_moves"] == []
 
 
 def test_round_end_reveals_everything():

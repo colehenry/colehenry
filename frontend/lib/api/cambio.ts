@@ -107,14 +107,14 @@ export type GameView = {
   stock_count: number;
   discard_count: number;
   discard_top: CardFace | null;
-  drawn: { holder: number; card?: CardFace } | null;
+  drawn: { holder: number; uid: number; card?: CardFace } | null;
   players: { seat: number; hand: HandSlot[] }[];
   known: Record<string, CardFace>;
   king_looked: boolean;
   active_reveal: {
     target: number;
     slot: number;
-    card: CardFace;
+    card?: CardFace;
   } | null;
   snap: {
     rank: string;
@@ -130,6 +130,7 @@ export type GameView = {
   events: GameEvent[];
   belief: Belief;
   hand_estimate: number;
+  legal_moves: Move[];
 };
 
 export type RoomInfo = {

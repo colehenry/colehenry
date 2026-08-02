@@ -87,6 +87,8 @@ def power_of(card: Card) -> str | None:
 @dataclass
 class SnapContext:
     rank: str  # rank to match (top of discard when the window opened)
+    # A seat is blocked only after a wrong snap. Correct snaps may continue so
+    # a player can shed every matching card they remember in the same window.
     attempted: set[int] = field(default_factory=set)
     # SNAP_GIVE bookkeeping: seat that snapped correctly / seat that receives.
     giver: int | None = None
@@ -510,7 +512,6 @@ def _apply_snap(state: GameState, seat: int, move: dict) -> None:
     target, slot = move.get("target"), move.get("slot")
     if not isinstance(target, int) or not isinstance(slot, int) or not _slot_ok(state, target, slot):
         raise IllegalMove("bad snap target")
-    state.snap.attempted.add(seat)
     card = state.players[target][slot]
     _publicize(state, card)  # flipped for everyone before resolving
     correct = card.rank == state.snap.rank
@@ -537,6 +538,7 @@ def _apply_snap(state: GameState, seat: int, move: dict) -> None:
             state.snap.receiver = target
             state.phase = SNAP_GIVE
     else:
+        state.snap.attempted.add(seat)
         penalty = _draw_from_stock(state)
         if penalty is not None:
             state.players[seat].append(penalty)
@@ -722,7 +724,9 @@ def view_for(state: GameState, seat: int) -> dict:
 
     drawn = None
     if state.drawn is not None:
-        drawn = {"holder": state.turn}
+        # The opaque uid lets every client animate the same physical card from
+        # stock -> held area -> hand/discard without exposing its face.
+        drawn = {"holder": state.turn, "uid": state.drawn.uid}
         if seat == state.turn:
             drawn["card"] = state.drawn.pub()
 
@@ -746,12 +750,17 @@ def view_for(state: GameState, seat: int) -> dict:
             {
                 "target": state.power_reveal.target,
                 "slot": state.power_reveal.slot,
-                "card": state.players[state.power_reveal.target][
-                    state.power_reveal.slot
-                ].pub(),
+                **(
+                    {
+                        "card": state.players[state.power_reveal.target][
+                            state.power_reveal.slot
+                        ].pub()
+                    }
+                    if state.power_reveal.viewer == seat
+                    else {}
+                ),
             }
             if state.power_reveal is not None
-            and state.power_reveal.viewer == seat
             else None
         ),
         "snap": (
@@ -774,4 +783,5 @@ def view_for(state: GameState, seat: int) -> dict:
             for e in state.events
             if _event_visible(e, seat)
         ],
+        "legal_moves": legal_moves(state, seat),
     }
