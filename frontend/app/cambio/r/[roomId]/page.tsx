@@ -10,8 +10,8 @@ import { useSkin } from "@/components/cambio/use-skin";
 import { useScene } from "@/components/cambio/use-scene";
 import "@/components/cambio/table.css";
 
-/** The table (guest entry point). No OAuth: the room token in the URL gates
- * access, a nickname is the only identity a guest needs. */
+/** The table (guest entry point). Human invitees use a nickname; bot games use
+ * an automatic local identity and proceed directly to the Ready gate. */
 export default function CambioRoomPage({
   params,
 }: {
@@ -20,6 +20,7 @@ export default function CambioRoomPage({
   const { roomId } = use(params);
   const search = useSearchParams();
   const token = search.get("t") ?? "";
+  const isBotGame = search.get("mode") === "vs_bot";
   const skin = useSkin();
   const scene = useScene();
 
@@ -35,7 +36,7 @@ export default function CambioRoomPage({
     () => null,
   );
   const [submitted, setSubmitted] = useState<string | null>(null);
-  const name = submitted ?? storedIdentity;
+  const name = isBotGame ? "Player" : (submitted ?? storedIdentity);
   const [draft, setDraft] = useState("");
 
   const {
@@ -75,7 +76,7 @@ export default function CambioRoomPage({
     <div data-section="cambio" className={`cb-game cb-scene-${scene}`}>
       <SceneBackdrop scene={scene} />
       <div className="cb-gate">
-        {name === null ? (
+        {!isBotGame && name === null ? (
           <div className="cb-card">
             <h3>Join Cambio - Room #{roomId}</h3>
             <form
@@ -103,25 +104,25 @@ export default function CambioRoomPage({
           </div>
         ) : (
           <div className="cb-card">
-            <h3>Cambio - Room #{roomId}</h3>
+            <h3>{isBotGame ? "Play the bot" : `Cambio - Room #${roomId}`}</h3>
             {status === "waiting" && (
               <>
-                <div className="cb-ready-list">
-                  {room?.seats.map((player) => (
-                    <div key={player.seat}>
-                      <span>{player.seat === seat ? "You" : player.name || "Opponent"}</span>
-                      <strong>
-                        {player.kind === "bot"
-                          ? "ready"
-                          : player.ready
+                {!isBotGame && (
+                  <div className="cb-ready-list">
+                    {room?.seats.map((player) => (
+                      <div key={player.seat}>
+                        <span>{player.seat === seat ? "You" : player.name || "Opponent"}</span>
+                        <strong>
+                          {player.ready
                             ? "ready"
                             : player.connected
                               ? "not ready"
                               : "joining"}
-                      </strong>
-                    </div>
-                  ))}
-                </div>
+                        </strong>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <button
                   className="cb-primary cb-ready-button"
                   type="button"
@@ -129,24 +130,30 @@ export default function CambioRoomPage({
                   disabled={room?.seats.find((player) => player.seat === seat)?.ready}
                 >
                   {room?.seats.find((player) => player.seat === seat)?.ready
-                    ? "Ready - waiting"
+                    ? isBotGame
+                      ? "Starting…"
+                      : "Ready - waiting"
                     : "Ready"}
                 </button>
-                <div className="cb-card-sub">Invite link</div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <input
-                    readOnly
-                    className="cb-input"
-                    value={inviteUrl}
-                    onFocus={(e) => e.target.select()}
-                  />
-                  <button
-                    className="cb-primary"
-                    onClick={() => navigator.clipboard.writeText(inviteUrl)}
-                  >
-                    Copy
-                  </button>
-                </div>
+                {!isBotGame && (
+                  <>
+                    <div className="cb-card-sub">Invite link</div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <input
+                        readOnly
+                        className="cb-input"
+                        value={inviteUrl}
+                        onFocus={(e) => e.target.select()}
+                      />
+                      <button
+                        className="cb-primary"
+                        onClick={() => navigator.clipboard.writeText(inviteUrl)}
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </>
+                )}
               </>
             )}
             {status === "connecting" && <p>Connecting…</p>}

@@ -968,6 +968,39 @@
   font-weight: 900;
   text-transform: uppercase;
 }
+
+/* Scene-costumed mascot accompanies every authoritative Cambio call. */
+.cb-mascot {
+  position: absolute;
+  right: 20px;
+  bottom: 12px;
+  z-index: 59;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+  filter: drop-shadow(0 8px 7px rgb(0 0 0 / 0.3));
+}
+.cb-mascot-bubble {
+  margin-bottom: -3px;
+  padding: 6px 14px;
+  border: 2px solid #27211d;
+  border-radius: 14px 14px 3px 14px;
+  background: #fff9dc;
+  color: #c8342b;
+  font-family: var(--cb-deck-font);
+  font-size: 18px;
+  font-weight: 900;
+  box-shadow: 0 3px 0 rgb(39 33 29 / 0.35);
+}
+.cb-mascot.is-cafe .cb-mascot-bubble {
+  background: #f5e3c2;
+  color: #71472f;
+}
+.cb-mascot.is-tavern .cb-mascot-bubble {
+  background: #f1d56b;
+  color: #6e234f;
+}
 .cb-game.is-cambio-hit .cb-felt {
   animation: cb-table-wham 0.58s cubic-bezier(0.2, 0.8, 0.3, 1);
 }
@@ -1011,6 +1044,19 @@
   }
   .cb-cambio-impact::before {
     inset: -30px -38px;
+  }
+  .cb-mascot {
+    right: 4px;
+    bottom: 2px;
+    transform-origin: bottom right;
+  }
+  .cb-mascot svg {
+    width: 96px;
+    height: 110px;
+  }
+  .cb-mascot-bubble {
+    padding: 4px 10px;
+    font-size: 14px;
   }
 }
 

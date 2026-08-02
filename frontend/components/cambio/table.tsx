@@ -11,6 +11,7 @@ import type {
   RoomInfo,
 } from "@/lib/api/cambio";
 import { PlayingCard } from "./card";
+import { Mascot } from "./mascot";
 import { SceneBackdrop } from "./scene-backdrop";
 import type { Skin } from "./skins";
 import type { Scene } from "./scenes";
@@ -746,11 +747,15 @@ export function CambioTable({
             <strong>CAMBIO!</strong>
             <span>
               {cambioImpact.seat === seat
-                ? "Final turns!"
+                ? "Last turn!"
                 : "Your last turn!"}
             </span>
           </motion.div>
         )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {cambioImpact && <Mascot key={cambioImpact.key} scene={scene} />}
       </AnimatePresence>
 
       {error && <div className="cb-toast">{error}</div>}

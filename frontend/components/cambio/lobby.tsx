@@ -54,7 +54,9 @@ export function CambioLobby() {
     setCreating(mode);
     try {
       const room = await createRoom(mode);
-      router.push(room.join_path);
+      router.push(
+        mode === "vs_bot" ? `${room.join_path}&mode=vs_bot` : room.join_path,
+      );
     } finally {
       setCreating(null);
     }

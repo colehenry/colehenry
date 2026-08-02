@@ -18,6 +18,7 @@ const backdrop = readSource("components/cambio/scene-backdrop.tsx");
 const scenes = readSource("components/cambio/scenes.ts");
 const header = readSource("components/shell/header.tsx");
 const lobby = readSource("components/cambio/lobby.tsx");
+const roomPage = readSource("app/cambio/r/[roomId]/page.tsx");
 const api = readSource("lib/api/cambio.ts");
 const proxy = readSource("proxy.ts");
 const sections = readSource("lib/sections.ts");
@@ -194,8 +195,13 @@ test("mobile piles stay centered and Cambio floats independently", () => {
 test("Cambio calls create a slapstick impact and last-turn warning", () => {
   assert.match(table, /e\.type === "cambio_called"/);
   assert.match(table, /className="cb-cambio-impact"/);
+  assert.match(table, /<Mascot key=\{cambioImpact\.key\} scene=\{scene\} \/>/);
+  assert.match(table, /"Last turn!"/);
   assert.match(table, /"Your last turn!"/);
+  assert.doesNotMatch(table, /Final turns!/);
   assert.match(styles, /@keyframes cb-table-wham/);
+  assert.match(styles, /\.cb-mascot\.is-cafe \.cb-mascot-bubble/);
+  assert.match(styles, /\.cb-mascot\.is-tavern \.cb-mascot-bubble/);
   assert.match(
     styles,
     /\.cb-cambio-impact strong \{[\s\S]*?-webkit-text-stroke: 3px #27211d/,
@@ -264,4 +270,16 @@ test("Cambio lobby is hidden until an authorized host signs in", () => {
   assert.match(proxy, /"\/cambio"/);
   assert.doesNotMatch(proxy, /"\/cambio\/:path\*"/);
   assert.match(lobby, /!isLoadingHost && !host\) router\.replace\("\/login"\)/);
+});
+
+test("bot games skip identity and invite UI but still wait for Ready", () => {
+  assert.match(
+    lobby,
+    /mode === "vs_bot" \? `\$\{room\.join_path\}&mode=vs_bot`/,
+  );
+  assert.match(roomPage, /const isBotGame = search\.get\("mode"\) === "vs_bot"/);
+  assert.match(roomPage, /const name = isBotGame \? "Player"/);
+  assert.match(roomPage, /!isBotGame && name === null/);
+  assert.match(roomPage, /!isBotGame && \([\s\S]*?Invite link/);
+  assert.match(roomPage, /\? isBotGame\s*\? "Starting…"/);
 });
