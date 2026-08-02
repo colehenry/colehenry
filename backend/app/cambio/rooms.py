@@ -80,6 +80,10 @@ class Room:
         self.touched_at = self.created_at
         self.lock = asyncio.Lock()
         self.game_row_id: int | None = None  # set by the recorder
+        self._opening_task: asyncio.Task | None = None
+        self._opening_deadline: float | None = None
+        self._power_reveal_task: asyncio.Task | None = None
+        self._power_reveal_deadline: float | None = None
         self._snap_task: asyncio.Task | None = None
         self._bot_task: asyncio.Task | None = None
         self._bot_rng = random.Random()
@@ -113,6 +117,7 @@ class Room:
                 seat.ready = False
         self.round_no += 1
         self.state = new_round(self.config, seed=None)
+        self._opening_deadline = time.time() + self.config.opening_peek_ms / 1000
         await self.recorder(self, "start", {"round_no": self.round_no})
         await self.broadcast()
         # Events are transient animation/reveal messages. Once every connected
@@ -139,7 +144,21 @@ class Room:
         async with self.lock:
             if self.state is None:
                 raise IllegalMove("round not started")
+            was_opening = self.state.phase == E.OPENING
+            was_power_reveal = self.state.phase == E.POWER_REVEAL
             reduce(self.state, seat, move)
+            is_opening = self.state.phase == E.OPENING
+            is_power_reveal = self.state.phase == E.POWER_REVEAL
+            if is_opening and not was_opening:
+                self._opening_deadline = time.time() + self.config.opening_peek_ms / 1000
+            elif not is_opening:
+                self._opening_deadline = None
+            if is_power_reveal and not was_power_reveal:
+                self._power_reveal_deadline = (
+                    time.time() + self.config.power_reveal_ms / 1000
+                )
+            elif not is_power_reveal:
+                self._power_reveal_deadline = None
             self.touched_at = time.time()
             snap_correct = next(
                 (
@@ -202,6 +221,20 @@ class Room:
                 "round_no": self.round_no,
                 "seats": self.seat_names(),
                 "snap_window_ms": self.config.snap_window_ms,
+                "opening_deadline_ms": (
+                    round(self._opening_deadline * 1000)
+                    if self.state is not None
+                    and self.state.phase == E.OPENING
+                    and self._opening_deadline is not None
+                    else None
+                ),
+                "power_reveal_deadline_ms": (
+                    round(self._power_reveal_deadline * 1000)
+                    if self.state is not None
+                    and self.state.phase == E.POWER_REVEAL
+                    and self._power_reveal_deadline is not None
+                    else None
+                ),
             },
             "view": view,
         }
@@ -238,9 +271,53 @@ class Room:
         state = self.state
         if state is None or state.phase == E.ROUND_END:
             return
-        if state.phase == E.SNAP:
+        if state.phase == E.OPENING:
+            self._arm_opening_timer()
+            return
+        if state.phase == E.POWER_REVEAL:
+            self._arm_power_reveal_timer()
+            return
+        if state.snap is not None:
             self._arm_snap_timer()
         self._arm_bot()
+
+    def _arm_opening_timer(self) -> None:
+        if self._opening_task is not None and not self._opening_task.done():
+            return
+
+        async def close_later() -> None:
+            deadline = self._opening_deadline
+            if deadline is None:
+                return
+            await asyncio.sleep(max(0, deadline - time.time()))
+            state = self.state
+            if state is None or state.phase != E.OPENING:
+                return
+            try:
+                await self.apply(E.SERVER_SEAT, {"type": "close_opening"})
+            except IllegalMove:
+                pass
+
+        self._opening_task = asyncio.create_task(close_later())
+
+    def _arm_power_reveal_timer(self) -> None:
+        if self._power_reveal_task is not None and not self._power_reveal_task.done():
+            return
+
+        async def close_later() -> None:
+            deadline = self._power_reveal_deadline
+            if deadline is None:
+                return
+            await asyncio.sleep(max(0, deadline - time.time()))
+            state = self.state
+            if state is None or state.phase != E.POWER_REVEAL:
+                return
+            try:
+                await self.apply(E.SERVER_SEAT, {"type": "close_power_reveal"})
+            except IllegalMove:
+                pass
+
+        self._power_reveal_task = asyncio.create_task(close_later())
 
     def _arm_snap_timer(self) -> None:
         if self._snap_task is not None and not self._snap_task.done():
@@ -252,9 +329,7 @@ class Room:
                 state = self.state
                 if state is None:
                     return
-                if state.phase == E.SNAP:
-                    # New attempts moved the seq forward — give the window a
-                    # short grace so chains can resolve, then close.
+                if state.snap is not None and state.phase != E.SNAP_GIVE:
                     try:
                         await self.apply(E.SERVER_SEAT, {"type": "close_snap"})
                     except IllegalMove:
@@ -300,10 +375,10 @@ class Room:
 
 
 def _bot_may_act(state: GameState, seat: int) -> bool:
-    if state.phase == E.SNAP:
-        return seat not in state.snap.attempted
     if state.phase == E.SNAP_GIVE:
         return state.snap is not None and state.snap.giver == seat
+    if state.snap is not None and seat not in state.snap.attempted:
+        return True
     return state.turn == seat
 
 

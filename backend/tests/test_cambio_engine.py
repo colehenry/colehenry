@@ -22,8 +22,11 @@ from app.cambio.engine import (
 )
 
 
-def make_state(seed=1, **cfg):
-    return new_round(CambioConfig(**cfg), seed=seed)
+def make_state(seed=1, opening=False, **cfg):
+    state = new_round(CambioConfig(**cfg), seed=seed)
+    if not opening:
+        reduce(state, E.SERVER_SEAT, {"type": "close_opening"})
+    return state
 
 
 def put(state, seat, slot, rank, suit):
@@ -38,7 +41,7 @@ def stack(state, rank, suit, uid=900):
 
 
 def close_snap(state):
-    if state.phase == E.SNAP:
+    if state.snap is not None:
         reduce(state, E.SERVER_SEAT, {"type": "close_snap"})
 
 
@@ -74,11 +77,12 @@ def test_powers():
 
 
 def test_deal_shape_and_opening_peek():
-    s = make_state()
+    s = make_state(opening=True)
+    assert s.phase == E.OPENING
     assert len(s.players) == 2
     assert all(len(h) == 4 for h in s.players)
-    assert len(s.discard) == 1
-    assert len(s.stock) == 54 - 8 - 1
+    assert s.discard == []
+    assert len(s.stock) == 54 - 8
     # Bottom two of your own hand are known; opponent's are not.
     for seat in (0, 1):
         hand = s.players[seat]
@@ -90,6 +94,11 @@ def test_deal_shape_and_opening_peek():
     peeks = [e for e in s.events if e["type"] == "opening_peek"]
     assert len(peeks) == 2
     assert peeks[0]["to"] == [0]
+    assert legal_moves(s, 0) == []
+    with pytest.raises(IllegalMove):
+        reduce(s, 0, {"type": "draw_stock"})
+    reduce(s, E.SERVER_SEAT, {"type": "close_opening"})
+    assert s.phase == E.TURN
 
 
 def test_uid_does_not_encode_face():
@@ -114,7 +123,8 @@ def test_draw_stock_swap_discards_replaced_card():
     reduce(s, 0, {"type": "swap", "slot": 0})
     assert s.players[0][0].rank == "5"
     assert s.discard[-1].rank == "Q"
-    assert s.phase == E.SNAP  # replaced card hit the discard
+    assert s.phase == E.TURN and s.turn == 1
+    assert s.snap is not None and s.snap.rank == "Q"
     close_snap(s)
     assert s.turn == 1 and s.phase == E.TURN
 
@@ -124,7 +134,7 @@ def test_swap_never_triggers_power():
     stack(s, "K", "S")  # black king drawn but swapped in, not played
     reduce(s, 0, {"type": "draw_stock"})
     reduce(s, 0, {"type": "swap", "slot": 1})
-    assert s.phase == E.SNAP  # straight to snap window, no KING phase
+    assert s.phase == E.TURN and s.snap is not None  # no KING phase
     close_snap(s)
     assert s.turn == 1
 
@@ -139,15 +149,12 @@ def test_play_nonpower_card_ends_turn():
     assert s.turn == 1
 
 
-def test_drawing_from_discard_cannot_be_played_back():
+def test_discard_is_never_a_draw_source():
     s = make_state()
     s.discard.append(Card(901, "9", "H"))
-    reduce(s, 0, {"type": "draw_discard"})
-    assert s.drawn.rank == "9"
+    assert not any(m["type"] == "draw_discard" for m in legal_moves(s, 0))
     with pytest.raises(IllegalMove):
-        reduce(s, 0, {"type": "play"})
-    reduce(s, 0, {"type": "swap", "slot": 2})
-    assert s.players[0][2].rank == "9"
+        reduce(s, 0, {"type": "draw_discard"})
 
 
 # --- powers -----------------------------------------------------------------
@@ -159,10 +166,19 @@ def test_peek_own_78():
     reduce(s, 0, {"type": "draw_stock"})
     reduce(s, 0, {"type": "play"})
     assert s.phase == E.PEEK_OWN
+    assert all(move["type"] != "skip_power" for move in legal_moves(s, 0))
+    with pytest.raises(IllegalMove):
+        reduce(s, 0, {"type": "skip_power"})
     target_uid = s.players[0][0].uid
     assert target_uid not in s.knowledge[0]
     reduce(s, 0, {"type": "peek", "target": 0, "slot": 0})
     assert target_uid in s.knowledge[0]
+    assert s.phase == E.POWER_REVEAL
+    assert view_for(s, 0)["active_reveal"]["card"]["uid"] == target_uid
+    observer_reveal = view_for(s, 1)["active_reveal"]
+    assert observer_reveal == {"target": 0, "slot": 0}
+    assert legal_moves(s, 0) == [] and legal_moves(s, 1) == []
+    reduce(s, E.SERVER_SEAT, {"type": "close_power_reveal"})
     close_snap(s)
     assert s.turn == 1
 
@@ -180,6 +196,8 @@ def test_peek_opp_910_rejects_own_card():
     assert uid in s.knowledge[0]
     # The peeked player does NOT learn their own card from your peek.
     assert uid not in s.knowledge[1]
+    assert s.phase == E.POWER_REVEAL
+    reduce(s, E.SERVER_SEAT, {"type": "close_power_reveal"})
 
 
 def test_blind_swap_moves_cards_and_knowledge_follows_uid():
@@ -190,6 +208,9 @@ def test_blind_swap_moves_cards_and_knowledge_follows_uid():
     reduce(s, 0, {"type": "draw_stock"})
     reduce(s, 0, {"type": "play"})
     assert s.phase == E.BLIND_SWAP
+    assert all(move["type"] != "skip_power" for move in legal_moves(s, 0))
+    with pytest.raises(IllegalMove):
+        reduce(s, 0, {"type": "skip_power"})
     reduce(s, 0, {"type": "blind_swap", "slot": 2, "target": 1, "target_slot": 0})
     assert s.players[1][0].uid == my_known.uid
     assert s.players[0][2].uid == their.uid
@@ -208,7 +229,11 @@ def test_black_king_look_then_swap():
     uid = s.players[1][1].uid
     reduce(s, 0, {"type": "king_look", "target": 1, "slot": 1})
     assert uid in s.knowledge[0]
-    assert s.phase == E.KING  # still may swap
+    assert s.phase == E.POWER_REVEAL
+    with pytest.raises(IllegalMove):
+        reduce(s, 0, {"type": "king_swap", "slot": 0, "target": 1, "target_slot": 1})
+    reduce(s, E.SERVER_SEAT, {"type": "close_power_reveal"})
+    assert s.phase == E.KING  # reveal closed; now must swap
     with pytest.raises(IllegalMove):
         reduce(s, 0, {"type": "king_look", "target": 1, "slot": 2})  # only one look
     reduce(s, 0, {"type": "king_swap", "slot": 0, "target": 1, "target_slot": 1})
@@ -217,13 +242,20 @@ def test_black_king_look_then_swap():
     assert s.turn == 1
 
 
-def test_king_skip():
+def test_black_king_requires_look_then_swap():
     s = make_state()
     stack(s, "K", "S")
     reduce(s, 0, {"type": "draw_stock"})
     reduce(s, 0, {"type": "play"})
-    reduce(s, 0, {"type": "skip_power"})
-    close_snap(s)
+    with pytest.raises(IllegalMove):
+        reduce(s, 0, {"type": "skip_power"})
+    with pytest.raises(IllegalMove):
+        reduce(s, 0, {"type": "king_swap", "slot": 0, "target": 1, "target_slot": 0})
+    reduce(s, 0, {"type": "king_look", "target": 1, "slot": 0})
+    reduce(s, E.SERVER_SEAT, {"type": "close_power_reveal"})
+    moves = legal_moves(s, 0)
+    assert moves and all(m["type"] == "king_swap" for m in moves)
+    reduce(s, 0, {"type": "king_swap", "slot": 0, "target": 1, "target_slot": 0})
     assert s.turn == 1
 
 
@@ -236,7 +268,8 @@ def snap_setup(rank="4"):
     stack(s, rank, "H", uid=902)
     reduce(s, 0, {"type": "draw_stock"})
     reduce(s, 0, {"type": "play"})
-    assert s.phase == E.SNAP
+    assert s.phase == E.TURN and s.turn == 1
+    assert s.snap is not None
     assert s.snap.rank == rank
     return s
 
@@ -247,8 +280,23 @@ def test_snap_own_correct_sheds_card():
     reduce(s, 1, {"type": "snap", "target": 1, "slot": 0})
     assert len(s.players[1]) == 3
     assert s.discard[-1].rank == "4"
-    assert s.phase == E.SNAP  # window stays open
+    assert s.phase == E.TURN and s.snap is not None  # overlay stays open
     close_snap(s)
+
+
+def test_multiple_correct_snaps_are_allowed_in_one_window():
+    s = snap_setup("4")
+    put(s, 1, 0, "4", "C")
+    put(s, 1, 1, "4", "S")
+
+    reduce(s, 1, {"type": "snap", "target": 1, "slot": 0})
+    assert any(move["type"] == "snap" for move in legal_moves(s, 1))
+
+    # The second matching card shifted into slot 0 after the first was shed.
+    reduce(s, 1, {"type": "snap", "target": 1, "slot": 0})
+    assert len(s.players[1]) == 2
+    assert [card.rank for card in s.discard[-2:]] == ["4", "4"]
+    assert 1 not in s.snap.attempted
 
 
 def test_snap_wrong_draws_penalty_and_publicizes():
@@ -259,9 +307,31 @@ def test_snap_wrong_draws_penalty_and_publicizes():
     assert len(s.players[1]) == 5  # kept + penalty
     # The flip revealed the card to everyone.
     assert uid in s.knowledge[0] and uid in s.knowledge[1]
-    # One attempt per window.
+    # A wrong snap blocks further attempts for this player in the window.
     with pytest.raises(IllegalMove):
         reduce(s, 1, {"type": "snap", "target": 1, "slot": 1})
+
+
+def test_snap_overlay_does_not_block_the_next_turn():
+    s = snap_setup("4")
+    moves = legal_moves(s, 1)
+    assert any(m["type"] == "draw_stock" for m in moves)
+    assert any(m["type"] == "snap" for m in moves)
+
+    reduce(s, 1, {"type": "draw_stock"})
+    assert s.phase == E.DRAWN
+    assert s.snap is None
+
+
+def test_empty_hand_wins_immediately():
+    s = snap_setup("4")
+    s.players[1] = s.players[1][:1]
+    put(s, 1, 0, "4", "C")
+    reduce(s, 1, {"type": "snap", "target": 1, "slot": 0})
+    assert s.players[1] == []
+    assert s.phase == E.ROUND_END
+    assert s.winners == [1]
+    assert any(e["type"] == "round_end" and e["reason"] == "empty_hand" for e in s.events)
 
 
 def test_snap_opponent_correct_offloads():
@@ -275,9 +345,20 @@ def test_snap_opponent_correct_offloads():
     assert len(s.players[1]) == 3
     assert len(s.players[0]) == 4  # got the offload
     assert s.players[0][-1].uid == give_uid
-    assert s.phase == E.SNAP
+    assert s.phase == E.TURN and s.snap is not None
     close_snap(s)
     assert s.turn == 1
+
+
+def test_offloading_last_card_wins_immediately():
+    s = snap_setup("4")
+    put(s, 0, 1, "4", "S")
+    s.players[1] = s.players[1][:1]
+    reduce(s, 1, {"type": "snap", "target": 0, "slot": 1})
+    assert s.phase == E.SNAP_GIVE
+    reduce(s, 1, {"type": "snap_give", "slot": 0})
+    assert s.players[1] == []
+    assert s.phase == E.ROUND_END and s.winners == [1]
 
 
 def test_snap_opponent_wrong_snapper_pays():
@@ -343,14 +424,29 @@ def test_caller_penalty_knob():
     assert s.winners == [1]
 
 
-def test_tie_is_shared_win():
+def test_tie_redeals_one_card_each_for_sudden_death():
     s = make_state()
     for seat in (0, 1):
         for i, (r, su) in enumerate([("A", "S" if seat else "H"), ("2", "C" if seat else "D"), ("3", "S" if seat else "H"), ("4", "C" if seat else "D")]):
             put(s, seat, i, r, su)
     reduce(s, 0, {"type": "cambio"})
     finish_final_turn(s, 1)
-    assert s.winners == [0, 1]
+    assert s.phase == E.OPENING
+    assert s.sudden_death
+    assert s.winners is None and s.scores is None
+    assert [len(hand) for hand in s.players] == [1, 1]
+    assert len(s.stock) == 52 and s.discard == []
+    assert s.players[0][0].uid in s.knowledge[0]
+    assert s.players[1][0].uid in s.knowledge[1]
+
+    reduce(s, E.SERVER_SEAT, {"type": "close_opening"})
+
+    # Sudden death is a real one-card game and can resolve normally.
+    put(s, 0, 0, "A", "S")
+    put(s, 1, 0, "K", "S")
+    reduce(s, 0, {"type": "cambio"})
+    finish_final_turn(s, 1)
+    assert s.phase == E.ROUND_END and s.winners == [0]
 
 
 def test_no_second_cambio():
@@ -370,8 +466,7 @@ def test_view_hides_hidden_cards():
     for p in v0["players"]:
         for slot in p["hand"]:
             assert set(slot.keys()) == {"uid"}
-    # known covers exactly the opening peek + starting discard... minus the
-    # discard (not in play). So exactly the two peeked cards.
+    # known covers exactly the two opening-peek cards.
     assert len(v0["known"]) == 2
     my_known_uids = {s.players[0][2].uid, s.players[0][3].uid}
     assert {int(k) for k in v0["known"]} == my_known_uids
@@ -384,8 +479,11 @@ def test_view_masks_drawn_card():
     s = make_state()
     reduce(s, 0, {"type": "draw_stock"})
     v0, v1 = view_for(s, 0), view_for(s, 1)
+    assert v0["drawn"]["uid"] == v1["drawn"]["uid"] == s.drawn.uid
     assert "card" in v0["drawn"]
     assert "card" not in v1["drawn"]
+    assert v0["legal_moves"] == legal_moves(s, 0)
+    assert v1["legal_moves"] == []
 
 
 def test_round_end_reveals_everything():

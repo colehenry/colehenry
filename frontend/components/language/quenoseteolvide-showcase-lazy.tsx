@@ -41,16 +41,16 @@ export function QuenoseteolvideShowcaseLazy({
   }, [show]);
 
   return (
-    <div ref={ref}>
+    // Matches `.qnst-showcase.is-compact { height: 340px }` in xp.css. The
+    // height is pinned on the wrapper rather than only on the placeholder
+    // because xp.css ships inside the dynamic chunk: for a frame the real app
+    // is mounted but unstyled, and an unpinned wrapper would take its natural
+    // height, spiking the page and dragging the galaxy scene on first scroll.
+    <div ref={ref} className="h-[340px] overflow-hidden">
       {show ? (
         <QuenoseteolvideShowcase compact={compact} />
       ) : (
-        // matches `.qnst-showcase.is-compact { height: 340px }` in xp.css so
-        // revealing the real app doesn't shift the page
-        <div
-          aria-hidden
-          className="h-[340px] w-full animate-pulse bg-muted/40"
-        />
+        <div aria-hidden className="h-full w-full animate-pulse bg-muted/40" />
       )}
     </div>
   );

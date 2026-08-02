@@ -23,7 +23,7 @@ const RULE_ROWS: [string, string][] = [
   ["7 / 8", "peek your own"],
   ["9 / 10", "peek opponent"],
   ["Red King ♥♦", "−1 · best card"],
-  ["Black King ♠♣", "10 · look then swap"],
+  ["Black King ♠♣", "10 · must look, then swap"],
 ];
 
 export function CambioLobby() {
@@ -54,7 +54,9 @@ export function CambioLobby() {
     setCreating(mode);
     try {
       const room = await createRoom(mode);
-      router.push(room.join_path);
+      router.push(
+        mode === "vs_bot" ? `${room.join_path}&mode=vs_bot` : room.join_path,
+      );
     } finally {
       setCreating(null);
     }
@@ -78,12 +80,12 @@ export function CambioLobby() {
             </button>
             <div className="cb-info-pop" role="tooltip">
               <p style={{ marginBottom: 8 }}>
-                Four face-down cards each; you briefly see your bottom two. Each
-                turn: draw, then swap the card in or play it (powers trigger when
-                played). Any reveal opens a 3-second <b>snap window</b> - tap a
-                matching card to shed it. Call <b>Cambio</b> when you think
-                you&apos;re lowest; everyone else gets one last turn. Lowest total
-                wins.
+                Four face-down cards each; you briefly see your bottom two. Draw
+                only from the pile, then swap the card in or play it. A played
+                card reaching the discard opens a 3-second <b>snap window</b>, but the next player can
+                start immediately and close it. Shed your last card to win. Call
+                <b>Cambio</b> when you think you&apos;re lowest; everyone else gets
+                one last turn. Ties redeal one card each for sudden death.
               </p>
               <table className="cb-rules">
                 <tbody>

@@ -57,12 +57,16 @@ def choose_move(state: GameState, seat: int, rng: random.Random) -> dict | None:
     """The bot's move for the current phase, or None to stay quiet (only
     meaningful during a snap window)."""
     phase = state.phase
-    if phase == E.SNAP:
-        return _snap_move(state, seat)
     if phase == E.SNAP_GIVE:
         if state.snap and state.snap.giver == seat:
             slot, _ = _worst_slot(state, seat)
             return {"type": "snap_give", "slot": slot}
+        return None
+    if state.snap is not None:
+        snap_move = _snap_move(state, seat)
+        if snap_move is not None:
+            return snap_move
+    if state.round_end_pending:
         return None
     if state.turn != seat or phase == E.ROUND_END:
         return None
@@ -86,14 +90,9 @@ def _turn_move(state: GameState, seat: int) -> dict:
     est = hand_estimate(state, seat)
     if state.cambio_caller is None and est <= CAMBIO_THRESHOLD:
         return {"type": "cambio"}
-    top = state.discard[-1] if state.discard else None
-    if top is not None:
-        _, worst = _worst_slot(state, seat)
-        if PSEUDO_VALUES[pseudo_rank(top)] <= worst - SWAP_MARGIN:
-            return {"type": "draw_discard"}
     if state.stock or len(state.discard) > 1:
         return {"type": "draw_stock"}
-    return {"type": "draw_discard"}
+    return {"type": "cambio"}
 
 
 def _drawn_move(state: GameState, seat: int) -> dict:
@@ -102,9 +101,6 @@ def _drawn_move(state: GameState, seat: int) -> dict:
     slot, worst = _worst_slot(state, seat)
     if slot < 0:  # empty hand: playing is the only legal move
         return {"type": "play"}
-    must_swap = state.drawn_from_discard and not state.config.power_on_discard_draw
-    if must_swap:
-        return {"type": "swap", "slot": slot}
     # A power card is usually worth more played than swapped, unless the hand
     # is bad and the card is genuinely low (never swap in a black king).
     if E.power_of(drawn) is not None:
@@ -121,9 +117,8 @@ def _unknown_slots(state: GameState, seat: int, of: int) -> list[int]:
 
 def _peek_own(state: GameState, seat: int) -> dict:
     unknown = _unknown_slots(state, seat, seat)
-    if unknown:
-        return {"type": "peek", "target": seat, "slot": unknown[0]}
-    return {"type": "skip_power"}
+    slot = unknown[0] if unknown else 0
+    return {"type": "peek", "target": seat, "slot": slot}
 
 
 def _peek_opp(state: GameState, seat: int, rng: random.Random) -> dict:
@@ -133,7 +128,8 @@ def _peek_opp(state: GameState, seat: int, rng: random.Random) -> dict:
         unknown = _unknown_slots(state, seat, opp)
         if unknown:
             return {"type": "peek", "target": opp, "slot": unknown[0]}
-    return {"type": "skip_power"}
+    opp = opponents[0]
+    return {"type": "peek", "target": opp, "slot": 0}
 
 
 def _blind_swap(state: GameState, seat: int, rng: random.Random) -> dict:
@@ -152,14 +148,14 @@ def _blind_swap(state: GameState, seat: int, rng: random.Random) -> dict:
             )
             if best_target is None or val < best_target[2]:
                 best_target = (opp, j, val)
-    if best_target is not None and worst - best_target[2] > SWAP_MARGIN:
+    if best_target is not None:
         return {
             "type": "blind_swap",
             "slot": slot,
             "target": best_target[0],
             "target_slot": best_target[1],
         }
-    return {"type": "skip_power"}
+    raise RuntimeError("blind swap requires cards on both sides")
 
 
 def _king(state: GameState, seat: int, rng: random.Random) -> dict:
@@ -174,8 +170,16 @@ def _king(state: GameState, seat: int, rng: random.Random) -> dict:
         unknown = _unknown_slots(state, seat, seat)
         if unknown:
             return {"type": "king_look", "target": seat, "slot": unknown[0]}
-    # Post-look (or nothing to look at): grab the best known opponent card if
-    # it beats our worst slot.
+        # The look is mandatory even when every remaining card is remembered.
+        targets = [
+            (opp, i)
+            for opp in range(len(state.players))
+            for i in range(len(state.players[opp]))
+        ]
+        target, target_slot = rng.choice(targets)
+        return {"type": "king_look", "target": target, "slot": target_slot}
+    # The swap is mandatory. Prefer the best known opponent card, otherwise
+    # choose a face-down target without inventing information.
     best: tuple[int, int, float] | None = None
     for opp in range(len(state.players)):
         if opp == seat:
@@ -185,9 +189,16 @@ def _king(state: GameState, seat: int, rng: random.Random) -> dict:
                 val = PSEUDO_VALUES[pseudo_rank(faces[c.uid])]
                 if best is None or val < best[2]:
                     best = (opp, j, val)
-    if best is not None and worst - best[2] > SWAP_MARGIN:
+    if best is not None:
         return {"type": "king_swap", "slot": slot, "target": best[0], "target_slot": best[1]}
-    return {"type": "skip_power"}
+    opponents = [s for s in range(len(state.players)) if s != seat and state.players[s]]
+    target = rng.choice(opponents)
+    return {
+        "type": "king_swap",
+        "slot": slot,
+        "target": target,
+        "target_slot": rng.randrange(len(state.players[target])),
+    }
 
 
 def _snap_move(state: GameState, seat: int) -> dict | None:

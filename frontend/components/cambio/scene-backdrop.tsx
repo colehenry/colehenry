@@ -2,15 +2,33 @@
 
 import type { Scene } from "./scenes";
 
-/** Illustrated table backdrops (plan §7), hand-drawn in SVG so they need no
- * external assets, stay crisp at any size, and recolor with the theme. Neutral
- * falls back to the CSS gradient on `.cb-backdrop` (table.css). */
+/** Illustrated table backdrops (plan §7), combining generated scene art with
+ * lightweight SVG ambience and CSS motion overlays. */
 export function SceneBackdrop({ scene }: { scene: Scene }) {
   return (
     <div className={`cb-backdrop cb-scene-${scene}`} aria-hidden>
-      {scene === "seaside" && <Seaside />}
-      {scene === "cafe" && <Cafe />}
-      {scene === "tavern" && <Tavern />}
+      {scene === "seaside" && (
+        <>
+          <Seaside />
+          <div className="cb-seaside-photo" />
+          <div className="cb-seaside-shimmer" />
+        </>
+      )}
+      {scene === "cafe" && (
+        <>
+          <Cafe />
+          <div className="cb-cafe-photo" />
+          <div className="cb-cafe-glow" />
+          <div className="cb-cafe-steam" />
+        </>
+      )}
+      {scene === "tavern" && (
+        <>
+          <Tavern />
+          <div className="cb-tavern-photo" />
+          <div className="cb-tavern-firelight" />
+        </>
+      )}
     </div>
   );
 }

@@ -69,36 +69,36 @@ export function completeShowcaseConversation(
   );
 }
 
+// Kept short on purpose: the compact showcase is a fixed 340px box, and on a
+// phone anything longer than a few lines gets clipped by its overflow.
 const deploymentAnswerEn = [
-  "The latest example Lapwise deployment completed successfully at 4:18 PM. ",
-  "The service started cleanly, passed its health check, and showed no runtime errors. ",
-  "It is linked to commit `8f3c2a1`, which refreshes the 2026 results pipeline.",
+  "Healthy. It finished at 4:18 PM, passed its health check, and logged no runtime errors. ",
+  "Linked to commit `8f3c2a1`, which refreshes the 2026 results pipeline.",
 ];
 
 const dinnerAnswerEn = [
-  "You generally like bold flavors, seafood, and places that feel unique to LA. If you're looking for something new, try out **Holbox** in Mercado La Paloma tonight. ",
-  "Customers generally like the ceviche to share, with the pescado al carbón tacos.",
+  "You like bold flavors and seafood, so try **Holbox** in Mercado La Paloma. ",
+  "Get the ceviche to share with the pescado al carbón tacos.",
 ];
 
 const calendarAnswerEn = [
-  "You have **Catan night on Wednesday** at **8PM** and a **hike in Angeles National Forest** planned for **Sunday morning**. ",
-  "Want me to add anything any trail snacks to your grocery list?",
+  "**Catan night Wednesday** at **8PM**, and a **hike in Angeles National Forest** on **Sunday morning**. ",
+  "Want me to add trail snacks to your grocery list?",
 ];
 
 const deploymentAnswerEs = [
-  "El último despliegue de ejemplo de Lapwise se completó correctamente a las 4:18 p. m. ",
-  "El servicio inició sin problemas, superó la comprobación de estado y no mostró errores de ejecución. ",
-  "Está vinculado al commit `8f3c2a1`, que actualiza el pipeline de resultados de 2026.",
+  "Correcto. Terminó a las 4:18 p. m., superó la comprobación de estado y no registró errores. ",
+  "Vinculado al commit `8f3c2a1`, que actualiza el pipeline de resultados de 2026.",
 ];
 
 const dinnerAnswerEs = [
-  "Por lo general te gustan los sabores intensos, los mariscos y los lugares que se sienten únicos de Los Ángeles. Si buscas algo nuevo, prueba **Holbox** en Mercado La Paloma esta noche. ",
-  "A los clientes les suele gustar compartir el ceviche y pedir los tacos de pescado al carbón.",
+  "Te gustan los sabores intensos y los mariscos, así que prueba **Holbox** en Mercado La Paloma. ",
+  "Pide el ceviche para compartir con los tacos de pescado al carbón.",
 ];
 
 const calendarAnswerEs = [
-  "Tienes **noche de Catan el miércoles** a las **8 p. m.** y una **caminata en el Bosque Nacional de Los Ángeles** planeada para la **mañana del domingo**. ",
-  "¿Quieres que agregue algún snack para la caminata a tu lista de compras?",
+  "**Noche de Catan el miércoles** a las **8 p. m.**, y una **caminata en el Bosque Nacional de Los Ángeles** el **domingo por la mañana**. ",
+  "¿Agrego snacks para la caminata a tu lista de compras?",
 ];
 
 function textEvents(chunks: string[]): ShowcaseTextEvent[] {

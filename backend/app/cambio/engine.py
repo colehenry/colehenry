@@ -15,9 +15,9 @@ Rules implemented from context/cambio_plan.md §1. Key modelling choices:
 - ``reduce`` mutates the state in place (cheap for the million-game sim) but
   is otherwise pure: same state + move → same result. Use ``clone()`` when a
   caller needs to branch (bot search, determinization).
-- The snap window's *timing* lives outside the engine: after any card lands
-  on the discard the phase becomes ``snap`` and the room server (or sim)
-  closes it with a ``{"type": "close_snap"}`` move from ``SERVER_SEAT``.
+- The snap window's *timing* lives outside the engine. It is an overlay on the
+  next normal turn, closes automatically when that player draws or calls
+  Cambio, and may also time out via a ``close_snap`` server move.
 """
 
 from __future__ import annotations
@@ -37,13 +37,14 @@ RED_SUITS = {"H", "D"}
 SERVER_SEAT = -1
 
 # Phases
-TURN = "turn"  # actor chooses: draw stock / draw discard / call cambio
+OPENING = "opening"  # timed, blocking look at your starting cards
+TURN = "turn"  # actor chooses: draw stock or call cambio
 DRAWN = "drawn"  # actor holds a drawn card: swap into a slot or play it
 PEEK_OWN = "peek_own"  # 7/8 played
 PEEK_OPP = "peek_opp"  # 9/10 played
 BLIND_SWAP = "blind_swap"  # J/Q played
 KING = "king"  # black king played: look and/or swap, then done
-SNAP = "snap"  # window open, any seat may attempt one match
+POWER_REVEAL = "power_reveal"  # selected card is briefly visible in place
 SNAP_GIVE = "snap_give"  # correct snap on an opponent card: choose an offload
 ROUND_END = "round_end"
 
@@ -86,10 +87,20 @@ def power_of(card: Card) -> str | None:
 @dataclass
 class SnapContext:
     rank: str  # rank to match (top of discard when the window opened)
+    # A seat is blocked only after a wrong snap. Correct snaps may continue so
+    # a player can shed every matching card they remember in the same window.
     attempted: set[int] = field(default_factory=set)
     # SNAP_GIVE bookkeeping: seat that snapped correctly / seat that receives.
     giver: int | None = None
     receiver: int | None = None
+
+
+@dataclass
+class PowerRevealContext:
+    viewer: int
+    target: int
+    slot: int
+    resume: str  # "end_turn" or KING
 
 
 @dataclass
@@ -101,16 +112,18 @@ class GameState:
     discard: list[Card]  # [-1] is the top, face up
     knowledge: dict[int, set[int]]  # seat -> uids that seat has seen
     turn: int = 0
-    phase: str = TURN
+    phase: str = OPENING
     drawn: Card | None = None
-    drawn_from_discard: bool = False
     king_looked: bool = False
+    power_reveal: PowerRevealContext | None = None
     snap: SnapContext | None = None
     # Set once per turn when a card lands on the discard, consumed at end of
     # turn to decide whether a snap window opens.
     discarded_this_turn: bool = False
     cambio_caller: int | None = None
     final_turns: list[int] = field(default_factory=list)
+    round_end_pending: bool = False
+    sudden_death: bool = False
     scores: list[int] | None = None
     winners: list[int] | None = None
     move_seq: int = 0
@@ -145,18 +158,15 @@ def new_round(config: CambioConfig, seed: int | None = None) -> GameState:
         [deck.pop() for _ in range(config.hand_size)]
         for _ in range(config.num_players)
     ]
-    discard = [deck.pop()]
     state = GameState(
         config=config,
         rng=rng,
         players=players,
         stock=deck,
-        discard=discard,
+        discard=[],
         knowledge={seat: set() for seat in range(config.num_players)},
+        phase=OPENING,
     )
-    # The starting discard is public.
-    for seat in range(config.num_players):
-        state.knowledge[seat].add(discard[0].uid)
     # Opening peek: bottom row = the last `opening_peek_count` slots.
     for seat, hand in enumerate(players):
         peeked = hand[-config.opening_peek_count:] if config.opening_peek_count else []
@@ -220,13 +230,25 @@ def legal_moves(state: GameState, seat: int) -> list[dict]:
     if state.phase == ROUND_END:
         return moves
 
-    if state.phase == SNAP:
-        if seat == SERVER_SEAT:
-            return [{"type": "close_snap"}]
-        if seat not in state.snap.attempted:
-            for target in range(len(state.players)):
-                for slot in range(len(state.players[target])):
-                    moves.append({"type": "snap", "target": target, "slot": slot})
+    if seat == SERVER_SEAT:
+        if state.phase == OPENING:
+            return [{"type": "close_opening"}]
+        if state.phase == POWER_REVEAL:
+            return [{"type": "close_power_reveal"}]
+        return [{"type": "close_snap"}] if state.snap is not None else []
+
+    # A snap window is an overlay, not a phase: everyone may snap while the
+    # next player can begin their normal turn immediately.
+    if (
+        state.snap is not None
+        and state.phase != SNAP_GIVE
+        and seat not in state.snap.attempted
+    ):
+        for target in range(len(state.players)):
+            for slot in range(len(state.players[target])):
+                moves.append({"type": "snap", "target": target, "slot": slot})
+
+    if state.round_end_pending:
         return moves
 
     if state.phase == SNAP_GIVE:
@@ -241,32 +263,21 @@ def legal_moves(state: GameState, seat: int) -> list[dict]:
     if state.phase == TURN:
         if state.stock or len(state.discard) > 1:
             moves.append({"type": "draw_stock"})
-        if state.discard:
-            moves.append({"type": "draw_discard"})
         if state.cambio_caller is None:
             moves.append({"type": "cambio"})
     elif state.phase == DRAWN:
         for slot in range(len(state.players[seat])):
             moves.append({"type": "swap", "slot": slot})
-        # An empty hand (everything snapped away) has no slot to swap into,
-        # so playing is the only physical option regardless of draw source.
-        if (
-            not state.drawn_from_discard
-            or state.config.power_on_discard_draw
-            or not state.players[seat]
-        ):
-            moves.append({"type": "play"})
+        moves.append({"type": "play"})
     elif state.phase == PEEK_OWN:
         for slot in range(len(state.players[seat])):
             moves.append({"type": "peek", "target": seat, "slot": slot})
-        moves.append({"type": "skip_power"})
     elif state.phase == PEEK_OPP:
         for target in range(len(state.players)):
             if target == seat:
                 continue
             for slot in range(len(state.players[target])):
                 moves.append({"type": "peek", "target": target, "slot": slot})
-        moves.append({"type": "skip_power"})
     elif state.phase == BLIND_SWAP:
         for target in range(len(state.players)):
             if target == seat:
@@ -276,21 +287,20 @@ def legal_moves(state: GameState, seat: int) -> list[dict]:
                     moves.append(
                         {"type": "blind_swap", "slot": my, "target": target, "target_slot": their}
                     )
-        moves.append({"type": "skip_power"})
     elif state.phase == KING:
         if not state.king_looked:
             for target in range(len(state.players)):
                 for slot in range(len(state.players[target])):
                     moves.append({"type": "king_look", "target": target, "slot": slot})
-        for target in range(len(state.players)):
-            if target == seat:
-                continue
-            for my in range(len(state.players[seat])):
-                for their in range(len(state.players[target])):
-                    moves.append(
-                        {"type": "king_swap", "slot": my, "target": target, "target_slot": their}
-                    )
-        moves.append({"type": "skip_power"})
+        else:
+            for target in range(len(state.players)):
+                if target == seat:
+                    continue
+                for my in range(len(state.players[seat])):
+                    for their in range(len(state.players[target])):
+                        moves.append(
+                            {"type": "king_swap", "slot": my, "target": target, "target_slot": their}
+                        )
     return moves
 
 
@@ -306,14 +316,23 @@ def reduce(state: GameState, seat: int, move: dict) -> GameState:
 
     if state.phase == ROUND_END:
         raise IllegalMove("round is over")
+    if state.round_end_pending and kind not in ("snap", "close_snap"):
+        raise IllegalMove("waiting for the final snap window to close")
 
-    if kind == "close_snap":
-        if state.phase != SNAP or seat != SERVER_SEAT:
-            raise IllegalMove("no snap window to close")
-        state.snap = None
+    if kind == "close_opening":
+        if state.phase != OPENING or seat != SERVER_SEAT:
+            raise IllegalMove("opening peek is not active")
         state.phase = TURN
-        _advance_turn(state)
-    elif state.phase == SNAP:
+        state.events.append({"type": "opening_closed", "to": None})
+    elif kind == "close_power_reveal":
+        if state.phase != POWER_REVEAL or seat != SERVER_SEAT:
+            raise IllegalMove("power reveal is not active")
+        _close_power_reveal(state)
+    elif kind == "close_snap":
+        if state.snap is None or seat != SERVER_SEAT:
+            raise IllegalMove("no snap window to close")
+        _close_snap(state)
+    elif kind == "snap" and state.snap is not None and state.phase != SNAP_GIVE:
         _apply_snap(state, seat, move)
     elif state.phase == SNAP_GIVE:
         _apply_snap_give(state, seat, move)
@@ -339,28 +358,22 @@ def reduce(state: GameState, seat: int, move: dict) -> GameState:
 def _apply_turn_choice(state: GameState, seat: int, move: dict) -> None:
     kind = move.get("type")
     if kind == "draw_stock":
+        # Beginning the next turn closes the previous discard's snap window.
+        if not state.stock and len(state.discard) <= 1:
+            raise IllegalMove("stock exhausted")
+        _close_snap(state)
         card = _draw_from_stock(state)
         if card is None:
             raise IllegalMove("stock exhausted")
         state.drawn = card
-        state.drawn_from_discard = False
         state.knowledge[seat].add(card.uid)
         state.phase = DRAWN
         state.events.append({"type": "draw", "to": None, "seat": seat, "source": "stock"})
         state.events.append({"type": "drawn_card", "to": [seat], "card": card.pub()})
-    elif kind == "draw_discard":
-        if not state.discard:
-            raise IllegalMove("discard empty")
-        card = state.discard.pop()
-        state.drawn = card
-        state.drawn_from_discard = True
-        state.phase = DRAWN
-        state.events.append(
-            {"type": "draw", "to": None, "seat": seat, "source": "discard", "card": card.pub()}
-        )
     elif kind == "cambio":
         if state.cambio_caller is not None:
             raise IllegalMove("cambio already called")
+        _close_snap(state)
         state.cambio_caller = seat
         n = len(state.players)
         state.final_turns = [(seat + i) % n for i in range(1, n)]
@@ -386,16 +399,10 @@ def _apply_drawn(state: GameState, seat: int, move: dict) -> None:
         _to_discard(state, replaced, source="swap")
         _end_turn(state)
     elif kind == "play":
-        if (
-            state.drawn_from_discard
-            and not state.config.power_on_discard_draw
-            and state.players[seat]
-        ):
-            raise IllegalMove("cannot play back a discard draw")
         state.drawn = None
         _to_discard(state, drawn, source="play")
         power = power_of(drawn)
-        if power and (not state.drawn_from_discard or state.config.power_on_discard_draw):
+        if power:
             state.phase = power
             state.king_looked = False
             state.events.append({"type": "power", "to": None, "power": power, "seat": seat})
@@ -407,11 +414,8 @@ def _apply_drawn(state: GameState, seat: int, move: dict) -> None:
 
 def _apply_peek(state: GameState, seat: int, move: dict) -> None:
     kind = move.get("type")
-    if kind == "skip_power":
-        _end_turn(state)
-        return
     if kind != "peek":
-        raise IllegalMove("expected peek or skip_power")
+        raise IllegalMove("this power must be used")
     target, slot = move.get("target"), move.get("slot")
     if not isinstance(target, int) or not isinstance(slot, int) or not _slot_ok(state, target, slot):
         raise IllegalMove("bad target")
@@ -425,25 +429,21 @@ def _apply_peek(state: GameState, seat: int, move: dict) -> None:
     state.events.append(
         {"type": "peeked", "to": None, "by": seat, "seat": target, "slot": slot, "uid": card.uid}
     )
-    _end_turn(state)
+    state.power_reveal = PowerRevealContext(seat, target, slot, "end_turn")
+    state.phase = POWER_REVEAL
 
 
 def _apply_blind_swap(state: GameState, seat: int, move: dict) -> None:
     kind = move.get("type")
-    if kind == "skip_power":
-        _end_turn(state)
-        return
     if kind != "blind_swap":
-        raise IllegalMove("expected blind_swap or skip_power")
+        raise IllegalMove("this power must be used")
     _swap_between(state, seat, move)
     _end_turn(state)
 
 
 def _apply_king(state: GameState, seat: int, move: dict) -> None:
     kind = move.get("type")
-    if kind == "skip_power":
-        _end_turn(state)
-    elif kind == "king_look":
+    if kind == "king_look":
         if state.king_looked:
             raise IllegalMove("already looked")
         target, slot = move.get("target"), move.get("slot")
@@ -455,11 +455,27 @@ def _apply_king(state: GameState, seat: int, move: dict) -> None:
         state.events.append(
             {"type": "peeked", "to": None, "by": seat, "seat": target, "slot": slot, "uid": card.uid}
         )
+        state.power_reveal = PowerRevealContext(seat, target, slot, KING)
+        state.phase = POWER_REVEAL
     elif kind == "king_swap":
+        if not state.king_looked:
+            raise IllegalMove("black king must look before swapping")
         _swap_between(state, seat, move)
         _end_turn(state)
     else:
-        raise IllegalMove("expected king_look/king_swap/skip_power")
+        raise IllegalMove("black king must look, then swap")
+
+
+def _close_power_reveal(state: GameState) -> None:
+    context = state.power_reveal
+    if context is None:
+        raise IllegalMove("power reveal is not active")
+    state.power_reveal = None
+    state.events.append({"type": "power_reveal_closed", "to": None})
+    if context.resume == "end_turn":
+        _end_turn(state)
+    else:
+        state.phase = KING
 
 
 def _swap_between(state: GameState, seat: int, move: dict) -> None:
@@ -496,7 +512,6 @@ def _apply_snap(state: GameState, seat: int, move: dict) -> None:
     target, slot = move.get("target"), move.get("slot")
     if not isinstance(target, int) or not isinstance(slot, int) or not _slot_ok(state, target, slot):
         raise IllegalMove("bad snap target")
-    state.snap.attempted.add(seat)
     card = state.players[target][slot]
     _publicize(state, card)  # flipped for everyone before resolving
     correct = card.rank == state.snap.rank
@@ -514,12 +529,16 @@ def _apply_snap(state: GameState, seat: int, move: dict) -> None:
     if correct:
         state.players[target].pop(slot)
         state.discard.append(card)
+        if not state.players[target]:
+            _finish_round(state, [target], reason="empty_hand")
+            return
         if target != seat and state.players[seat]:
             # Offload: the snapper hands the victim one of their own cards.
             state.snap.giver = seat
             state.snap.receiver = target
             state.phase = SNAP_GIVE
     else:
+        state.snap.attempted.add(seat)
         penalty = _draw_from_stock(state)
         if penalty is not None:
             state.players[seat].append(penalty)
@@ -545,27 +564,36 @@ def _apply_snap_give(state: GameState, seat: int, move: dict) -> None:
             "uid": card.uid,
         }
     )
+    if not state.players[seat]:
+        _finish_round(state, [seat], reason="empty_hand")
+        return
     state.snap.giver = None
     state.snap.receiver = None
-    state.phase = SNAP  # window stays open for remaining seats
+    state.phase = TURN  # the active player's normal turn remains available
 
 
 def _end_turn(state: GameState) -> None:
-    """A turn's action fully resolved: open the snap window if something hit
-    the discard, otherwise advance immediately."""
+    """Finish the action, advance immediately, and expose snap as an overlay."""
     state.drawn = None
-    state.drawn_from_discard = False
     if state.config.snap_enabled and state.discarded_this_turn:
-        state.discarded_this_turn = False
         state.snap = SnapContext(rank=state.discard[-1].rank)
-        state.phase = SNAP
         state.events.append(
             {"type": "snap_open", "to": None, "rank": state.snap.rank}
         )
-        return
     state.discarded_this_turn = False
     state.phase = TURN
     _advance_turn(state)
+
+
+def _close_snap(state: GameState) -> None:
+    """Close only the snap overlay; it never advances or blocks a turn."""
+    if state.snap is None:
+        return
+    state.snap = None
+    state.events.append({"type": "snap_closed", "to": None})
+    if state.round_end_pending:
+        state.round_end_pending = False
+        _score_round(state)
 
 
 def _advance_turn(state: GameState) -> None:
@@ -574,11 +602,14 @@ def _advance_turn(state: GameState) -> None:
         if state.final_turns:
             state.turn = state.final_turns.pop(0)
         else:
-            _score_round(state)
+            if state.snap is not None:
+                state.round_end_pending = True
+            else:
+                _score_round(state)
         return
     state.turn = (state.turn + 1) % len(state.players)
-    # No stock and no drawable discard would deadlock; force scoring.
-    if not state.stock and len(state.discard) <= 1 and not state.discard:
+    # No stock and fewer than two discards to reshuffle would deadlock.
+    if not state.stock and len(state.discard) <= 1:
         _score_round(state)  # pragma: no cover - practically unreachable
 
 
@@ -590,9 +621,26 @@ def _score_round(state: GameState) -> None:
         if others and totals[caller] >= min(others):
             totals[caller] += state.config.caller_penalty
     low = min(totals)
+    winners = [s for s, t in enumerate(totals) if t == low]
+    if len(winners) > 1 and state.config.tie_rule == "sudden_death":
+        _start_sudden_death(state, totals)
+        return
+    _finish_round(state, winners, totals=totals, reason="score")
+
+
+def _finish_round(
+    state: GameState,
+    winners: list[int],
+    *,
+    totals: list[int] | None = None,
+    reason: str,
+) -> None:
+    totals = totals or [sum(card_value(c) for c in hand) for hand in state.players]
     state.scores = totals
-    state.winners = [s for s, t in enumerate(totals) if t == low]
+    state.winners = winners
     state.phase = ROUND_END
+    state.snap = None
+    state.round_end_pending = False
     for hand in state.players:
         for card in hand:
             _publicize(state, card)
@@ -601,10 +649,53 @@ def _score_round(state: GameState) -> None:
             "type": "round_end",
             "to": None,
             "scores": totals,
-            "winners": state.winners,
+            "winners": winners,
+            "reason": reason,
             "hands": [[c.pub() for c in hand] for hand in state.players],
         }
     )
+
+
+def _start_sudden_death(state: GameState, tied_scores: list[int]) -> None:
+    """Immediately reshuffle and redeal one known card per player after a tie."""
+    previous_hands = [[c.pub() for c in hand] for hand in state.players]
+    deck = build_deck(state.config, state.rng)
+    state.players = [[deck.pop()] for _ in range(state.config.num_players)]
+    state.stock = deck
+    state.discard = []
+    state.knowledge = {seat: set() for seat in range(state.config.num_players)}
+    state.turn = 0
+    state.phase = OPENING
+    state.drawn = None
+    state.king_looked = False
+    state.power_reveal = None
+    state.snap = None
+    state.discarded_this_turn = False
+    state.cambio_caller = None
+    state.final_turns = []
+    state.round_end_pending = False
+    state.sudden_death = True
+    state.scores = None
+    state.winners = None
+    state.events.append(
+        {
+            "type": "sudden_death",
+            "to": None,
+            "scores": tied_scores,
+            "hands": previous_hands,
+        }
+    )
+    for seat, hand in enumerate(state.players):
+        card = hand[0]
+        state.knowledge[seat].add(card.uid)
+        state.events.append(
+            {
+                "type": "opening_peek",
+                "to": [seat],
+                "seat": seat,
+                "cards": [card.pub()],
+            }
+        )
 
 
 # --- visibility masking -----------------------------------------------------
@@ -633,8 +724,10 @@ def view_for(state: GameState, seat: int) -> dict:
 
     drawn = None
     if state.drawn is not None:
-        drawn = {"holder": state.turn, "from_discard": state.drawn_from_discard}
-        if seat == state.turn or state.drawn_from_discard:
+        # The opaque uid lets every client animate the same physical card from
+        # stock -> held area -> hand/discard without exposing its face.
+        drawn = {"holder": state.turn, "uid": state.drawn.uid}
+        if seat == state.turn:
             drawn["card"] = state.drawn.pub()
 
     return {
@@ -653,6 +746,23 @@ def view_for(state: GameState, seat: int) -> dict:
         ],
         "known": known,
         "king_looked": state.king_looked,
+        "active_reveal": (
+            {
+                "target": state.power_reveal.target,
+                "slot": state.power_reveal.slot,
+                **(
+                    {
+                        "card": state.players[state.power_reveal.target][
+                            state.power_reveal.slot
+                        ].pub()
+                    }
+                    if state.power_reveal.viewer == seat
+                    else {}
+                ),
+            }
+            if state.power_reveal is not None
+            else None
+        ),
         "snap": (
             {
                 "rank": state.snap.rank,
@@ -665,6 +775,7 @@ def view_for(state: GameState, seat: int) -> dict:
         ),
         "cambio_caller": state.cambio_caller,
         "final_turns": list(state.final_turns),
+        "sudden_death": state.sudden_death,
         "scores": state.scores,
         "winners": state.winners,
         "events": [
@@ -672,4 +783,5 @@ def view_for(state: GameState, seat: int) -> dict:
             for e in state.events
             if _event_visible(e, seat)
         ],
+        "legal_moves": legal_moves(state, seat),
     }

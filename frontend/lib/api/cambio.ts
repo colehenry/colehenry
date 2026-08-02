@@ -107,10 +107,15 @@ export type GameView = {
   stock_count: number;
   discard_count: number;
   discard_top: CardFace | null;
-  drawn: { holder: number; from_discard: boolean; card?: CardFace } | null;
+  drawn: { holder: number; uid: number; card?: CardFace } | null;
   players: { seat: number; hand: HandSlot[] }[];
   known: Record<string, CardFace>;
   king_looked: boolean;
+  active_reveal: {
+    target: number;
+    slot: number;
+    card?: CardFace;
+  } | null;
   snap: {
     rank: string;
     attempted: number[];
@@ -119,11 +124,13 @@ export type GameView = {
   } | null;
   cambio_caller: number | null;
   final_turns: number[];
+  sudden_death: boolean;
   scores: number[] | null;
   winners: number[] | null;
   events: GameEvent[];
   belief: Belief;
   hand_estimate: number;
+  legal_moves: Move[];
 };
 
 export type RoomInfo = {
@@ -132,6 +139,8 @@ export type RoomInfo = {
   round_no?: number;
   seats: SeatInfo[];
   snap_window_ms?: number;
+  opening_deadline_ms?: number | null;
+  power_reveal_deadline_ms?: number | null;
 };
 
 export type ServerMessage =
@@ -143,7 +152,6 @@ export type ServerMessage =
 
 export type Move =
   | { type: "draw_stock" }
-  | { type: "draw_discard" }
   | { type: "cambio" }
   | { type: "swap"; slot: number }
   | { type: "play" }
@@ -151,7 +159,6 @@ export type Move =
   | { type: "blind_swap"; slot: number; target: number; target_slot: number }
   | { type: "king_look"; target: number; slot: number }
   | { type: "king_swap"; slot: number; target: number; target_slot: number }
-  | { type: "skip_power" }
   | { type: "snap"; target: number; slot: number }
   | { type: "snap_give"; slot: number };
 

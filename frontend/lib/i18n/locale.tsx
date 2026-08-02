@@ -8,6 +8,7 @@ import {
   useMemo,
   useSyncExternalStore,
 } from "react";
+import { flushSync } from "react-dom";
 
 export type Locale = "en" | "es";
 
@@ -53,9 +54,31 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     document.documentElement.lang = locale;
   }, [locale]);
 
+  /**
+   * Spanish copy is longer than English almost everywhere, so switching resizes
+   * most of the page at once. Routing the store update through a view
+   * transition lets the browser tween the named blocks (see
+   * `view-transition-name` in globals.css) rather than snapping to the new
+   * layout. flushSync is required: the callback has to leave the DOM in its
+   * final state before the browser snapshots it.
+   */
   const setLocale = useCallback((next: Locale) => {
-    window.localStorage.setItem(STORAGE_KEY, next);
-    listeners.forEach((listener) => listener());
+    const apply = () => {
+      window.localStorage.setItem(STORAGE_KEY, next);
+      listeners.forEach((listener) => listener());
+    };
+
+    if (
+      typeof document.startViewTransition !== "function" ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      apply();
+      return;
+    }
+
+    document.startViewTransition(() => {
+      flushSync(apply);
+    });
   }, []);
 
   const value = useMemo(() => ({ locale, setLocale }), [locale, setLocale]);

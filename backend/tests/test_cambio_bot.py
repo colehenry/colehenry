@@ -37,14 +37,15 @@ def test_belief_distribution_sums_to_one():
     state = new_round(CambioConfig(), seed=7)
     b = belief_for(state, 0)
     assert abs(sum(b["dist"].values()) - 1.0) < 0.01
-    # 54 cards minus 2 peeked minus the public starting discard.
-    assert b["pool_size"] == 51
+    # 54 cards minus the 2 cards seen during the opening peek.
+    assert b["pool_size"] == 52
     # Unknown in-play uids: own top row (2) + all 4 opponent cards.
     assert len(b["unknown_uids"]) == 6
 
 
 def test_belief_updates_on_peek():
     state = new_round(CambioConfig(), seed=7)
+    reduce(state, E.SERVER_SEAT, {"type": "close_opening"})
     before = belief_for(state, 0)["pool_size"]
     state.stock.append(E.Card(900, "7", "D"))
     reduce(state, 0, {"type": "draw_stock"})
