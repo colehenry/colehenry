@@ -39,6 +39,8 @@ export function proxy(request: NextRequest) {
 export const config = {
   // Keep in sync with ownerOnlyPaths in lib/sections.ts.
   matcher: [
+    // Protect the host lobby, but keep /cambio/r/:roomId invite links public.
+    "/cambio",
     "/blog/:path*",
     "/challenges/:path*",
     "/quenoseteolvide/:path*",

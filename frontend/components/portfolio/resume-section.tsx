@@ -27,9 +27,9 @@ export function ResumeSection() {
         </Button>
       </div>
 
-      <div className="mt-8 grid gap-12 md:grid-cols-[1fr_260px]">
+      <div className="mt-5 grid gap-8 sm:mt-8 sm:gap-12 md:grid-cols-[1fr_260px]">
         {/* experience timeline */}
-        <div className="relative flex flex-col gap-10 border-l border-brand/25 pl-6">
+        <div className="relative flex flex-col gap-7 border-l border-brand/25 pl-6 sm:gap-10">
           {resume.experience.map((job) => (
             <div key={`${job.company}-${job.start}`} className="relative">
               <span
@@ -70,7 +70,7 @@ export function ResumeSection() {
         </div>
 
         {/* education + skills rail */}
-        <div className="flex flex-col gap-10">
+        <div className="flex flex-col gap-7 sm:gap-10">
           <div className="rounded-lg border bg-card p-5">
             <h3 className="font-mono text-xs tracking-[0.15em] text-muted-foreground uppercase">
               {strings.education}

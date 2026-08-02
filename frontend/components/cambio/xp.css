@@ -1,0 +1,520 @@
+/* ---------------------------------------------------------------------------
+ * Cambio - faux Windows-XP game chrome. ALWAYS XP regardless of card skin
+ * (skins style the cards only - plan §7).
+ *
+ * Classes are `cb-` prefixed: components/language/xp.css already claims the
+ * unscoped `.xp-*` names globally, and Next bundles both stylesheets.
+ * ------------------------------------------------------------------------- */
+
+[data-section="cambio"] {
+  --cb-desktop: #3a6ea5; /* XP default desktop blue behind the window */
+  --cb-felt-a: #2e7d46; /* solitaire table felt */
+  --cb-felt-b: #1c5a30;
+  --cb-face: #ece9d8;
+  --cb-face-hi: #ffffff;
+  --cb-face-lo: #aca899;
+  --cb-text: #1f1f1b;
+  --cb-text-muted: #6f6d64;
+  --cb-title-a: #0997ff; /* Luna blue title bar */
+  --cb-title-b: #0053ee;
+  --cb-title-text: #ffffff;
+  --cb-select: #316ac5;
+  --cb-select-text: #ffffff;
+  --cb-btn-border: #003c74;
+  --cb-well: #ffffff;
+  --cb-well-border: #7f9db9;
+  --cb-tooltip-bg: #ffffe1;
+  --cb-tooltip-text: #1f1f1b;
+  --cb-gold: #e8c35a;
+  --cb-danger: #c4523a;
+  --cb-font: Tahoma, Verdana, "Segoe UI", sans-serif;
+}
+
+.dark [data-section="cambio"] {
+  --cb-desktop: #16283c;
+  --cb-felt-a: #1d4a2c;
+  --cb-felt-b: #102b1a;
+  --cb-face: #3a3934;
+  --cb-face-hi: #55534a;
+  --cb-face-lo: #1f1e1b;
+  --cb-text: #e4e2d6;
+  --cb-text-muted: #a5a296;
+  --cb-title-a: #1b4d8f;
+  --cb-title-b: #0c2d5c;
+  --cb-select: #2f5fa8;
+  --cb-btn-border: #26536b;
+  --cb-well: #23231f;
+  --cb-well-border: #4f6b77;
+  --cb-tooltip-bg: #40402e;
+  --cb-tooltip-text: #e8e4c8;
+}
+
+/* --- desktop + window ---------------------------------------------------- */
+
+.cb-desktop {
+  min-height: calc(100vh - 3.5rem);
+  padding: 16px 8px 32px;
+  background: var(--cb-desktop);
+  font-family: var(--cb-font);
+  font-size: 12px;
+  color: var(--cb-text);
+}
+@media (min-width: 640px) {
+  .cb-desktop {
+    padding: 28px 20px 48px;
+  }
+}
+
+.cb-window {
+  display: flex;
+  flex-direction: column;
+  max-width: 1100px;
+  margin: 0 auto;
+  border: 1px solid var(--cb-title-b);
+  border-radius: 8px 8px 0 0;
+  background: var(--cb-face);
+  box-shadow: 3px 4px 10px rgb(0 0 0 / 0.35);
+}
+
+.cb-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px 4px 10px;
+  border-radius: 7px 7px 0 0;
+  background: linear-gradient(180deg, var(--cb-title-a) 0%, var(--cb-title-b) 100%);
+  color: var(--cb-title-text);
+  user-select: none;
+}
+.cb-title-text {
+  flex: 1;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 1px 1px 1px rgb(0 0 0 / 0.4);
+}
+.cb-caption-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 21px;
+  height: 21px;
+  border: 1px solid rgb(255 255 255 / 0.55);
+  border-radius: 3px;
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.35), rgb(255 255 255 / 0.08));
+  color: var(--cb-title-text);
+  font-size: 11px;
+  line-height: 1;
+  cursor: default;
+}
+.cb-caption-btn:hover {
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.5), rgb(255 255 255 / 0.18));
+}
+
+/* title-bar dropdown (skin picker / log toggle) */
+.cb-title-select {
+  height: 21px;
+  border: 1px solid rgb(255 255 255 / 0.55);
+  border-radius: 3px;
+  background: rgb(255 255 255 / 0.18);
+  color: var(--cb-title-text);
+  font: inherit;
+  font-size: 11px;
+  padding: 0 4px;
+}
+.cb-title-select option {
+  color: #1f1f1b;
+  background: #fff;
+}
+
+/* --- felt table ----------------------------------------------------------- */
+
+.cb-table-wrap {
+  display: flex;
+  align-items: stretch;
+}
+.cb-table {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 10px 12px;
+  background: radial-gradient(ellipse at 50% 35%, var(--cb-felt-a), var(--cb-felt-b));
+  box-shadow: inset 0 0 40px rgb(0 0 0 / 0.35);
+  min-height: 540px;
+}
+@media (min-width: 700px) {
+  .cb-table {
+    padding: 20px 24px 16px;
+  }
+}
+
+.cb-player-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.cb-player-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgb(255 255 255 / 0.92);
+  font-size: 11px;
+  text-shadow: 0 1px 1px rgb(0 0 0 / 0.5);
+}
+.cb-player-label .cb-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #9be89b;
+  box-shadow: 0 0 4px #9be89b;
+}
+.cb-player-label .cb-dot.is-off {
+  background: #d0d0d0;
+  box-shadow: none;
+  opacity: 0.5;
+}
+.cb-player-label .cb-turn-tag {
+  padding: 1px 7px;
+  border-radius: 8px;
+  background: rgb(0 0 0 / 0.35);
+  color: var(--cb-gold);
+}
+
+/* wrapping grid: hands can be 3, 4, 6+ cards (penalties/offloads) */
+.cb-hand {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  max-width: 420px;
+}
+
+.cb-center-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 2px 0;
+}
+.cb-pile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: rgb(255 255 255 / 0.85);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.cb-pile-slot {
+  position: relative;
+}
+.cb-pile-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed rgb(255 255 255 / 0.4);
+  border-radius: 6px;
+  color: rgb(255 255 255 / 0.5);
+}
+
+/* the big call button */
+.cb-cambio-btn {
+  padding: 10px 18px;
+  border: 1px solid var(--cb-btn-border);
+  border-radius: 4px;
+  background: linear-gradient(180deg, #ffe9a8, var(--cb-gold));
+  color: #4a3410;
+  font-family: var(--cb-font);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  box-shadow: 0 2px 4px rgb(0 0 0 / 0.35);
+}
+.cb-cambio-btn:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+.cb-cambio-btn:disabled {
+  opacity: 0.45;
+  filter: grayscale(0.6);
+}
+
+/* --- XP buttons + wells --------------------------------------------------- */
+
+.cb-btn {
+  padding: 3px 12px 4px;
+  border: 1px solid var(--cb-btn-border);
+  border-radius: 3px;
+  background: linear-gradient(180deg, var(--cb-face-hi), var(--cb-face));
+  font-family: var(--cb-font);
+  font-size: 12px;
+  color: var(--cb-text);
+  box-shadow: inset 0 -1px 0 var(--cb-face-lo);
+}
+.cb-btn:hover:not(:disabled) {
+  box-shadow: inset 0 0 0 1px #f8b435, inset 0 -1px 0 var(--cb-face-lo);
+}
+.cb-btn:disabled {
+  color: var(--cb-text-muted);
+  opacity: 0.7;
+}
+.cb-well {
+  border: 1px solid var(--cb-well-border);
+  background: var(--cb-well);
+}
+
+/* --- status strip --------------------------------------------------------- */
+
+.cb-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 10px;
+  border-top: 1px solid var(--cb-face-lo);
+  background: var(--cb-face);
+  font-size: 11px;
+  min-height: 26px;
+}
+.cb-status .cb-status-msg {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* snap countdown */
+.cb-snapbar {
+  position: relative;
+  width: 160px;
+  height: 10px;
+  border: 1px solid var(--cb-well-border);
+  background: var(--cb-well);
+  overflow: hidden;
+}
+.cb-snapbar-fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: left;
+  background: repeating-linear-gradient(
+    90deg,
+    #4caf50 0px,
+    #4caf50 6px,
+    #66c268 6px,
+    #66c268 8px
+  );
+  animation: cb-snap-drain linear forwards;
+}
+@keyframes cb-snap-drain {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cb-snapbar-fill {
+    animation: none;
+  }
+}
+
+/* --- interaction states --------------------------------------------------- */
+
+.cb-slot {
+  position: relative;
+  border-radius: 7px;
+}
+.cb-slot.is-target {
+  cursor: pointer;
+}
+.cb-slot.is-target::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border: 2px solid var(--cb-gold);
+  border-radius: 9px;
+  box-shadow: 0 0 8px rgb(232 195 90 / 0.8);
+  pointer-events: none;
+}
+.cb-slot.is-picked::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border: 2px solid #7fd4ff;
+  border-radius: 9px;
+  box-shadow: 0 0 8px rgb(127 212 255 / 0.9);
+  pointer-events: none;
+}
+
+/* odds overlay tooltip */
+.cb-odds {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  min-width: 150px;
+  padding: 6px 8px;
+  border: 1px solid #b8b465;
+  background: var(--cb-tooltip-bg);
+  color: var(--cb-tooltip-text);
+  font-size: 10px;
+  line-height: 1.5;
+  box-shadow: 2px 2px 4px rgb(0 0 0 / 0.3);
+  pointer-events: none;
+}
+.cb-odds table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.cb-odds td {
+  padding: 0 2px;
+}
+.cb-odds .cb-odds-bar {
+  display: inline-block;
+  height: 5px;
+  background: #4caf50;
+  vertical-align: middle;
+}
+
+/* --- right dock (move log) ------------------------------------------------ */
+
+.cb-dock {
+  width: 220px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--cb-face-lo);
+  background: var(--cb-face);
+}
+.cb-dock-head {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--cb-face-lo);
+  font-weight: 700;
+  font-size: 11px;
+}
+.cb-dock-body {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 520px;
+  padding: 4px 8px;
+  font-size: 11px;
+  line-height: 1.6;
+}
+@media (max-width: 899px) {
+  .cb-dock {
+    display: none;
+  }
+}
+
+/* --- overlays (opening peek, round end) ----------------------------------- */
+
+.cb-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(0 0 0 / 0.45);
+}
+.cb-dialog {
+  min-width: 260px;
+  max-width: 92%;
+  border: 1px solid var(--cb-title-b);
+  border-radius: 6px 6px 0 0;
+  background: var(--cb-face);
+  box-shadow: 4px 6px 16px rgb(0 0 0 / 0.5);
+}
+.cb-dialog-title {
+  padding: 3px 10px;
+  border-radius: 5px 5px 0 0;
+  background: linear-gradient(180deg, var(--cb-title-a), var(--cb-title-b));
+  color: var(--cb-title-text);
+  font-size: 12px;
+  font-weight: 700;
+  text-shadow: 1px 1px 1px rgb(0 0 0 / 0.4);
+}
+.cb-dialog-body {
+  padding: 12px 14px;
+  font-size: 12px;
+}
+
+/* mobile action bar */
+.cb-actionbar {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  padding: 6px 8px;
+  border-top: 1px solid var(--cb-face-lo);
+  background: var(--cb-face);
+}
+@media (min-width: 700px) {
+  .cb-actionbar {
+    display: none;
+  }
+}
+
+/* --- lobby ---------------------------------------------------------------- */
+
+.cb-lobby-body {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+}
+@media (min-width: 820px) {
+  .cb-lobby-body {
+    grid-template-columns: 1.2fr 1fr;
+  }
+}
+.cb-panel {
+  border: 1px solid var(--cb-face-lo);
+  background: var(--cb-face);
+}
+.cb-panel-head {
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--cb-face-lo);
+  background: linear-gradient(180deg, var(--cb-face-hi), var(--cb-face));
+  font-weight: 700;
+  font-size: 12px;
+}
+.cb-panel-body {
+  padding: 10px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.cb-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+}
+.cb-stat {
+  padding: 6px 8px;
+  text-align: center;
+}
+.cb-stat .cb-stat-num {
+  font-size: 17px;
+  font-weight: 700;
+}
+.cb-stat .cb-stat-label {
+  color: var(--cb-text-muted);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.cb-rules-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.cb-rules-table td {
+  padding: 2px 6px;
+  border-bottom: 1px solid var(--cb-face-lo);
+}

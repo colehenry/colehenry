@@ -27,3 +27,18 @@ def require_owner(
     if user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
     return user
+
+
+def require_cambio_host(
+    request: Request, db: Session = Depends(get_db)
+) -> User:
+    """Allow the owner or a configured Cambio-only host."""
+    settings = get_settings()
+    email = get_current_email(request)
+    allowed = {settings.owner_email.lower(), *settings.cambio_host_email_set}
+    if email is None or email.lower() not in allowed:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    user = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return user

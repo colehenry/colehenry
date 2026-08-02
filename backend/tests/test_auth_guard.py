@@ -13,6 +13,7 @@ _DB_FILE = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
 os.environ.setdefault("DATABASE_URL", f"sqlite+pysqlite:///{_DB_FILE.name}")
 os.environ.setdefault("JWT_SECRET", "test")
 os.environ.setdefault("OWNER_EMAIL", "owner@example.com")
+os.environ.setdefault("CAMBIO_HOST_EMAILS", "friend@example.com")
 os.environ.setdefault("GOOGLE_CLIENT_ID", "test")
 os.environ.setdefault("GOOGLE_CLIENT_SECRET", "test")
 os.environ.setdefault("OAUTH_REDIRECT_URI", "http://localhost/callback")
@@ -57,6 +58,8 @@ class AuthGuardTests(unittest.TestCase):
         with SessionLocal() as db:
             if not db.query(User).filter_by(email="owner@example.com").first():
                 db.add(User(email="owner@example.com"))
+            if not db.query(User).filter_by(email="friend@example.com").first():
+                db.add(User(email="friend@example.com"))
                 db.commit()
         cls.client = TestClient(app)
 
@@ -106,6 +109,36 @@ class AuthGuardTests(unittest.TestCase):
             cookies={COOKIE: create_token("owner@example.com")},
         )
         self.assertEqual(res.status_code, 201)
+
+    def test_cambio_host_can_create_rooms_but_not_access_owner_routes(self):
+        token = create_token("friend@example.com")
+        host = self.request("GET", "/cambio/host", token=token)
+        self.assertEqual(host.status_code, 200)
+        self.assertEqual(host.json()["email"], "friend@example.com")
+
+        room = self.client.post(
+            "/cambio/rooms",
+            json={"mode": "vs_human"},
+            cookies={COOKIE: token},
+        )
+        self.assertEqual(room.status_code, 201)
+        self.assertIn("?t=", room.json()["join_path"])
+
+        self.assertEqual(
+            self.request("GET", "/auth/me", token=token).status_code,
+            401,
+        )
+        self.assertEqual(
+            self.request("GET", "/brain/tree", token=token).status_code,
+            401,
+        )
+
+    def test_intruder_cannot_host_cambio(self):
+        intruder = create_token("intruder@example.com")
+        self.assertEqual(
+            self.request("GET", "/cambio/host", token=intruder).status_code,
+            401,
+        )
 
     def test_public_showcase_reads_need_no_cookie(self):
         for path in PUBLIC:

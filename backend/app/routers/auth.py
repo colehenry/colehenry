@@ -211,10 +211,15 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
     userinfo = token.get("userinfo") or {}
     email = (userinfo.get("email") or "").lower()
 
-    # The allowlist: exactly one account gets in, and Google must have verified
-    # the address (belt-and-suspenders now that /brain hangs off this session).
-    if not email or email != settings.owner_email.lower():
-        raise HTTPException(status_code=403, detail="Not the owner")
+    # Ordinary sign-in permits the owner plus Cambio-only hosts. Incremental
+    # Calendar/Gmail authorization always remains owner-only.
+    is_owner = email == settings.owner_email.lower()
+    is_cambio_host = email in settings.cambio_host_email_set
+    owner_integration = calendar_connect or gmail_connect
+    if not email or (owner_integration and not is_owner) or not (
+        is_owner or is_cambio_host
+    ):
+        raise HTTPException(status_code=403, detail="Account not authorized")
     if userinfo.get("email_verified") is False:
         raise HTTPException(status_code=403, detail="Email not verified")
 
@@ -256,7 +261,11 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
         else (
             f"{settings.frontend_origin.rstrip('/')}/brain?gmail=connected"
             if gmail_connect
-            else settings.frontend_origin
+            else (
+                settings.frontend_origin
+                if is_owner
+                else f"{settings.frontend_origin.rstrip('/')}/cambio"
+            )
         )
     )
     response = RedirectResponse(url=destination)

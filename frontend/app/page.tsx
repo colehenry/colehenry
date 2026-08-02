@@ -200,7 +200,7 @@ function LapwiseProjectSection() {
   return (
     <section id="projects" className="scroll-mt-20">
       <h2 className="section-label">00 / {ui[locale].home.projectWord}</h2>
-      <div className="mt-6 grid gap-6 lg:grid-cols-[0.78fr_1.22fr] lg:items-start">
+      <div className="mt-4 grid gap-4 sm:mt-6 sm:gap-6 lg:grid-cols-[0.78fr_1.22fr] lg:items-start">
         <div>
           <h3 className="font-heading text-3xl font-medium tracking-tight">
             <a
@@ -320,7 +320,7 @@ function BrainProjectSection() {
 
   return (
     <section aria-labelledby="brain-project-title">
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1.22fr_0.78fr] lg:items-start">
+      <div className="grid gap-4 sm:mt-6 sm:gap-6 lg:grid-cols-[1.22fr_0.78fr] lg:items-start">
         <div className="lg:order-2">
           <h3
             id="brain-project-title"
@@ -396,7 +396,7 @@ function QuenoseteolvideProjectSection() {
 
   return (
     <section aria-labelledby="quenoseteolvide-project-title">
-      <div className="mt-6 grid gap-6 lg:grid-cols-[0.78fr_1.22fr] lg:items-start">
+      <div className="grid gap-4 sm:mt-6 sm:gap-6 lg:grid-cols-[0.78fr_1.22fr] lg:items-start">
         <div className="order-2 overflow-hidden rounded-xl border bg-card shadow-sm">
           <div className="flex items-center gap-2 border-b bg-muted px-3 py-2">
             <span className="flex gap-1.5" aria-hidden>
@@ -539,7 +539,7 @@ export default function HomePage() {
   return (
     <div data-section="home" className="relative">
       {/* hero */}
-      <section className="relative mx-auto grid w-full max-w-5xl gap-10 px-4 pt-24 pb-20 sm:px-6 sm:pt-32 lg:grid-cols-[1fr_360px] lg:items-start">
+      <section className="relative mx-auto grid w-full max-w-5xl gap-6 px-4 pt-5 pb-10 sm:gap-10 sm:px-6 sm:pt-32 sm:pb-20 lg:grid-cols-[1fr_360px] lg:items-start">
         <div>
           <h1
             className="reveal max-w-3xl font-sans text-6xl font-semibold tracking-tight text-balance sm:text-8xl"
@@ -549,12 +549,15 @@ export default function HomePage() {
             <span className="text-carolina">{resume.name.split(" ")[1]}</span>
           </h1>
           <p
-            className="reveal mt-6 max-w-xl text-xl leading-relaxed text-muted-foreground text-balance"
+            className="reveal mt-4 max-w-xl text-xl leading-relaxed text-muted-foreground text-balance sm:mt-6"
             style={reveal(1)}
           >
             {t(resume.tagline)}
           </p>
-          <div className="reveal mt-7 flex flex-wrap gap-2" style={reveal(2)}>
+          <div
+            className="reveal mt-5 flex flex-wrap gap-2 sm:mt-7"
+            style={reveal(2)}
+          >
             {heroSkills.map((skill) => (
               <span
                 key={skill}
@@ -564,7 +567,10 @@ export default function HomePage() {
               </span>
             ))}
           </div>
-          <div className="reveal mt-8 flex flex-wrap gap-2" style={reveal(3)}>
+          <div
+            className="reveal mt-5 flex flex-wrap gap-2 sm:mt-8"
+            style={reveal(3)}
+          >
             {heroLinks.map(({ href, label, icon: Icon }) => (
               <a
                 key={label.en}
@@ -583,7 +589,7 @@ export default function HomePage() {
             ))}
           </div>
           <p
-            className="reveal mt-10 font-mono text-xs text-muted-foreground"
+            className="reveal mt-10 hidden font-mono text-xs text-muted-foreground sm:block"
             style={reveal(4)}
           >
             {home.kbdBefore}{" "}
@@ -595,7 +601,7 @@ export default function HomePage() {
       </section>
 
       {/* content sections */}
-      <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-24 px-4 pb-32 sm:px-6">
+      <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 pb-20 sm:gap-24 sm:px-6 sm:pb-32">
         <LapwiseProjectSection />
         <BrainProjectSection />
         <QuenoseteolvideProjectSection />

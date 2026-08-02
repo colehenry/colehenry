@@ -1,25 +1,24 @@
 "use client";
 
 import {
-  Check,
   Cloud,
   FileText,
   Globe2,
   Plus,
   Sparkles,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { ModelPicker } from "@/components/brain/model-picker";
 import {
   applyShowcaseEvent,
-  BRAIN_SHOWCASE_CONVERSATIONS,
   EMPTY_SHOWCASE_PLAYBACK,
-  type ShowcaseConversation,
+  getBrainShowcaseConversations,
   type ShowcasePlayback,
 } from "@/lib/brain-showcase";
+import { type Locale, useLocale } from "@/lib/i18n/locale";
 
 import "./brain.css";
 
@@ -29,24 +28,52 @@ const EXAMPLE_MODEL_SLUGS = [
   "anthropic/claude-opus-5",
 ];
 
-export function BrainShowcase({ compact = false }: { compact?: boolean }) {
-  const [active, setActive] = useState<ShowcaseConversation | null>(() =>
-    compact ? BRAIN_SHOWCASE_CONVERSATIONS[0] : null,
+const SHOWCASE_COPY = {
+  en: {
+    badge: "examples",
+    newChat: "New example chat",
+    questions: "example questions",
+    choose: "Choose a question to see a streamed example response.",
+    response: "Example Brain response",
+    checking: "checking context…",
+  },
+  es: {
+    badge: "ejemplos",
+    newChat: "Nuevo chat de ejemplo",
+    questions: "preguntas de ejemplo",
+    choose: "Elige una pregunta para ver una respuesta de ejemplo en tiempo real.",
+    response: "Respuesta de ejemplo de Brain",
+    checking: "revisando contexto…",
+  },
+};
+
+function LocalizedBrainShowcase({
+  compact,
+  locale,
+}: {
+  compact: boolean;
+  locale: Locale;
+}) {
+  const conversations = getBrainShowcaseConversations(locale);
+  const copy = SHOWCASE_COPY[locale];
+  const [activeId, setActiveId] = useState<string | null>(() =>
+    compact ? "lapwise-deployment" : null,
   );
+  const active = conversations.find(({ id }) => id === activeId) ?? null;
   const [playback, setPlayback] = useState<ShowcasePlayback>(
     EMPTY_SHOWCASE_PLAYBACK,
   );
   const [eventIndex, setEventIndex] = useState(0);
   const [model, setModel] = useState("deepseek/deepseek-v4-flash");
 
-  const startConversation = useCallback((conversation: ShowcaseConversation) => {
-    setActive(conversation);
+  function startConversation(conversationId: string) {
+    setActiveId(conversationId);
     setPlayback(EMPTY_SHOWCASE_PLAYBACK);
     setEventIndex(0);
-  }, []);
+  }
 
   function reset() {
-    setActive(null);
+    setActiveId(null);
     setPlayback(EMPTY_SHOWCASE_PLAYBACK);
     setEventIndex(0);
   }
@@ -70,14 +97,16 @@ export function BrainShowcase({ compact = false }: { compact?: boolean }) {
     if (!compact || !active || !playback.complete) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const timer = window.setTimeout(() => {
-      const current = BRAIN_SHOWCASE_CONVERSATIONS.findIndex(
+      const current = conversations.findIndex(
         (conversation) => conversation.id === active.id,
       );
-      const next = (current + 1) % BRAIN_SHOWCASE_CONVERSATIONS.length;
-      startConversation(BRAIN_SHOWCASE_CONVERSATIONS[next]);
+      const next = (current + 1) % conversations.length;
+      setActiveId(conversations[next].id);
+      setPlayback(EMPTY_SHOWCASE_PLAYBACK);
+      setEventIndex(0);
     }, 5000);
     return () => window.clearTimeout(timer);
-  }, [active, compact, playback.complete, startConversation]);
+  }, [active, compact, conversations, playback.complete]);
 
   return (
     <div
@@ -96,13 +125,13 @@ export function BrainShowcase({ compact = false }: { compact?: boolean }) {
               dimBackground={false}
               modal={false}
             />
-            <span className="brain-showcase-badge">examples</span>
+            <span className="brain-showcase-badge">{copy.badge}</span>
             {!compact && (
               <button
                 type="button"
                 onClick={reset}
                 className="brain-icon-control"
-                aria-label="New example chat"
+                aria-label={copy.newChat}
               >
                 <Plus className="size-4" />
               </button>
@@ -116,17 +145,17 @@ export function BrainShowcase({ compact = false }: { compact?: boolean }) {
               <div className="brain-showcase-welcome">
                 <div className="flex items-center gap-2 text-xs text-[var(--term-dim)]">
                   <Sparkles className="size-3.5 text-[var(--term-accent)]" />
-                  example questions
+                  {copy.questions}
                 </div>
                 <p className="mt-3 text-sm text-[var(--term-fg)]">
-                  Choose a question to see a streamed example response.
+                  {copy.choose}
                 </p>
                 <div className="mt-4 grid gap-2">
-                  {BRAIN_SHOWCASE_CONVERSATIONS.map((conversation) => (
+                  {conversations.map((conversation) => (
                     <button
                       key={conversation.id}
                       type="button"
-                      onClick={() => startConversation(conversation)}
+                      onClick={() => startConversation(conversation.id)}
                       className="brain-showcase-prompt"
                     >
                       {conversation.prompt}
@@ -163,7 +192,7 @@ export function BrainShowcase({ compact = false }: { compact?: boolean }) {
                     <div
                       className="brain-term-prose"
                       aria-live="polite"
-                      aria-label="Example Brain response"
+                      aria-label={copy.response}
                     >
                       {playback.text ? (
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -171,18 +200,13 @@ export function BrainShowcase({ compact = false }: { compact?: boolean }) {
                         </ReactMarkdown>
                       ) : (
                         <span className="text-xs text-[var(--term-dim)]">
-                          checking context…
+                          {copy.checking}
                         </span>
                       )}
                       {!playback.complete && playback.text && (
                         <span className="term-cursor" aria-hidden />
                       )}
                     </div>
-                    {playback.complete && (
-                      <span className="inline-flex items-center gap-1 text-[10px] text-[var(--term-dim)]">
-                        <Check className="size-3" /> example complete
-                      </span>
-                    )}
                   </div>
                 </div>
               </div>
@@ -191,5 +215,12 @@ export function BrainShowcase({ compact = false }: { compact?: boolean }) {
         </div>
       </section>
     </div>
+  );
+}
+
+export function BrainShowcase({ compact = false }: { compact?: boolean }) {
+  const { locale } = useLocale();
+  return (
+    <LocalizedBrainShowcase key={locale} compact={compact} locale={locale} />
   );
 }

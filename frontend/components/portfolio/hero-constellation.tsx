@@ -150,8 +150,8 @@ export function HeroConstellation() {
         ]),
       );
       starCenters = stars.map((star) => ({
-        x: star.offsetLeft + star.offsetWidth / 2,
-        y: star.offsetTop + star.offsetHeight / 2,
+        x: star.offsetLeft,
+        y: star.offsetTop,
       }));
     };
 

@@ -11,10 +11,24 @@ const resume = readSource("lib/resume.ts");
 const header = readSource("components/shell/header.tsx");
 const commandPalette = readSource("components/shell/command-palette-dialog.tsx");
 const styles = readSource("app/globals.css");
+const login = readSource("app/login/page.tsx");
 
 test("homepage identifies the AI software engineer role in both locales", () => {
   assert.match(resume, /en: "AI software engineer/);
   assert.match(resume, /es: "Ingeniero de software de IA/);
+});
+
+test("homepage hero keeps compact spacing below the mobile navigation", () => {
+  assert.match(
+    homepage,
+    /gap-6 px-4 pt-5 pb-10 sm:gap-10 sm:px-6 sm:pt-32 sm:pb-20/,
+  );
+  assert.match(
+    homepage,
+    /flex-col gap-8 px-4 pb-20 sm:gap-24 sm:px-6 sm:pb-32/,
+  );
+  assert.match(homepage, /grid gap-4 sm:mt-6 sm:gap-6/);
+  assert.match(homepage, /reveal mt-10 hidden font-mono[^"]*sm:block/);
 });
 
 test("projects expose status, engineering proof, and visible destinations", () => {
@@ -71,13 +85,27 @@ test("frontend source contains no em dashes", () => {
   }
 });
 
-test("public navigation hides login and defers prominent search", () => {
+test("public navigation keeps admin sign-in inside the dropdown", () => {
   assert.match(header, /const isHome = pathname === "\/"/);
   assert.match(header, /isHome \? "hidden" : "hidden sm:flex"/);
   assert.match(header, /me \? \(/);
-  assert.doesNotMatch(header, /googleLoginUrl|nav\.login/);
+  assert.match(header, /href=\{googleLoginUrl\}[\s\S]*?Sign In \(Admin\)/);
+  assert.match(header, /!s\.cambioHostOnly \|\| cambioHost/);
   assert.doesNotMatch(commandPalette, /googleLoginUrl|loginGoogle|<LogIn/);
   assert.doesNotMatch(readSource("lib/i18n/ui.ts"), /login:/);
+});
+
+test("login page stays minimal and monochrome", () => {
+  assert.match(login, /are you cole\? if not, good luck/);
+  assert.match(login, /Sign in with Google/);
+  assert.match(login, /back to home/);
+  assert.doesNotMatch(login, /bg-grid|section-label|<svg/);
+});
+
+test("owner logout is available only in navigation menus", () => {
+  assert.match(header, /<DropdownMenuItem[\s\S]*?logout\.mutate\(\)[\s\S]*?nav\.logout/);
+  assert.match(commandPalette, /<CommandItem[\s\S]*?logout\.mutate\(\)[\s\S]*?p\.logout/);
+  assert.doesNotMatch(header, /<Button[\s\S]*?nav\.logout/);
 });
 
 function hslToRgb([h, s, l]) {

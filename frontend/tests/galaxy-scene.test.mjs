@@ -146,6 +146,8 @@ test("pointer hot path uses cached star geometry", () => {
   );
   assert.doesNotMatch(pointerPath, /getBoundingClientRect|offsetLeft|offsetTop/);
   assert.match(pointerPath, /starCenters/);
+  assert.match(component, /x: star\.offsetLeft,\s*y: star\.offsetTop/);
+  assert.doesNotMatch(component, /star\.offsetLeft \+ star\.offsetWidth/);
 });
 
 test("black-hole cursor uses a neutral core and orange energy only", () => {
@@ -157,6 +159,13 @@ test("black-hole cursor uses a neutral core and orange energy only", () => {
   assert.match(cursorStyles, /hsl\(24 98% 54%/);
   assert.match(cursorStyles, /hsl\(0 0% 3%\)/);
   assert.doesNotMatch(cursorStyles, /\.galaxy-black-hole::after/);
+});
+
+test("navigation dropdown restores a visible native cursor", () => {
+  assert.match(
+    styles,
+    /html\.galaxy-cursor-active \[data-slot="dropdown-menu-content"\][\s\S]*?cursor: default !important/,
+  );
 });
 
 test("responsive and reduced-motion layouts are deliberate", () => {

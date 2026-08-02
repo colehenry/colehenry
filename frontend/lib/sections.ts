@@ -11,6 +11,8 @@ export type Section = {
   accent: string;
   description: string;
   ownerOnly?: boolean;
+  /** visible in navigation only to the owner or configured Cambio hosts */
+  cambioHostOnly?: boolean;
   /** built for real vs. themed blank page */
   comingSoon?: boolean;
 };
@@ -39,6 +41,14 @@ export const sections: Section[] = [
     accent: "recipes",
     description:
       "colehenry@kitchen:~$ - recipes I actually cook, rated out of 5.",
+  },
+  {
+    slug: "cambio",
+    path: "/cambio",
+    name: "Cambio",
+    accent: "cambio",
+    description: "Realtime card game - play the bot or a friend by invite link.",
+    cambioHostOnly: true,
   },
   {
     slug: "challenges",

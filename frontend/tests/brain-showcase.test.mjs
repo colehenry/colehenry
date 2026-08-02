@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   BRAIN_SHOWCASE_CONVERSATIONS,
   completeShowcaseConversation,
+  getBrainShowcaseConversations,
 } from "../lib/brain-showcase.ts";
 
 const readSource = (path) =>
@@ -58,11 +59,39 @@ test("example UI mirrors Brain without adding scroll containers", () => {
   assert.match(source, /modelSlugs=\{EXAMPLE_MODEL_SLUGS\}/);
   assert.match(source, /dimBackground=\{false\}/);
   assert.match(source, /modal=\{false\}/);
-  assert.match(source, /aria-label="New example chat"/);
+  assert.match(source, /aria-label=\{copy\.newChat\}/);
+  assert.match(source, /getBrainShowcaseConversations\(locale\)/);
+  assert.match(source, /<LocalizedBrainShowcase key=\{locale\}/);
   assert.match(source, /}, 5000\);/);
   assert.doesNotMatch(source, /overflow-y-auto/);
   assert.doesNotMatch(source, /BrainDrawer|FolderTree|example note/i);
+  assert.doesNotMatch(source, /example complete|<Check/);
 
   const fixture = readSource("lib/brain-showcase.ts");
   assert.doesNotMatch(fixture, /BRAIN_SHOWCASE_NOTES|demo\//);
+});
+
+test("Lapwise deployment example stays concise for its mobile card", () => {
+  const deployment = BRAIN_SHOWCASE_CONVERSATIONS.find(
+    (conversation) => conversation.id === "lapwise-deployment",
+  );
+  assert.ok(deployment);
+  assert.ok(completeShowcaseConversation(deployment).text.length < 240);
+});
+
+test("every Brain example has a complete Spanish stream", () => {
+  const spanish = getBrainShowcaseConversations("es");
+  assert.deepEqual(
+    spanish.map(({ id }) => id),
+    BRAIN_SHOWCASE_CONVERSATIONS.map(({ id }) => id),
+  );
+
+  for (const conversation of spanish) {
+    const playback = completeShowcaseConversation(conversation);
+    assert.equal(playback.complete, true);
+    assert.ok(conversation.prompt.startsWith("¿"));
+    const toolLabels = playback.tools.map(({ label }) => label).join(" ");
+    assert.doesNotMatch(toolLabels, /opening|checking|reading|searching/i);
+    assert.ok(playback.text.length > 80);
+  }
 });
