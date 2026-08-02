@@ -17,6 +17,12 @@ test("homepage identifies the AI software engineer role in both locales", () => 
   assert.match(resume, /es: "Ingeniero de software de IA/);
 });
 
+test("homepage hero keeps compact spacing below the mobile navigation", () => {
+  assert.match(homepage, /px-4 pt-12 pb-20 sm:px-6 sm:pt-32/);
+  assert.match(homepage, /flex-col gap-12 px-4 pb-32 sm:gap-24 sm:px-6/);
+  assert.match(homepage, /reveal mt-10 hidden font-mono[^"]*sm:block/);
+});
+
 test("projects expose status, engineering proof, and visible destinations", () => {
   assert.match(homepage, /Formula 1 Analytics Platform/);
   assert.match(homepage, /76 seasons of race and telemetry data/);

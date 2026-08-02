@@ -539,7 +539,7 @@ export default function HomePage() {
   return (
     <div data-section="home" className="relative">
       {/* hero */}
-      <section className="relative mx-auto grid w-full max-w-5xl gap-10 px-4 pt-24 pb-20 sm:px-6 sm:pt-32 lg:grid-cols-[1fr_360px] lg:items-start">
+      <section className="relative mx-auto grid w-full max-w-5xl gap-10 px-4 pt-12 pb-20 sm:px-6 sm:pt-32 lg:grid-cols-[1fr_360px] lg:items-start">
         <div>
           <h1
             className="reveal max-w-3xl font-sans text-6xl font-semibold tracking-tight text-balance sm:text-8xl"
@@ -583,7 +583,7 @@ export default function HomePage() {
             ))}
           </div>
           <p
-            className="reveal mt-10 font-mono text-xs text-muted-foreground"
+            className="reveal mt-10 hidden font-mono text-xs text-muted-foreground sm:block"
             style={reveal(4)}
           >
             {home.kbdBefore}{" "}
@@ -595,7 +595,7 @@ export default function HomePage() {
       </section>
 
       {/* content sections */}
-      <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-24 px-4 pb-32 sm:px-6">
+      <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-12 px-4 pb-32 sm:gap-24 sm:px-6">
         <LapwiseProjectSection />
         <BrainProjectSection />
         <QuenoseteolvideProjectSection />
