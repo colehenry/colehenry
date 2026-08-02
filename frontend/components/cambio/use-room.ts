@@ -21,7 +21,7 @@ export type RoomStatus =
 
 /** Owns the WebSocket for one room: connect, auto-reconnect with the seat
  * token (survives refresh via sessionStorage), expose the latest masked view
- * and a `send` for moves. The server is authoritative — this hook never
+ * and a `send` for moves. The server is authoritative - this hook never
  * simulates anything. */
 export function useRoom(roomId: string, token: string, name: string | null) {
   const [status, setStatus] = useState<RoomStatus>("connecting");
@@ -109,9 +109,9 @@ export function useRoom(roomId: string, token: string, name: string | null) {
     wsRef.current?.send(JSON.stringify({ type: "move", move }));
   }, []);
 
-  const restart = useCallback(() => {
-    wsRef.current?.send(JSON.stringify({ type: "restart" }));
+  const ready = useCallback(() => {
+    wsRef.current?.send(JSON.stringify({ type: "ready" }));
   }, []);
 
-  return { status, seat, view, room, error, events, snapDeadline, send, restart };
+  return { status, seat, view, room, error, events, snapDeadline, send, ready };
 }

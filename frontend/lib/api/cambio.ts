@@ -1,6 +1,7 @@
 import { z } from "zod";
 
-import { API_URL, apiFetch } from "@/lib/api/client";
+import { userSchema, type User } from "@/lib/api/auth";
+import { API_URL, ApiError, apiFetch } from "@/lib/api/client";
 
 /* --- REST ----------------------------------------------------------------- */
 
@@ -17,6 +18,7 @@ const seatSchema = z.object({
   name: z.string(),
   kind: z.string(),
   connected: z.boolean(),
+  ready: z.boolean(),
 });
 export type SeatInfo = z.infer<typeof seatSchema>;
 
@@ -59,6 +61,15 @@ export function createRoom(mode: "vs_bot" | "vs_human"): Promise<RoomOut> {
     method: "POST",
     body: JSON.stringify({ mode }),
   });
+}
+
+export async function getCambioHost(): Promise<User | null> {
+  try {
+    return await apiFetch("/cambio/host", userSchema);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) return null;
+    throw error;
+  }
 }
 
 export function getRoomMeta(roomId: string, token: string): Promise<RoomMeta> {

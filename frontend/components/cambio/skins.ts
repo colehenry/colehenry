@@ -1,4 +1,4 @@
-/** Card-skin registry. Skins style the cards only — the XP chrome and felt
+/** Card-skin registry. Skins style the cards only - the XP chrome and felt
  * table never change (plan §7). Adding a skin = a `.cb-skin-*` block in
  * cards.css plus a row here. */
 

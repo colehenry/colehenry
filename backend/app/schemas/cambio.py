@@ -14,6 +14,7 @@ class CambioSeatOut(BaseModel):
     name: str
     kind: str
     connected: bool
+    ready: bool
 
 
 class CambioRoomOut(BaseModel):

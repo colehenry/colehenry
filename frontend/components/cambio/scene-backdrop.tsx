@@ -15,7 +15,7 @@ export function SceneBackdrop({ scene }: { scene: Scene }) {
   );
 }
 
-/** Trattoria awning across the top — cohesive with the red-striped mascot. */
+/** Trattoria awning across the top - cohesive with the red-striped mascot. */
 function Awning() {
   const stripes = Array.from({ length: 18 });
   return (

@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { getMe } from "@/lib/api/auth";
-import { createRoom } from "@/lib/api/cambio";
+import { logout } from "@/lib/api/auth";
+import { createRoom, getCambioHost } from "@/lib/api/cambio";
 import { PlayingCard } from "./card";
 import { SceneBackdrop } from "./scene-backdrop";
 import { SKIN_LABELS, type Skin } from "./skins";
@@ -31,8 +31,24 @@ export function CambioLobby() {
   const skin = useSkin();
   const scene = useScene();
   const [creating, setCreating] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  const { data: me } = useQuery({ queryKey: ["me"], queryFn: getMe });
+  const { data: host, isLoading: isLoadingHost } = useQuery({
+    queryKey: ["cambio-host"],
+    queryFn: getCambioHost,
+    retry: false,
+  });
+  const hostLogout = useMutation({
+    mutationFn: logout,
+    onSuccess: () => {
+      queryClient.setQueryData(["cambio-host"], null);
+      queryClient.setQueryData(["me"], null);
+    },
+  });
+
+  useEffect(() => {
+    if (!isLoadingHost && !host) router.replace("/login");
+  }, [host, isLoadingHost, router]);
 
   async function newGame(mode: "vs_bot" | "vs_human") {
     setCreating(mode);
@@ -43,6 +59,8 @@ export function CambioLobby() {
       setCreating(null);
     }
   }
+
+  if (isLoadingHost || !host) return null;
 
   return (
     <div data-section="cambio" className={`cb-game cb-skin-${skin} cb-scene-${scene}`}>
@@ -62,7 +80,7 @@ export function CambioLobby() {
               <p style={{ marginBottom: 8 }}>
                 Four face-down cards each; you briefly see your bottom two. Each
                 turn: draw, then swap the card in or play it (powers trigger when
-                played). Any reveal opens a 3-second <b>snap window</b> — tap a
+                played). Any reveal opens a 3-second <b>snap window</b> - tap a
                 matching card to shed it. Call <b>Cambio</b> when you think
                 you&apos;re lowest; everyone else gets one last turn. Lowest total
                 wins.
@@ -82,8 +100,8 @@ export function CambioLobby() {
 
           <div>
             <h3>New game</h3>
-            {me ? (
-              <div className="cb-btn-row" style={{ marginTop: 10 }}>
+            <div style={{ marginTop: 10 }}>
+              <div className="cb-btn-row">
                 <button
                   className="cb-primary is-gold"
                   disabled={creating !== null}
@@ -99,12 +117,17 @@ export function CambioLobby() {
                   ✉ Invite a friend
                 </button>
               </div>
-            ) : (
-              <p style={{ marginTop: 8 }}>
-                Games are started by the site owner — if someone sent you an
-                invite link, just open it and pick a nickname.
-              </p>
-            )}
+              <div className="cb-host-session">
+                <span>{host.email}</span>
+                <button
+                  type="button"
+                  onClick={() => hostLogout.mutate()}
+                  disabled={hostLogout.isPending}
+                >
+                  Log out
+                </button>
+              </div>
+            </div>
           </div>
 
           <div>

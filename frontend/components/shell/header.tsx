@@ -5,6 +5,7 @@ import {
   FileText,
   FolderGit2,
   Home,
+  LogIn,
   LogOut,
   Search,
 } from "lucide-react";
@@ -23,7 +24,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useLogout, useMe } from "@/lib/hooks/use-me";
+import { googleLoginUrl } from "@/lib/api/auth";
+import { useCambioHost, useLogout, useMe } from "@/lib/hooks/use-me";
 import { useLocale } from "@/lib/i18n/locale";
 import { ui } from "@/lib/i18n/ui";
 import { sections } from "@/lib/sections";
@@ -39,7 +41,8 @@ export function Header() {
   const [navOpen, setNavOpen] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const openedByHover = useRef(false);
-  const { me } = useMe();
+  const { me, isLoading: isLoadingMe } = useMe();
+  const { cambioHost } = useCambioHost();
   const logout = useLogout();
   const { locale } = useLocale();
   const nav = ui[locale].nav;
@@ -48,6 +51,7 @@ export function Header() {
   const navSections = sections.filter(
     (s) =>
       (!s.ownerOnly || me) &&
+      (!s.cambioHostOnly || cambioHost) &&
       s.slug !== "blog" &&
       s.slug !== "journal" &&
       s.slug !== "dashboard",
@@ -219,6 +223,19 @@ export function Header() {
                   {nav.logout}
                 </DropdownMenuItem>
               </>
+            ) : !isLoadingMe ? (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <a
+                    href={googleLoginUrl}
+                    className="rounded-lg px-2 py-1.5 focus:bg-brand focus:text-brand-contrast focus:**:text-brand-contrast"
+                  >
+                    <LogIn />
+                    Sign In (Admin)
+                  </a>
+                </DropdownMenuItem>
+              </>
             ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
@@ -237,7 +254,7 @@ export function Header() {
               ⌘K
             </kbd>
           </button>
-          <LanguageToggle />
+          {!pathname.startsWith("/cambio") ? <LanguageToggle /> : null}
           <ThemeToggle />
         </div>
       </div>

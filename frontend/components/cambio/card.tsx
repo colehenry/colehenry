@@ -4,7 +4,7 @@ import type { CardFace } from "@/lib/api/cambio";
 
 /** Hand-built playing card (plan §6.3): CSS 3D flip, two faces with
  * backface-visibility hidden. Skins restyle it purely via the `.cb-skin-*`
- * class on the table root — geometry never changes. */
+ * class on the table root - geometry never changes. */
 
 const SUIT_GLYPH: Record<string, string> = {
   S: "♠",
@@ -18,7 +18,7 @@ function suitColor(rank: string, suit: string | null): string {
   return suit === "H" || suit === "D" ? "is-red" : "is-black";
 }
 
-/** Deterministic little modernist composition for the art skin's centers —
+/** Deterministic little modernist composition for the art skin's centers -
  * shapes and palette keyed off rank+suit so each card has a stable plate. */
 function ArtPlate({ rank, suit }: { rank: string; suit: string | null }) {
   const seed =

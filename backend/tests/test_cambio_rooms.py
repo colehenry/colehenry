@@ -30,6 +30,7 @@ async def play_vs_bot_round(seed=0):
     assert seat is not None and seat.seat == 0
     seat.ws = ws
     seat.connected = True
+    seat.ready = True
     assert room.humans_ready()
     await room.start_round()
 
@@ -89,3 +90,43 @@ def test_room_manager_create_and_token_gate():
     again = room.claim_seat("", first.token)
     assert again is first
     assert room.claim_seat("", "wrong-token") is None
+
+
+def test_two_humans_must_both_ready_before_deal():
+    async def scenario():
+        room = Room("READY2", "vs_human", CambioConfig())
+        first = room.claim_seat("Cole", None)
+        second = room.claim_seat("Friend", None)
+        first.ws, second.ws = StubSocket(), StubSocket()
+        first.connected = second.connected = True
+
+        await room.mark_ready(first.seat)
+        assert room.state is None
+        assert first.ready and not second.ready
+
+        await room.mark_ready(second.seat)
+        assert room.state is not None
+        assert room.round_no == 1
+        assert not first.ready and not second.ready
+        assert room.state.events == []
+        assert any(
+            event["type"] == "opening_peek"
+            for event in first.ws.messages[-1]["view"]["events"]
+        )
+
+    run(scenario())
+
+
+def test_bot_game_starts_when_the_human_readies():
+    async def scenario():
+        room = Room("READY1", VS_BOT, CambioConfig(), bot_delay=60)
+        human = room.claim_seat("Cole", None)
+        human.ws = StubSocket()
+        human.connected = True
+        assert room.state is None
+
+        await room.mark_ready(human.seat)
+        assert room.state is not None
+        assert room.round_no == 1
+
+    run(scenario())

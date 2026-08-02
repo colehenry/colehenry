@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     # when unset so local dev keeps working.
     session_secret: str = ""
     owner_email: str
+    # Comma-separated Google accounts that may host Cambio rooms. These
+    # accounts receive no access to owner-only routes or integrations.
+    cambio_host_emails: str = "hannahbrier1@gmail.com"
     google_client_id: str
     google_client_secret: str
     oauth_redirect_uri: str
@@ -72,6 +75,14 @@ class Settings(BaseSettings):
     def cookie_secure(self) -> bool:
         # Secure cookies require https; localhost dev runs plain http.
         return self.frontend_origin.startswith("https://")
+
+    @property
+    def cambio_host_email_set(self) -> set[str]:
+        return {
+            email.strip().lower()
+            for email in self.cambio_host_emails.split(",")
+            if email.strip()
+        }
 
 
 @lru_cache

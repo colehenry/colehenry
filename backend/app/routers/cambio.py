@@ -19,7 +19,7 @@ from app.cambio.config import CambioConfig
 from app.cambio.engine import IllegalMove
 from app.cambio.rooms import Room, manager
 from app.db import SessionLocal, get_db
-from app.deps import require_owner
+from app.deps import require_cambio_host
 from app.models import CambioGame, CambioMove, CambioPlayer, CambioRound, User
 from app.schemas.cambio import (
     CambioOpponentRow,
@@ -29,6 +29,7 @@ from app.schemas.cambio import (
     CambioSeatOut,
     CambioStats,
 )
+from app.schemas import UserOut
 
 router = APIRouter(prefix="/cambio", tags=["cambio"])
 
@@ -119,7 +120,7 @@ def _make_recorder(created_by: int | None):
 
 
 @router.post("/rooms", response_model=CambioRoomOut, status_code=201)
-def create_room(body: CambioRoomCreate, user: User = Depends(require_owner)):
+def create_room(body: CambioRoomCreate, user: User = Depends(require_cambio_host)):
     try:
         config = _build_config(body.config)
     except TypeError:
@@ -131,6 +132,11 @@ def create_room(body: CambioRoomCreate, user: User = Depends(require_owner)):
         mode=room.mode,
         join_path=f"/cambio/r/{room.id}?t={room.token}",
     )
+
+
+@router.get("/host", response_model=UserOut)
+def host_session(user: User = Depends(require_cambio_host)):
+    return user
 
 
 @router.get("/rooms/{room_id}", response_model=CambioRoomMeta)
@@ -170,11 +176,9 @@ async def game_socket(websocket: WebSocket, room_id: str):
         {"type": "joined", "seat": seat.seat, "seat_token": seat.token}
     )
 
-    # Deal as soon as every human seat is filled and connected.
-    if room.state is None and room.humans_ready():
-        await room.start_round()
-    else:
-        await room.broadcast()
+    # Joining never deals automatically. Each human explicitly readies after
+    # the socket is connected, so the opening peek begins while they watch.
+    await room.broadcast()
 
     try:
         while True:
@@ -183,8 +187,12 @@ async def game_socket(websocket: WebSocket, room_id: str):
             try:
                 if kind == "move":
                     await room.apply(seat.seat, data.get("move") or {})
+                elif kind == "ready":
+                    await room.mark_ready(seat.seat)
                 elif kind == "restart":
-                    await room.restart()
+                    # Compatibility with clients loaded before the ready
+                    # handshake shipped; it cannot bypass readiness.
+                    await room.mark_ready(seat.seat)
                 elif kind == "ping":
                     await websocket.send_json({"type": "pong"})
             except IllegalMove as exc:
@@ -196,6 +204,8 @@ async def game_socket(websocket: WebSocket, room_id: str):
         if seat.ws is websocket:
             seat.ws = None
             seat.connected = False
+            if room.state is None or room.state.phase == "round_end":
+                seat.ready = False
             await room.broadcast()
 
 
@@ -203,7 +213,7 @@ async def game_socket(websocket: WebSocket, room_id: str):
 
 
 @router.get("/stats", response_model=CambioStats)
-def stats(db: Session = Depends(get_db), user: User = Depends(require_owner)):
+def stats(db: Session = Depends(get_db), user: User = Depends(require_cambio_host)):
     games = (
         db.execute(
             select(CambioGame)

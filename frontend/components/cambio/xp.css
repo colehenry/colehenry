@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------------
- * Cambio — faux Windows-XP game chrome. ALWAYS XP regardless of card skin
- * (skins style the cards only — plan §7).
+ * Cambio - faux Windows-XP game chrome. ALWAYS XP regardless of card skin
+ * (skins style the cards only - plan §7).
  *
  * Classes are `cb-` prefixed: components/language/xp.css already claims the
  * unscoped `.xp-*` names globally, and Next bundles both stylesheets.

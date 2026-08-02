@@ -38,7 +38,17 @@ export default function CambioRoomPage({
   const name = submitted ?? storedIdentity;
   const [draft, setDraft] = useState("");
 
-  const { status, seat, view, room, error, events, send, restart } =
+  const {
+    status,
+    seat,
+    view,
+    room,
+    error,
+    events,
+    snapDeadline,
+    send,
+    ready,
+  } =
     useRoom(roomId, token, name);
 
   const inviteUrl =
@@ -51,9 +61,10 @@ export default function CambioRoomPage({
         room={room}
         seat={seat}
         send={send}
-        restart={restart}
+        ready={ready}
         error={error}
         events={events}
+        snapDeadline={snapDeadline}
         skin={skin}
         scene={scene}
       />
@@ -66,7 +77,7 @@ export default function CambioRoomPage({
       <div className="cb-gate">
         {name === null ? (
           <div className="cb-card">
-            <h3>Join Cambio — Room #{roomId}</h3>
+            <h3>Join Cambio - Room #{roomId}</h3>
             <form
               style={{ display: "flex", gap: 8, marginTop: 4 }}
               onSubmit={(e) => {
@@ -92,10 +103,35 @@ export default function CambioRoomPage({
           </div>
         ) : (
           <div className="cb-card">
-            <h3>Cambio — Room #{roomId}</h3>
+            <h3>Cambio - Room #{roomId}</h3>
             {status === "waiting" && (
               <>
-                <p style={{ marginBottom: 10 }}>Waiting for your opponent to join…</p>
+                <div className="cb-ready-list">
+                  {room?.seats.map((player) => (
+                    <div key={player.seat}>
+                      <span>{player.seat === seat ? "You" : player.name || "Opponent"}</span>
+                      <strong>
+                        {player.kind === "bot"
+                          ? "ready"
+                          : player.ready
+                            ? "ready"
+                            : player.connected
+                              ? "not ready"
+                              : "joining"}
+                      </strong>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  className="cb-primary cb-ready-button"
+                  type="button"
+                  onClick={ready}
+                  disabled={room?.seats.find((player) => player.seat === seat)?.ready}
+                >
+                  {room?.seats.find((player) => player.seat === seat)?.ready
+                    ? "Ready - waiting"
+                    : "Ready"}
+                </button>
                 <div className="cb-card-sub">Invite link</div>
                 <div style={{ display: "flex", gap: 8 }}>
                   <input
@@ -116,7 +152,7 @@ export default function CambioRoomPage({
             {status === "connecting" && <p>Connecting…</p>}
             {status === "full" && <p>This table is full.</p>}
             {status === "closed" && (
-              <p>Room not found — it may have expired (rooms live 24h).</p>
+              <p>Room not found - it may have expired (rooms live 24h).</p>
             )}
           </div>
         )}

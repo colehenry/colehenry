@@ -43,6 +43,7 @@ class Seat:
     token: str = ""  # seat token: rejoin credential, never shared cross-seat
     ws: Any | None = None
     connected: bool = False
+    ready: bool = False
 
 
 # recorder(room, kind, payload) — kind: "start" | "move" | "round_end"
@@ -100,16 +101,38 @@ class Room:
         return None
 
     def humans_ready(self) -> bool:
-        return all(s.connected for s in self.seats if s.kind == "human")
+        return all(
+            s.connected and s.ready for s in self.seats if s.kind == "human"
+        )
 
     # --- lifecycle ---------------------------------------------------------
 
     async def start_round(self) -> None:
+        for seat in self.seats:
+            if seat.kind == "human":
+                seat.ready = False
         self.round_no += 1
         self.state = new_round(self.config, seed=None)
         await self.recorder(self, "start", {"round_no": self.round_no})
         await self.broadcast()
+        # Events are transient animation/reveal messages. Once every connected
+        # player has received this broadcast they must never be replayed.
+        self.state.events = []
         self._arm_followups()
+
+    async def mark_ready(self, seat_number: int) -> None:
+        """Ready one human for the first or next round."""
+        async with self.lock:
+            if self.state is not None and self.state.phase != E.ROUND_END:
+                raise IllegalMove("round already started")
+            seat = self.seats[seat_number]
+            if seat.kind != "human" or not seat.connected:
+                raise IllegalMove("seat is not connected")
+            seat.ready = True
+            if self.humans_ready():
+                await self.start_round()
+            else:
+                await self.broadcast()
 
     async def apply(self, seat: int, move: dict) -> None:
         """Validate + apply a move, persist it, fan out views, arm timers."""
@@ -149,13 +172,9 @@ class Room:
                     },
                 )
         await self.broadcast()
+        if self.state is not None:
+            self.state.events = []
         self._arm_followups()
-
-    async def restart(self) -> None:
-        """Play again from the round-end screen."""
-        if self.state is not None and self.state.phase != E.ROUND_END:
-            raise IllegalMove("round still running")
-        await self.start_round()
 
     # --- fan-out -----------------------------------------------------------
 
@@ -166,6 +185,7 @@ class Room:
                 "name": s.name or ("Bot" if s.kind == "bot" else ""),
                 "kind": s.kind,
                 "connected": s.connected,
+                "ready": s.ready,
             }
             for s in self.seats
         ]
@@ -190,7 +210,13 @@ class Room:
         if self.state is None:
             payload = {
                 "type": "waiting",
-                "room": {"id": self.id, "mode": self.mode, "seats": self.seat_names()},
+                "room": {
+                    "id": self.id,
+                    "mode": self.mode,
+                    "round_no": self.round_no,
+                    "seats": self.seat_names(),
+                    "snap_window_ms": self.config.snap_window_ms,
+                },
             }
             for seat in self.seats:
                 if seat.ws is not None and seat.connected:

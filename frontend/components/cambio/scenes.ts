@@ -1,5 +1,5 @@
 /** Scene registry (plan §7). A scene themes the TABLE surface + background and
- * is independent of the card deck (skins.ts) — decks and scenes compose freely.
+ * is independent of the card deck (skins.ts) - decks and scenes compose freely.
  * A scene is applied via the `cb-scene-*` class on the game root; its visual
  * tokens (backdrop, surface, light tint, accent) live in table.css. Adding a
  * scene = a `.cb-scene-*` block there plus a row here.

@@ -1,5 +1,5 @@
 /* ---------------------------------------------------------------------------
- * Cambio — full-bleed illustrated table (plan §6, redesign 2026-07-22).
+ * Cambio - full-bleed illustrated table (plan §6, redesign 2026-07-22).
  * No window chrome: the game fills the route below the navbar, with a fullscreen
  * toggle. Two theming axes compose here: card DECK (.cb-skin-* in cards.css) and
  * table SCENE (.cb-scene-* below). Classes are `cb-` prefixed.
@@ -26,7 +26,7 @@
   font-family: "Segoe UI", system-ui, sans-serif;
   user-select: none;
 }
-/* the table locks to the viewport — always fully visible, never scrolls */
+/* the table locks to the viewport - always fully visible, never scrolls */
 .cb-game.cb-fit {
   height: calc(100dvh - 3.5rem);
   min-height: 0;
@@ -62,7 +62,7 @@
   background: radial-gradient(120% 90% at 50% 62%, transparent 30%, rgb(0 0 0 / 0.28) 100%);
 }
 
-/* Seaside terrace — sky, sun, sea band, terracotta tabletop */
+/* Seaside terrace - sky, sun, sea band, terracotta tabletop */
 .cb-scene-seaside .cb-backdrop {
   background:
     radial-gradient(60% 40% at 78% 12%, rgb(255 244 214 / 0.95), transparent 60%),
@@ -80,7 +80,7 @@
     );
 }
 
-/* Coffee shop — lightweight warm interior (preview until illustrated) */
+/* Coffee shop - lightweight warm interior (preview until illustrated) */
 .cb-scene-cafe .cb-backdrop {
   background:
     radial-gradient(50% 40% at 24% 16%, rgb(255 226 170 / 0.7), transparent 60%),
@@ -88,14 +88,14 @@
     linear-gradient(180deg, #3a2a20 0%, #4a3527 40%, #5c4230 60%, #71543c 100%);
 }
 
-/* Medieval tavern — lightweight fallback behind the SVG */
+/* Medieval tavern - lightweight fallback behind the SVG */
 .cb-scene-tavern .cb-backdrop {
   background:
     radial-gradient(40% 34% at 16% 46%, rgb(255 180 90 / 0.5), transparent 60%),
     linear-gradient(180deg, #2b2620 0%, #3d352b 60%, #4a3d2e 100%);
 }
 
-/* Neutral — plain warm table */
+/* Neutral - plain warm table */
 .cb-scene-neutral .cb-backdrop {
   background:
     radial-gradient(120% 80% at 50% 55%, #2f6b4c 0%, #1f4a33 55%, #163527 100%);
@@ -112,6 +112,69 @@
   flex-direction: column;
   align-items: flex-end;
   gap: 8px;
+}
+
+.cb-action-countdown {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 46;
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 2px 10px;
+  min-width: 108px;
+  padding: 8px 10px 7px;
+  border: 1px solid var(--cb-panel-line);
+  border-radius: 12px;
+  background: var(--cb-panel);
+  color: var(--cb-text);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.28);
+  backdrop-filter: blur(8px);
+  font-size: 11px;
+  line-height: 1;
+}
+.cb-action-countdown strong {
+  justify-self: end;
+  font-variant-numeric: tabular-nums;
+}
+.cb-action-countdown-track {
+  grid-column: 1 / -1;
+  height: 3px;
+  margin-top: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.14);
+}
+.cb-action-countdown-track > span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-origin: left;
+  background: #c08be0;
+  transition: transform 0.1s linear;
+}
+.cb-action-countdown.is-snap .cb-action-countdown-track > span {
+  background: var(--cb-glow-opp);
+}
+
+.cb-ready-list {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.cb-ready-list > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 12px;
+}
+.cb-ready-list strong {
+  color: var(--cb-text-soft);
+  font-weight: 600;
+}
+.cb-ready-button {
+  width: 100%;
+  margin-bottom: 4px;
 }
 .cb-gear {
   display: inline-flex;
@@ -333,7 +396,7 @@
   transform: translateY(-10px) scale(1.16);
 }
 
-/* intent ring — lives ON the card (::before) so it stays centered and scales
+/* intent ring - lives ON the card (::before) so it stays centered and scales
  * with the card on hover. gold = draw, blue = your card, red = opponent. */
 .cb-slot.is-target .cbc::before,
 .cb-draw.is-target .cbc::before,
@@ -507,12 +570,36 @@
   box-shadow: 0 2px 8px rgb(0 0 0 / 0.3);
 }
 @media (max-width: 680px) {
-  .cb-zone-center { --side: clamp(78px, 24vw, 108px); }
+  .cb-zone-center {
+    --side: clamp(78px, 22vw, 100px);
+    grid-template-areas:
+      "held draw discard"
+      "held action empty";
+    grid-template-columns: var(--side) auto auto;
+    align-items: start;
+  }
+  .cb-center-side.is-left {
+    grid-area: held;
+    align-self: center;
+  }
+  .cb-piles {
+    display: contents;
+  }
+  .cb-pile:first-child {
+    grid-area: draw;
+  }
+  .cb-pile:nth-child(2) {
+    grid-area: discard;
+  }
+  .cb-center-side.is-right {
+    grid-area: action;
+    justify-self: center;
+  }
 }
 
 /* --- turn / decision pill (hero → docks) ---------------------------------- */
 
-/* minimal top prompt — only shown for decisions that need a word (snap, powers);
+/* minimal top prompt - only shown for decisions that need a word (snap, powers);
  * plain draw/swap are conveyed by the glowing targets, not text. Anchored so
  * motion can't break centering. Sits in the gap under the navbar, clear of cards. */
 .cb-prompt-anchor {
@@ -551,6 +638,10 @@
   opacity: 0.38;
   filter: grayscale(0.5);
 }
+.cb-felt.is-draw-step .cb-piles {
+  filter: none;
+  opacity: 1;
+}
 .cb-nameplate.is-active {
   animation: cb-namepulse 1.6s ease-in-out infinite;
 }
@@ -565,7 +656,7 @@
   50% { box-shadow: 0 0 0 2px var(--active), 0 0 18px var(--active); }
 }
 
-/* side turn rails — chevrons march toward whoever's turn it is */
+/* side turn rails - chevrons march toward whoever's turn it is */
 .cb-turnrail {
   position: absolute;
   top: 50%;
@@ -601,6 +692,14 @@
   50% { opacity: 1; }
 }
 @media (max-width: 680px) {
+  .cb-turnrail {
+    --rail-shift: clamp(130px, 27dvh, 220px);
+    transform: translateY(calc(-50% + var(--rail-shift)));
+    transition: transform 0.3s ease;
+  }
+  .cb-turnrail.to-opp {
+    --rail-shift: clamp(-220px, -27dvh, -130px);
+  }
   .cb-turnrail.on-left { left: 8px; }
   .cb-turnrail.on-right { right: 8px; }
 }
@@ -678,6 +777,10 @@
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+}
+.cb-again:disabled {
+  opacity: 0.65;
+  cursor: default;
 }
 
 /* --- error toast ---------------------------------------------------------- */
@@ -870,6 +973,28 @@
 .cb-primary:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.05); }
 .cb-primary:disabled { opacity: 0.5; cursor: default; }
 .cb-primary.is-gold { background: linear-gradient(180deg, #ffd76b, var(--cb-gold)); color: #5a3a08; }
+.cb-host-login {
+  display: inline-flex;
+  margin-top: 10px;
+  text-decoration: none;
+}
+.cb-host-session {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  color: var(--cb-text-soft);
+  font-size: 11px;
+}
+.cb-host-session button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 
 .cb-rules {
   width: 100%;

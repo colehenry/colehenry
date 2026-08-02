@@ -23,11 +23,11 @@ function rankLabel(rank: string): string {
 }
 
 /** Top of the discard. Shares `layoutId` with the card's previous position (a
- * hand slot or the held card) so it SLIDES here, then FLIPS face-up on arrival —
+ * hand slot or the held card) so it SLIDES here, then FLIPS face-up on arrival -
  * i.e. the replaced card flips in place and slides to the discard (Cole). */
 function DiscardTop({ face, skinArt }: { face: CardFace; skinArt: boolean }) {
   // Keyed by uid at the call site, so each new discard remounts as a back (false)
-  // and then flips — no synchronous reset needed.
+  // and then flips - no synchronous reset needed.
   const [up, setUp] = useState(false);
   useEffect(() => {
     // let the slide begin as a back, then flip to reveal while it's still moving
@@ -52,15 +52,54 @@ type Picked = { slot: number } | null;
  * for plain draw/swap (the glowing targets carry those), so text stays minimal. */
 type Tone = "you" | "snap" | "power" | "good" | "neutral";
 type Moment = { key: string; tone: Tone; hint: string | null };
+type RevealCountdown = {
+  deadline: number;
+  duration: number;
+  label: string;
+};
+
+function ActionCountdown({
+  deadline,
+  duration,
+  label,
+  tone,
+}: RevealCountdown & { tone: "peek" | "snap" }) {
+  const [remaining, setRemaining] = useState(() =>
+    Math.max(0, deadline - Date.now()),
+  );
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const next = Math.max(0, deadline - Date.now());
+      setRemaining(next);
+      if (next === 0) window.clearInterval(timer);
+    }, 100);
+    return () => window.clearInterval(timer);
+  }, [deadline]);
+
+  if (remaining <= 0) return null;
+  const progress = Math.min(1, remaining / duration);
+
+  return (
+    <div className={`cb-action-countdown is-${tone}`} role="timer">
+      <span>{label}</span>
+      <strong>{(remaining / 1000).toFixed(1)}s</strong>
+      <span className="cb-action-countdown-track" aria-hidden>
+        <span style={{ transform: `scaleX(${progress})` }} />
+      </span>
+    </div>
+  );
+}
 
 export function CambioTable({
   view,
   room,
   seat,
   send,
-  restart,
+  ready,
   error,
   events,
+  snapDeadline,
   skin,
   scene,
 }: {
@@ -68,9 +107,10 @@ export function CambioTable({
   room: RoomInfo;
   seat: number;
   send: (m: Move) => void;
-  restart: () => void;
+  ready: () => void;
   error: string | null;
   events: GameEvent[];
+  snapDeadline: number | null;
   skin: Skin;
   scene: Scene;
 }) {
@@ -112,28 +152,39 @@ export function CambioTable({
 
   const [reveal, setReveal] = useState<Record<number, CardFace>>({});
   const [peekPop, setPeekPop] = useState<CardFace | null>(null);
+  const [revealCountdown, setRevealCountdown] =
+    useState<RevealCountdown | null>(null);
+  const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const processedRef = useRef<number | null>(null);
+  /* Incoming WebSocket events are an external stream. Projecting a new reveal
+   * event into temporary UI state is the synchronization this effect owns. */
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    // Skip event history on first mount / reconnect so nothing stale flashes.
+    // On first mount, keep the round-opening reveal but skip stale move history
+    // delivered during a reconnect.
     if (processedRef.current === null) {
-      processedRef.current = events.length;
-      return;
+      processedRef.current = events.some((event) => event.type === "opening_peek")
+        ? 0
+        : events.length;
     }
     const fresh = events.slice(processedRef.current);
     processedRef.current = events.length;
     let map: Record<number, CardFace> | null = null;
     let single: CardFace | null = null;
     let ms = 0;
+    let countdownLabel = "Reveal";
     for (const e of fresh) {
       if (e.type === "opening_peek" && Array.isArray(e.cards)) {
         map = {};
         for (const c of e.cards as CardFace[]) map[c.uid] = c;
         ms = Math.max(ms, 5000);
+        countdownLabel = "Memorize";
       } else if (e.type === "peek" && e.card) {
         const c = e.card as CardFace;
         map = { ...(map ?? {}), [c.uid]: c };
         single = c;
         ms = Math.max(ms, 4500);
+        countdownLabel = "Peek";
       } else if (e.type === "snap_attempt" && e.card) {
         // Show the flipped card to everyone briefly (esp. a WRONG snap that's
         // kept) so you can see it before the penalty card arrives (§1.5).
@@ -143,15 +194,29 @@ export function CambioTable({
       }
     }
     if (map) {
+      if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
       setReveal(map);
       setPeekPop(single);
-      const t = setTimeout(() => {
+      setRevealCountdown({
+        deadline: Date.now() + ms,
+        duration: ms,
+        label: countdownLabel,
+      });
+      revealTimerRef.current = setTimeout(() => {
         setReveal({});
         setPeekPop(null);
+        setRevealCountdown(null);
+        revealTimerRef.current = null;
       }, ms);
-      return () => clearTimeout(t);
     }
   }, [events]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+  useEffect(
+    () => () => {
+      if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
+    },
+    [],
+  );
 
   /* --- what is clickable right now ---------------------------------------- */
 
@@ -196,7 +261,7 @@ export function CambioTable({
   }
 
   /* --- the "moment": tone for rails/dim + a minimal prompt (only when a word
-   * actually helps — plain draw/swap rely on the glowing targets) ----------- */
+   * actually helps - plain draw/swap rely on the glowing targets) ----------- */
 
   const moment: Moment = useMemo(() => {
     if (phase === "round_end") return { key: "end", tone: "neutral", hint: null };
@@ -209,7 +274,7 @@ export function CambioTable({
     if (!myTurn) return { key: `opp-${view.turn}`, tone: "neutral", hint: null };
     switch (phase) {
       case "turn":
-        return { key: `turn-${view.move_seq}`, tone: "you", hint: null };
+        return { key: `turn-${view.move_seq}`, tone: "you", hint: "Draw a card" };
       case "drawn":
         return { key: `drawn-${view.move_seq}`, tone: "you", hint: null };
       case "peek_own":
@@ -219,10 +284,10 @@ export function CambioTable({
       case "blind_swap":
         return picked
           ? { key: `bs1-${view.move_seq}-${picked.slot}`, tone: "power", hint: "Pick a card to swap with" }
-          : { key: `bs0-${view.move_seq}`, tone: "power", hint: "Blind swap — pick yours" };
+          : { key: `bs0-${view.move_seq}`, tone: "power", hint: "Blind swap - pick yours" };
       case "king":
         if (!view.king_looked && !picked)
-          return { key: `k0-${view.move_seq}`, tone: "power", hint: "King — look or pick a card" };
+          return { key: `k0-${view.move_seq}`, tone: "power", hint: "King - look or pick a card" };
         return picked
           ? { key: `k2-${view.move_seq}-${picked.slot}`, tone: "power", hint: "Pick the card to take" }
           : { key: `k1-${view.move_seq}`, tone: "power", hint: "Pick one of yours, or skip" };
@@ -233,11 +298,16 @@ export function CambioTable({
 
   // Whose turn it is drives dim/glow; during snap both can act, so nobody dims.
   const normalTurn = !snapOpen && phase !== "snap_give" && phase !== "round_end";
+  const targetingOpponent =
+    phase === "peek_opp" ||
+    ((phase === "blind_swap" || phase === "king") && picked !== null);
   const railToMe = snapOpen ? true : view.turn === seat;
+  const targetingDraw = myTurn && phase === "turn";
 
   /* --- draw / drawn / cambio ---------------------------------------------- */
 
   const canDraw = myTurn && phase === "turn" && !snapOpen;
+  const canDrawDiscard = canDraw && view.discard_top != null;
   const myDrawn = view.drawn && view.drawn.holder === seat ? view.drawn : null;
   const canPlayDrawn =
     myTurn && phase === "drawn" && (!view.drawn?.from_discard || me.hand.length === 0);
@@ -274,14 +344,17 @@ export function CambioTable({
 
   function renderHand(playerSeat: number, hand: { uid: number }[], mine: boolean) {
     const n = hand.length;
-    const even = n - (n % 2);
-    const sideCard = n % 2 ? hand[n - 1] : null;
+    const preserveTwoByTwo = n === 3;
+    const gridCount = preserveTwoByTwo ? n : n - (n % 2);
+    const sideCard = !preserveTwoByTwo && n % 2 ? hand[n - 1] : null;
     return (
       <div className={`cb-hand ${mine ? "is-me" : "is-opp"}`}>
         {n === 0 && <span className="cb-empty-hand">no cards!</span>}
-        {even > 0 && (
+        {gridCount > 0 && (
           <div className="cb-grid">
-            {hand.slice(0, even).map(({ uid }, i) => renderSlot(playerSeat, i, uid, mine))}
+            {hand
+              .slice(0, gridCount)
+              .map(({ uid }, i) => renderSlot(playerSeat, i, uid, mine))}
           </div>
         )}
         {sideCard && (
@@ -297,12 +370,28 @@ export function CambioTable({
     <div ref={rootRef} data-section="cambio" className={`cb-game cb-fit cb-skin-${skin} cb-scene-${scene}`}>
       <SceneBackdrop scene={scene} />
 
-      {/* HUD: deck/scene are chosen at the lobby and locked in — only fullscreen. */}
+      {/* HUD: deck/scene are chosen at the lobby and locked in - only fullscreen. */}
       <div className="cb-hud">
         <button className="cb-gear" onClick={toggleFull} aria-label={isFull ? "Exit full screen" : "Full screen"}>
           {isFull ? "⤡" : "⤢"}
         </button>
       </div>
+
+      {snapOpen && snapDeadline ? (
+        <ActionCountdown
+          key={snapDeadline}
+          deadline={snapDeadline}
+          duration={room.snap_window_ms ?? 3000}
+          label="Snap"
+          tone="snap"
+        />
+      ) : revealCountdown ? (
+        <ActionCountdown
+          key={revealCountdown.deadline}
+          {...revealCountdown}
+          tone="peek"
+        />
+      ) : null}
 
       {/* side rails: chevrons march toward whoever's turn it is */}
       <div className={`cb-turnrail on-left is-${moment.tone} ${railToMe ? "" : "to-opp"}`} aria-hidden>
@@ -317,7 +406,7 @@ export function CambioTable({
       </div>
 
       <LayoutGroup>
-        <div className="cb-felt">
+        <div className={`cb-felt ${targetingDraw ? "is-draw-step" : ""}`}>
           {/* opponent(s) */}
           <div className="cb-zone cb-zone-opp">
             {opponents.map((p) => {
@@ -327,7 +416,7 @@ export function CambioTable({
               return (
                 <div
                   key={p.seat}
-                  className={`cb-player ${normalTurn && !isTurn ? "is-dim" : ""}`}
+                  className={`cb-player ${normalTurn && !isTurn && !targetingOpponent ? "is-dim" : ""}`}
                 >
                   <div className={`cb-nameplate ${normalTurn && isTurn ? "is-active" : ""}`}>
                     <span className={`cb-dot ${connected ? "" : "is-off"}`} />
@@ -340,7 +429,7 @@ export function CambioTable({
             })}
           </div>
 
-          {/* center: [drawn card]  ·  pile · discard  ·  [CAMBIO] — symmetric */}
+          {/* center: [drawn card]  ·  pile · discard  ·  [CAMBIO] - symmetric */}
           <div className="cb-zone cb-zone-center">
             {/* left cell: the drawn card (tap a slot to swap) or a peeked card */}
             <div className="cb-center-side is-left">
@@ -386,7 +475,7 @@ export function CambioTable({
                   {view.stock_count > 0 ? (
                     <PlayingCard face={null} up={false} />
                   ) : (
-                    <div className="cb-pile-empty">—</div>
+                    <div className="cb-pile-empty">-</div>
                   )}
                 </div>
                 pile · {view.stock_count}
@@ -394,14 +483,23 @@ export function CambioTable({
 
               <div className="cb-pile">
                 <div
-                  className={`cb-draw ${canPlayDrawn ? "is-drop" : ""}`}
-                  onClick={() => canPlayDrawn && send({ type: "play" })}
+                  className={`cb-draw ${
+                    canPlayDrawn
+                      ? "is-drop"
+                      : canDrawDiscard
+                        ? "is-target"
+                        : ""
+                  }`}
+                  onClick={() => {
+                    if (canPlayDrawn) send({ type: "play" });
+                    else if (canDrawDiscard) send({ type: "draw_discard" });
+                  }}
                   title={canPlayDrawn ? "Play the drawn card" : undefined}
                 >
                   {view.discard_top ? (
                     <DiscardTop key={view.discard_top.uid} face={view.discard_top} skinArt={skin === "art"} />
                   ) : (
-                    <div className="cb-pile-empty">—</div>
+                    <div className="cb-pile-empty">-</div>
                   )}
                 </div>
                 discard · {view.discard_count}
@@ -427,7 +525,15 @@ export function CambioTable({
 
           {/* me */}
           <div className="cb-zone cb-zone-me">
-            <div className={`cb-player ${normalTurn && view.turn !== seat ? "is-dim" : ""}`}>
+            <div
+              className={`cb-player ${
+                (normalTurn && view.turn !== seat) ||
+                targetingOpponent ||
+                targetingDraw
+                  ? "is-dim"
+                  : ""
+              }`}
+            >
               {renderHand(seat, me.hand, true)}
               <div className={`cb-nameplate ${normalTurn && view.turn === seat ? "is-active is-you" : ""}`}>
                 <span className="cb-dot" />
@@ -438,7 +544,7 @@ export function CambioTable({
         </div>
       </LayoutGroup>
 
-      {/* minimal top prompt — only when a word helps (snap / powers) */}
+      {/* minimal top prompt - only when a word helps (snap / powers) */}
       <div className="cb-prompt-anchor">
         <AnimatePresence>
           {moment.hint && (
@@ -469,7 +575,7 @@ export function CambioTable({
             {view.players.map((p) => (
               <div key={p.seat} className="cb-dialog-row">
                 <b>
-                  {seatName(p.seat)} — {view.scores![p.seat]} pts
+                  {seatName(p.seat)} - {view.scores![p.seat]} pts
                   {view.winners?.includes(p.seat) ? " 🏆" : ""}
                   {view.cambio_caller === p.seat ? " (called Cambio)" : ""}
                 </b>
@@ -483,8 +589,14 @@ export function CambioTable({
                 </div>
               </div>
             ))}
-            <button className="cb-again" onClick={restart}>
-              Play again
+            <button
+              className="cb-again"
+              onClick={ready}
+              disabled={room.seats.find((player) => player.seat === seat)?.ready}
+            >
+              {room.seats.find((player) => player.seat === seat)?.ready
+                ? "Ready - waiting for opponent"
+                : "Ready for next round"}
             </button>
           </div>
         </div>

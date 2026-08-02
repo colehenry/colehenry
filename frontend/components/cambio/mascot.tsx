@@ -2,7 +2,7 @@
 
 import { motion } from "motion/react";
 
-/** The Cambio mascot — a cartoon Italian fellow in a red-striped shirt who pops
+/** The Cambio mascot - a cartoon Italian fellow in a red-striped shirt who pops
  * up when you call Cambio (plan §6.5). Placeholder hand-drawn SVG; real /
  * commissioned art can swap in later without touching callers. */
 export function Mascot({ onClick }: { onClick?: () => void }) {
