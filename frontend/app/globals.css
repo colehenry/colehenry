@@ -242,10 +242,18 @@
     overflow: hidden;
     pointer-events: none;
     contain: paint;
+    /* stays hidden until the scene has been measured, so the authored sprite
+       geometry never gets a painted frame before the scroll-derived one */
+    opacity: 0;
+    transition: opacity 420ms var(--ease-out);
     --galaxy-paper: 38 32% 88%;
     --galaxy-paper-shadow: 215 25% 12%;
     --galaxy-blue-paper: 205 42% 74%;
     --galaxy-navy-paper: 216 40% 28%;
+  }
+
+  .galaxy-scene[data-galaxy-ready] {
+    opacity: 1;
   }
 
   .dark .galaxy-scene {
@@ -320,10 +328,15 @@
 
   .galaxy-object {
     position: absolute;
+    /* the vertical anchor rides in the transform, not in `top`, so a change in
+       scene height is something the scroll lerp can absorb smoothly */
+    top: 0;
     opacity: var(--galaxy-object-opacity);
     transform: translate3d(
         var(--galaxy-pull-x),
-        calc(var(--galaxy-shift) + var(--galaxy-pull-y)),
+        calc(
+          var(--galaxy-anchor-y) + var(--galaxy-shift) + var(--galaxy-pull-y)
+        ),
         0
       )
       rotate(calc(var(--galaxy-rotation) + var(--galaxy-pull-turn)));
@@ -432,7 +445,7 @@
     mask-image: radial-gradient(circle, black 0 42%, transparent 72%);
     background: radial-gradient(
       circle,
-      hsl(28 96% 58% / 0.035),
+      hsl(var(--accent) / 0.05),
       transparent 68%
     );
     will-change: transform, opacity;
@@ -460,14 +473,14 @@
     background: conic-gradient(
       from 0deg,
       transparent 0 7%,
-      hsl(24 98% 54% / 0.96) 13%,
-      hsl(44 100% 70% / 0.75) 22%,
+      hsl(var(--accent) / 0.96) 13%,
+      hsl(195 100% 82% / 0.75) 22%,
       transparent 33% 52%,
-      hsl(16 94% 52% / 0.86) 62%,
-      hsl(38 100% 65% / 0.48) 72%,
+      hsl(var(--accent) / 0.86) 62%,
+      hsl(200 90% 74% / 0.48) 72%,
       transparent 84% 100%
     );
-    box-shadow: 0 0 12px hsl(25 96% 56% / 0.38);
+    box-shadow: 0 0 12px hsl(var(--accent) / 0.4);
     content: "";
     filter: blur(0.35px);
     mask-image: radial-gradient(circle, transparent 0 38%, black 46% 64%, transparent 72%);
@@ -488,8 +501,26 @@
     );
     box-shadow:
       inset -3px -4px 7px black,
-      inset 2px 2px 4px hsl(30 96% 62% / 0.1),
+      inset 2px 2px 4px hsl(var(--accent) / 0.12),
       0 0 5px black;
+  }
+
+  /* gravitational lensing: an annulus just outside the event horizon that
+     bends whatever the page is painting behind the cursor */
+  .galaxy-black-hole::after {
+    position: absolute;
+    inset: -13px;
+    z-index: 0;
+    border-radius: 50%;
+    backdrop-filter: blur(2px) saturate(1.5) brightness(1.12);
+    content: "";
+    mask-image: radial-gradient(
+      circle,
+      transparent 0 44%,
+      black 56% 78%,
+      transparent 92%
+    );
+    pointer-events: none;
   }
 
   .galaxy-black-hole-particle {
@@ -500,8 +531,8 @@
     width: 2px;
     height: 2px;
     border-radius: 50%;
-    background: hsl(32 100% 68%);
-    box-shadow: 0 0 4px hsl(25 100% 58% / 0.85);
+    background: hsl(200 95% 78%);
+    box-shadow: 0 0 4px hsl(var(--accent) / 0.85);
     opacity: 0;
     animation: black-hole-infall 1.35s ease-in infinite;
     animation-delay: var(--infall-delay);
@@ -615,9 +646,15 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
+    .galaxy-scene {
+      transition: none;
+    }
+
     .galaxy-object {
       opacity: 1;
-      transform: rotate(var(--galaxy-rotation));
+      /* keeps the anchor - dropping it would stack every object at the top */
+      transform: translate3d(0, var(--galaxy-anchor-y), 0)
+        rotate(var(--galaxy-rotation));
       will-change: auto;
     }
 
@@ -720,6 +757,27 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* Locale switch. Spanish copy runs materially longer than English, so every
+   card resizes at once; naming the major blocks lets the browser tween their
+   real size and position instead of hard-cutting to the new layout. */
+::view-transition-group(*) {
+  animation-duration: 320ms;
+  animation-timing-function: var(--ease-out);
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 220ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none;
   }
 }
 

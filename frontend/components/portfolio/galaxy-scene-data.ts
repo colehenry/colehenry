@@ -128,7 +128,7 @@ export const GALAXY_OBJECTS: readonly GalaxyObject[] = [
     side: "right",
     top: 34.5,
     travel: 42,
-    turn: 96,
+    turn: 58,
     angle: -4,
   },
   {

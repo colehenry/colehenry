@@ -47,7 +47,8 @@ export const resume = {
   email: "crhenry81@gmail.com",
   github: "https://github.com/colehenry",
   linkedin: "https://www.linkedin.com/in/cole-henry-9b699b178/",
-  pdf: "/resume.pdf",
+  // the Spanish CV is its own document, not a translation of the English PDF
+  pdf: { en: "/resume.pdf", es: "/Curriculum2026.pdf" },
 
   experience: [
     {

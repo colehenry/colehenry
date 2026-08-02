@@ -239,12 +239,6 @@
     linear-gradient(180deg, #2b2620 0%, #3d352b 60%, #4a3d2e 100%);
 }
 
-/* Neutral - plain warm table */
-.cb-scene-neutral .cb-backdrop {
-  background:
-    radial-gradient(120% 80% at 50% 55%, #2f6b4c 0%, #1f4a33 55%, #163527 100%);
-}
-
 /* --- HUD (only a settings disc lives on screen) --------------------------- */
 
 .cb-hud {

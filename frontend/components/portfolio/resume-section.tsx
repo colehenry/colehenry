@@ -16,11 +16,15 @@ export function ResumeSection() {
   const labels = ui[locale].home;
 
   return (
-    <section id="resume" className="scroll-mt-20">
+    <section
+      id="resume"
+      className="scroll-mt-20"
+      style={{ viewTransitionName: "resume" }}
+    >
       <div className="flex items-center justify-between">
         <h2 className="section-label">01 / {labels.resumeWord}</h2>
         <Button variant="outline" size="sm" asChild>
-          <a href={resume.pdf} download>
+          <a href={t(resume.pdf)} download>
             <Download className="size-4" />
             {strings.downloadPdf}
           </a>

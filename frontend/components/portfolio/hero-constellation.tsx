@@ -22,8 +22,20 @@ const ECLIPSE_END_GAP = -94;
 const ECLIPSE_STATIC_GAP = 8;
 const SCROLL_RESPONSE = [0.11, 0.14, 0.09, 0.13] as const;
 const SCROLL_SETTLE_EPSILON = 0.0005;
+// SCROLL_RESPONSE is authored per 60Hz frame; rescaling by the real frame time
+// keeps a 120Hz display from converging twice as fast as a 60Hz one.
+const REFERENCE_FRAME_MS = 1000 / 60;
+const MAX_FRAME_MS = 50;
+// how fast an object slides to a new scene-height anchor, in px per frame terms
+const ANCHOR_RESPONSE = 0.16;
+const ANCHOR_SETTLE_EPSILON = 0.05;
+// objects stay solid through the whole pass; scroll only breathes the last
+// sliver of opacity rather than fading them most of the way out
+const OBJECT_MIN_OPACITY = 0.82;
+const OBJECT_OPACITY_RANGE = 0.18;
 
 type GalaxyObjectStyle = React.CSSProperties & {
+  "--galaxy-anchor-y": string;
   "--galaxy-shift": string;
   "--galaxy-rotation": string;
   "--galaxy-object-opacity": number;
@@ -35,10 +47,17 @@ type GalaxyObjectStyle = React.CSSProperties & {
 
 function GalaxyArtwork({ object }: { object: GalaxyObject }) {
   const style: GalaxyObjectStyle = {
-    top: `${object.top}%`,
+    // the vertical anchor is a percentage of the scene, but the scene is as
+    // tall as the page - so any late reflow (font swap, hydration, a lazy
+    // block) would move it instantly. Driving it through the transform instead
+    // of `top` lets the same lerp that handles scroll absorb those changes.
+    "--galaxy-anchor-y": "0px",
     "--galaxy-shift": "0px",
     "--galaxy-rotation": `${object.angle}deg`,
-    "--galaxy-object-opacity": 1,
+    // authored geometry is only correct at scroll progress 0.5, so the first
+    // painted frame stays invisible until the effect has measured the scene
+    // and written the real scroll-derived transform (see data-galaxy-ready)
+    "--galaxy-object-opacity": 0,
     "--galaxy-pull-x": "0px",
     "--galaxy-pull-y": "0px",
     "--galaxy-pull-turn": "0deg",
@@ -108,8 +127,11 @@ export function HeroConstellation() {
     let starCenters: Array<{ x: number; y: number }> = [];
     let sceneDocumentTop = 0;
     let scrollFrame = 0;
+    let lastFrameTime = 0;
     let currentProgress = GALAXY_OBJECTS.map(() => 0);
     let targetProgress = GALAXY_OBJECTS.map(() => 0);
+    let currentAnchor = GALAXY_OBJECTS.map(() => 0);
+    let targetAnchor = GALAXY_OBJECTS.map(() => 0);
     let pointerFrame = 0;
     let pointerX = -1;
     let pointerY = -1;
@@ -118,6 +140,10 @@ export function HeroConstellation() {
     const setAuthoredPositions = () => {
       objects.forEach((node, index) => {
         const object = GALAXY_OBJECTS[index];
+        node.style.setProperty(
+          "--galaxy-anchor-y",
+          `${targetAnchor[index].toFixed(2)}px`,
+        );
         node.style.setProperty("--galaxy-shift", "0px");
         node.style.setProperty(
           "--galaxy-rotation",
@@ -137,15 +163,22 @@ export function HeroConstellation() {
     const measure = () => {
       sceneDocumentTop =
         scene.getBoundingClientRect().top + window.scrollY;
+      const sceneHeight = scene.clientHeight;
+      targetAnchor = GALAXY_OBJECTS.map(
+        (object) => (sceneHeight * object.top) / 100,
+      );
       objectTops = new Map(
-        objects.map((node) => [node, sceneDocumentTop + node.offsetTop]),
+        objects.map((node, index) => [
+          node,
+          sceneDocumentTop + targetAnchor[index],
+        ]),
       );
       objectCenters = new Map(
-        objects.map((node) => [
+        objects.map((node, index) => [
           node,
           {
             x: node.offsetLeft + node.offsetWidth / 2,
-            y: node.offsetTop + node.offsetHeight / 2,
+            y: targetAnchor[index] + node.offsetHeight / 2,
           },
         ]),
       );
@@ -162,8 +195,14 @@ export function HeroConstellation() {
     ) => {
       const object = GALAXY_OBJECTS[index];
       const centered = progress - 0.5;
-      const opacity = 0.45 + Math.sin(progress * Math.PI) * 0.55;
+      const opacity =
+        OBJECT_MIN_OPACITY +
+        Math.sin(progress * Math.PI) * OBJECT_OPACITY_RANGE;
 
+      node.style.setProperty(
+        "--galaxy-anchor-y",
+        `${currentAnchor[index].toFixed(2)}px`,
+      );
       node.style.setProperty(
         "--galaxy-shift",
         `${(centered * object.travel).toFixed(2)}px`,
@@ -199,12 +238,17 @@ export function HeroConstellation() {
       });
     };
 
-    const animateScrollMotion = () => {
+    const animateScrollMotion = (now: number) => {
       scrollFrame = 0;
       if (reducedMotion.matches) {
         setAuthoredPositions();
         return;
       }
+
+      const frameMs = lastFrameTime
+        ? Math.min(MAX_FRAME_MS, now - lastFrameTime)
+        : REFERENCE_FRAME_MS;
+      lastFrameTime = now;
 
       let stillMoving = false;
       currentProgress = currentProgress.map((progress, index) => {
@@ -214,18 +258,35 @@ export function HeroConstellation() {
         }
 
         stillMoving = true;
-        return progress + delta * SCROLL_RESPONSE[index];
+        const response =
+          1 -
+          (1 - SCROLL_RESPONSE[index]) ** (frameMs / REFERENCE_FRAME_MS);
+        return progress + delta * response;
+      });
+      currentAnchor = currentAnchor.map((anchor, index) => {
+        const delta = targetAnchor[index] - anchor;
+        if (Math.abs(delta) <= ANCHOR_SETTLE_EPSILON) {
+          return targetAnchor[index];
+        }
+
+        stillMoving = true;
+        const response =
+          1 - (1 - ANCHOR_RESPONSE) ** (frameMs / REFERENCE_FRAME_MS);
+        return anchor + delta * response;
       });
       renderCurrentProgress();
 
       if (stillMoving) {
         scrollFrame = window.requestAnimationFrame(animateScrollMotion);
+      } else {
+        lastFrameTime = 0;
       }
     };
 
     const snapScrollMotion = () => {
       readScrollTargets();
       currentProgress = [...targetProgress];
+      currentAnchor = [...targetAnchor];
       renderCurrentProgress();
     };
 
@@ -359,9 +420,63 @@ export function HeroConstellation() {
       snapScrollMotion();
     };
 
+    /**
+     * Late layout changes - the font swap, the lazy showcases mounting, images
+     * landing - move both the scene height the objects are anchored to and the
+     * document offsets the scroll ranges are derived from. Re-measuring and
+     * letting the lerp catch up keeps that from reading as a second jump the
+     * way a snap would.
+     */
+    let disposed = false;
+    let confirmFrame = 0;
+    let settledHeight = -1;
+    const remeasureAndGlide = () => {
+      if (disposed) return;
+
+      // A lazily mounted block is briefly on the page before its own stylesheet
+      // arrives, so the height can spike for a single frame. Gliding to that
+      // would drag every object out and back, which is worse than the snap this
+      // lerp exists to remove - so only retarget once two frames agree.
+      const height = scene.clientHeight;
+      if (height !== settledHeight) {
+        settledHeight = height;
+        window.cancelAnimationFrame(confirmFrame);
+        confirmFrame = window.requestAnimationFrame(remeasureAndGlide);
+        return;
+      }
+
+      confirmFrame = 0;
+      measure();
+      readScrollTargets();
+      if (!scrollFrame) {
+        scrollFrame = window.requestAnimationFrame(animateScrollMotion);
+      }
+    };
+
+    const sceneResize = new ResizeObserver(remeasureAndGlide);
+
+    /**
+     * The web fonts swapping in resizes the page, which moves every anchor.
+     * Waiting for them means that reflow - the last big one on a cold load -
+     * happens while the scene is still transparent, so it costs nothing. A
+     * warm cache resolves this on the next microtask.
+     */
+    const revealScene = () => {
+      if (disposed) return;
+      measure();
+      snapScrollMotion();
+      scene.dataset.galaxyReady = "true";
+    };
+
     measure();
     snapScrollMotion();
     syncCursorMode();
+    sceneResize.observe(scene);
+    if (document.fonts) {
+      document.fonts.ready.then(revealScene);
+    } else {
+      revealScene();
+    }
     window.addEventListener("scroll", scheduleUpdate, { passive: true });
     window.addEventListener("resize", onResize);
     window.addEventListener("pointermove", onPointerMove, { passive: true });
@@ -370,6 +485,9 @@ export function HeroConstellation() {
     hoverCapable.addEventListener("change", syncCursorMode);
 
     return () => {
+      disposed = true;
+      sceneResize.disconnect();
+      window.cancelAnimationFrame(confirmFrame);
       window.cancelAnimationFrame(scrollFrame);
       window.cancelAnimationFrame(pointerFrame);
       window.removeEventListener("scroll", scheduleUpdate);

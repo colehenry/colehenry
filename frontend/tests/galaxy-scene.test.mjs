@@ -85,7 +85,10 @@ test("scroll gives objects controlled rotation and moves the layered eclipse", (
   );
   assert.match(component, /SCROLL_RESPONSE = \[0\.11, 0\.14, 0\.09, 0\.13\]/);
   assert.match(component, /SCROLL_SETTLE_EPSILON = 0\.0005/);
-  assert.match(component, /progress \+ delta \* SCROLL_RESPONSE\[index\]/);
+  // the per-frame response is rescaled by real frame time so 120Hz displays
+  // converge at the same rate as 60Hz ones
+  assert.match(component, /progress \+ delta \* response/);
+  assert.match(component, /\(1 - SCROLL_RESPONSE\[index\]\) \*\* \(frameMs \/ REFERENCE_FRAME_MS\)/);
   assert.match(component, /requestAnimationFrame\(animateScrollMotion\)/);
   assert.doesNotMatch(styles, /transform 160ms cubic-bezier/);
   assert.match(styles, /translateX\(var\(--galaxy-eclipse-shift\)\)/);
@@ -150,15 +153,20 @@ test("pointer hot path uses cached star geometry", () => {
   assert.doesNotMatch(component, /star\.offsetLeft \+ star\.offsetWidth/);
 });
 
-test("black-hole cursor uses a neutral core and orange energy only", () => {
+test("black-hole cursor keeps a neutral core and draws its energy from the brand blue", () => {
   const cursorStyles = styles.slice(
     styles.indexOf(".galaxy-black-hole"),
     styles.indexOf("@media\n    (min-width: 1180px)"),
   );
-  assert.doesNotMatch(cursorStyles, /--carolina|--accent|hsl\(21[0-9]/);
-  assert.match(cursorStyles, /hsl\(24 98% 54%/);
+  // the accretion disk, glow, and infalling particles follow --accent so the
+  // cursor tracks the Carolina palette in both themes
+  assert.match(cursorStyles, /hsl\(var\(--accent\)/);
+  assert.doesNotMatch(cursorStyles, /hsl\(24 98% 54%|hsl\(32 100% 68%/);
+  // the singularity itself stays black - that is the whole point
   assert.match(cursorStyles, /hsl\(0 0% 3%\)/);
-  assert.doesNotMatch(cursorStyles, /\.galaxy-black-hole::after/);
+  // gravitational lensing ring: an annulus that bends the page behind it
+  assert.match(cursorStyles, /\.galaxy-black-hole::after/);
+  assert.match(cursorStyles, /backdrop-filter: blur\(2px\)/);
 });
 
 test("navigation dropdown restores a visible native cursor", () => {

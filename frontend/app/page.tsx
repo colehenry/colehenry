@@ -198,7 +198,11 @@ function LapwiseProjectSection() {
   const [activeView, setActiveView] = useState(lapwiseViews[0]);
 
   return (
-    <section id="projects" className="scroll-mt-20">
+    <section
+      id="projects"
+      className="scroll-mt-20"
+      style={{ viewTransitionName: "project-lapwise" }}
+    >
       <h2 className="section-label">00 / {ui[locale].home.projectWord}</h2>
       <div className="mt-4 grid gap-4 sm:mt-6 sm:gap-6 lg:grid-cols-[0.78fr_1.22fr] lg:items-start">
         <div>
@@ -319,7 +323,10 @@ function BrainProjectSection() {
   const { t } = useLocale();
 
   return (
-    <section aria-labelledby="brain-project-title">
+    <section
+      aria-labelledby="brain-project-title"
+      style={{ viewTransitionName: "project-brain" }}
+    >
       <div className="grid gap-4 sm:mt-6 sm:gap-6 lg:grid-cols-[1.22fr_0.78fr] lg:items-start">
         <div className="lg:order-2">
           <h3
@@ -395,7 +402,10 @@ function QuenoseteolvideProjectSection() {
   const { t } = useLocale();
 
   return (
-    <section aria-labelledby="quenoseteolvide-project-title">
+    <section
+      aria-labelledby="quenoseteolvide-project-title"
+      style={{ viewTransitionName: "project-quenoseteolvide" }}
+    >
       <div className="grid gap-4 sm:mt-6 sm:gap-6 lg:grid-cols-[0.78fr_1.22fr] lg:items-start">
         <div className="order-2 overflow-hidden rounded-xl border bg-card shadow-sm">
           <div className="flex items-center gap-2 border-b bg-muted px-3 py-2">
@@ -483,7 +493,7 @@ function ResumeSnapshot() {
   return (
     <aside
       className="reveal rounded-xl border bg-card p-5 shadow-sm"
-      style={reveal(2)}
+      style={{ ...reveal(2), viewTransitionName: "hero-aside" }}
       aria-label={ui[locale].home.resumeAside}
     >
       <div>
@@ -539,7 +549,10 @@ export default function HomePage() {
   return (
     <div data-section="home" className="relative">
       {/* hero */}
-      <section className="relative mx-auto grid w-full max-w-5xl gap-6 px-4 pt-5 pb-10 sm:gap-10 sm:px-6 sm:pt-32 sm:pb-20 lg:grid-cols-[1fr_360px] lg:items-start">
+      <section
+        className="relative mx-auto grid w-full max-w-5xl gap-6 px-4 pt-5 pb-10 sm:gap-10 sm:px-6 sm:pt-32 sm:pb-20 lg:grid-cols-[1fr_360px] lg:items-start"
+        style={{ viewTransitionName: "hero" }}
+      >
         <div>
           <h1
             className="reveal max-w-3xl font-sans text-6xl font-semibold tracking-tight text-balance sm:text-8xl"

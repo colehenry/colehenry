@@ -28,11 +28,16 @@ export function BrainShowcaseLazy() {
   }, [show]);
 
   return (
-    <div ref={ref}>
+    // The height is pinned on the wrapper, not just the placeholder: brain.css
+    // ships inside the dynamic chunk, so there is a frame where the real
+    // showcase is mounted but unstyled and therefore its natural height. Left
+    // unpinned that spikes the page height, which drags the whole galaxy scene
+    // (stars included) up and back down on the first scroll.
+    <div ref={ref} className="h-[340px] overflow-hidden">
       {show ? (
         <BrainShowcase compact />
       ) : (
-        <div aria-hidden className="h-[340px] w-full animate-pulse bg-muted/40" />
+        <div aria-hidden className="h-full w-full animate-pulse bg-muted/40" />
       )}
     </div>
   );
