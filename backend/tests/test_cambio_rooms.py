@@ -23,7 +23,11 @@ def run(coro):
 
 
 async def play_vs_bot_round(seed=0):
-    config = CambioConfig(snap_window_ms=40)
+    config = CambioConfig(
+        opening_peek_ms=1,
+        power_reveal_ms=1,
+        snap_window_ms=40,
+    )
     room = Room("TEST01", VS_BOT, config, bot_delay=0.0)
     ws = StubSocket()
     seat = room.claim_seat("Cole", None)
@@ -40,7 +44,7 @@ async def play_vs_bot_round(seed=0):
         if state.phase == E.ROUND_END:
             break
         moves = legal_moves(state, 0)
-        actionable = state.turn == 0 and state.phase not in (E.SNAP, E.SNAP_GIVE)
+        actionable = state.turn == 0 and state.phase != E.SNAP_GIVE
         if state.phase == E.SNAP_GIVE and state.snap.giver == 0:
             actionable = True
         if actionable and moves:
@@ -106,6 +110,8 @@ def test_two_humans_must_both_ready_before_deal():
 
         await room.mark_ready(second.seat)
         assert room.state is not None
+        assert room.state.phase == E.OPENING
+        assert room.view_payload(first.seat)["room"]["opening_deadline_ms"] is not None
         assert room.round_no == 1
         assert not first.ready and not second.ready
         assert room.state.events == []

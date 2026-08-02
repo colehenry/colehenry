@@ -8,7 +8,13 @@ import type { Scene } from "./scenes";
 export function SceneBackdrop({ scene }: { scene: Scene }) {
   return (
     <div className={`cb-backdrop cb-scene-${scene}`} aria-hidden>
-      {scene === "seaside" && <Seaside />}
+      {scene === "seaside" && (
+        <>
+          <Seaside />
+          <div className="cb-seaside-photo" />
+          <div className="cb-seaside-shimmer" />
+        </>
+      )}
       {scene === "cafe" && <Cafe />}
       {scene === "tavern" && <Tavern />}
     </div>

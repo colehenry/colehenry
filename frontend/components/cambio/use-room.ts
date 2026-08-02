@@ -68,7 +68,7 @@ export function useRoom(roomId: string, token: string, name: string | null) {
           if (msg.view.events.length) {
             setEvents((prev) => [...prev.slice(-80), ...msg.view.events]);
           }
-          if (msg.view.phase === "snap") {
+          if (msg.view.snap != null) {
             // Fresh deadline only when a new window opens (attempts reset it
             // server-side by re-arming; simplest faithful client model is to
             // restart the bar on every snap-phase view).

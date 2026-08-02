@@ -55,7 +55,7 @@ def run_one(config: CambioConfig, seed: int, stats: dict) -> None:
     decisions: list[tuple[int, str, str]] = []  # (seat, drawn pseudo, action)
 
     while state.phase != E.ROUND_END and moves < HARD_STOP:
-        if state.phase == E.SNAP:
+        if state.snap is not None and state.phase != E.SNAP_GIVE:
             acted = False
             seats = list(range(len(state.players)))
             rng.shuffle(seats)  # who reacts first is chance

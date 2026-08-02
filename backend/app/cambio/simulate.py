@@ -49,7 +49,13 @@ def play_round(
             log.append({"seat": seat, "move": move})
 
     while state.phase != E.ROUND_END and moves < HARD_STOP:
-        if state.phase == E.SNAP:
+        if state.phase == E.OPENING:
+            apply(E.SERVER_SEAT, {"type": "close_opening"})
+        elif state.phase == E.POWER_REVEAL:
+            apply(E.SERVER_SEAT, {"type": "close_power_reveal"})
+        elif state.phase == E.SNAP_GIVE:
+            apply(state.snap.giver, choose_move(state, state.snap.giver, rng))
+        elif state.snap is not None:
             acted = False
             seats = list(range(len(state.players)))
             rng.shuffle(seats)  # who reacts first is chance
@@ -58,11 +64,16 @@ def play_round(
                 if move is not None:
                     apply(seat, move)
                     acted = True
-                    break  # phase may have changed (snap_give / chain)
+                    break  # phase may have changed (snap_give / round end)
             if not acted:
-                apply(E.SERVER_SEAT, {"type": "close_snap"})
-        elif state.phase == E.SNAP_GIVE:
-            apply(state.snap.giver, choose_move(state, state.snap.giver, rng))
+                # The active player starts immediately, closing the window as
+                # part of their draw/cambio action.
+                seat = state.turn
+                move = choose_move(state, seat, rng)
+                if move is None:
+                    apply(E.SERVER_SEAT, {"type": "close_snap"})
+                else:
+                    apply(seat, move)
         else:
             seat = state.turn
             move = choose_move(state, seat, rng)
