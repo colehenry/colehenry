@@ -15,6 +15,7 @@ const table = readSource("components/cambio/table.tsx");
 const tableState = readSource("components/cambio/table-state.ts");
 const styles = readSource("components/cambio/table.css");
 const backdrop = readSource("components/cambio/scene-backdrop.tsx");
+const scenes = readSource("components/cambio/scenes.ts");
 const header = readSource("components/shell/header.tsx");
 const lobby = readSource("components/cambio/lobby.tsx");
 const api = readSource("lib/api/cambio.ts");
@@ -107,6 +108,15 @@ test("medieval tavern uses generated art with warm motion-safe firelight", () =>
     styles,
     /prefers-reduced-motion[\s\S]*?cb-tavern-firelight \{ animation: none/,
   );
+});
+
+test("scene picker contains only the three illustrated environments", () => {
+  assert.match(
+    scenes,
+    /SCENE_ORDER: Scene\[\] = \["seaside", "cafe", "tavern"\]/,
+  );
+  assert.doesNotMatch(scenes, /"neutral"/);
+  assert.doesNotMatch(styles, /\.cb-scene-neutral/);
 });
 
 test("rooms require explicit readiness before the opening reveal", () => {

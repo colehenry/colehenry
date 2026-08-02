@@ -2,9 +2,8 @@
 
 import type { Scene } from "./scenes";
 
-/** Illustrated table backdrops (plan §7), hand-drawn in SVG so they need no
- * external assets, stay crisp at any size, and recolor with the theme. Neutral
- * falls back to the CSS gradient on `.cb-backdrop` (table.css). */
+/** Illustrated table backdrops (plan §7), combining generated scene art with
+ * lightweight SVG ambience and CSS motion overlays. */
 export function SceneBackdrop({ scene }: { scene: Scene }) {
   return (
     <div className={`cb-backdrop cb-scene-${scene}`} aria-hidden>

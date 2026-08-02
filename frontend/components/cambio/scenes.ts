@@ -7,13 +7,12 @@
  * Art direction: Trattoria (warm illustrated). Ship Seaside first; others are
  * picker slots to be illustrated later. */
 
-export type Scene = "seaside" | "cafe" | "tavern" | "neutral";
+export type Scene = "seaside" | "cafe" | "tavern";
 
 export const SCENE_LABELS: Record<Scene, string> = {
   seaside: "Seaside terrace",
   cafe: "Coffee shop",
   tavern: "Medieval tavern",
-  neutral: "Neutral",
 };
 
 /** Fully illustrated vs. lightweight preview (picker marks the previews). */
@@ -21,12 +20,11 @@ export const SCENE_READY: Record<Scene, boolean> = {
   seaside: true,
   cafe: true,
   tavern: true,
-  neutral: true,
 };
 
-export const SCENE_ORDER: Scene[] = ["seaside", "cafe", "tavern", "neutral"];
+export const SCENE_ORDER: Scene[] = ["seaside", "cafe", "tavern"];
 export const DEFAULT_SCENE: Scene = "seaside";
 
 export function isScene(v: string | null): v is Scene {
-  return v === "seaside" || v === "cafe" || v === "tavern" || v === "neutral";
+  return v === "seaside" || v === "cafe" || v === "tavern";
 }
