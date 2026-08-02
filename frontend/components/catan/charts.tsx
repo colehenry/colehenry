@@ -173,7 +173,7 @@ export function WinsOverTime({ data }: { data: CatanDashboard }) {
               className="size-2 rounded-[2px]"
               style={{ background: playerColor(hoverEvent.winner ?? "") }}
             />
-            {hoverEvent.winner ?? "—"} won
+            {hoverEvent.winner ?? "-"} won
           </p>
         </div>
       )}

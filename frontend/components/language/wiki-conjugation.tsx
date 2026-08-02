@@ -39,7 +39,7 @@ import {
 } from "./wiki-tenses";
 
 /* -------------------------------------------------------------------------- */
-/* Conjugation center — saved verbs                                            */
+/* Conjugation center - saved verbs                                            */
 /* -------------------------------------------------------------------------- */
 
 function ConjugationTable({
@@ -72,7 +72,7 @@ function ConjugationTable({
       if (updated.audio_url) {
         playAudio(updated.audio_url);
       } else {
-        // Server TTS unconfigured — browser speech says the same phrase.
+        // Server TTS unconfigured - browser speech says the same phrase.
         void speakText(
           verb.language,
           spokenConjugation(
@@ -164,7 +164,7 @@ function ConjugationTable({
                                 ),
                                 verb.equivalent_language,
                               )
-                            : "—"}
+                            : "-"}
                         </td>
                       )}
                       <td>

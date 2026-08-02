@@ -1,9 +1,9 @@
 /* ---------------------------------------------------------------------------
- * Recipes — a recipe buffer in an IDE.
+ * Recipes - a recipe buffer in an IDE.
  *
  * The page is an editor surface on a graphite dot-grid desk; the masthead
  * is a quiet terminal bar (`colehenry@kitchen:~$`, blinking block cursor,
- * muted — no neon). Color works like syntax highlighting (One Dark / One
+ * muted - no neon). Color works like syntax highlighting (One Dark / One
  * Light): ingredient mentions read as strings (green), links as functions
  * (blue), ratings as editor yellow, section headings as `//` comments.
  * Chrome/meta/headings use the site's JetBrains Mono; body text stays a
@@ -16,12 +16,12 @@
   --rb-backdrop: #e6e6e3; /* the desk behind the editor */
   --rb-dot: rgb(0 0 0 / 0.1);
   --rb-term-bg: #21252b; /* masthead terminal bar (dark in both modes) */
-  --rb-term-text: #9db4a4; /* muted sage — terminal, not neon */
+  --rb-term-text: #9db4a4; /* muted sage - terminal, not neon */
   --rb-term-dim: #5f6b63;
   --rb-page: #fafafa; /* editor surface */
   --rb-page-border: #c9c9c6;
   --rb-text: #383a42;
-  --rb-muted: #8e8e90; /* gutter gray — line numbers, comments */
+  --rb-muted: #8e8e90; /* gutter gray - line numbers, comments */
   --rb-green: #50a14f; /* strings: ingredient mentions, checkboxes */
   --rb-link: #4078f2; /* functions: links */
   --rb-link-hover: #1b4dd8;
@@ -455,7 +455,7 @@
   content: "// ";
 }
 
-/* the ingredients block — an editor panel, not a yellow card */
+/* the ingredients block - an editor panel, not a yellow card */
 .rb-ingbox {
   overflow: hidden; /* BFC: sits beside the floated photo, never under it */
   margin: 6px 0 10px;

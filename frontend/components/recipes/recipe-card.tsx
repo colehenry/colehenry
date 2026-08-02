@@ -157,8 +157,8 @@ export function RecipeCard({ slug }: { slug: string }) {
           <p className="rb-note">
             {view.pending
               ? t({
-                  en: "The Spanish version is still in the oven — showing the original.",
-                  es: "La versión en español sigue en el horno — se muestra el original.",
+                  en: "The Spanish version is still in the oven - showing the original.",
+                  es: "La versión en español sigue en el horno - se muestra el original.",
                 })
               : t({ en: "machine-translated", es: "traducción automática" })}
             {view.pending && me && (
@@ -386,7 +386,7 @@ function IngredientRow({
         <span className="rb-ing-text">
           {formatAmount(ingredient, scale, units)}
           {ingredient.note && (
-            <span className="rb-ing-note"> — {ingredient.note}</span>
+            <span className="rb-ing-note"> - {ingredient.note}</span>
           )}
         </span>
       </label>

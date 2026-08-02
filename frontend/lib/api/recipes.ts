@@ -109,7 +109,7 @@ export function updateRecipe(
   });
 }
 
-/** Raw fetch — the endpoint returns 204 with no body to parse. */
+/** Raw fetch - the endpoint returns 204 with no body to parse. */
 export async function deleteRecipe(id: number): Promise<void> {
   const res = await fetch(`${API_URL}/recipes/${id}`, {
     method: "DELETE",

@@ -123,8 +123,8 @@ export function RecipeBox() {
                 {recipes.isError && (
                   <p className="rb-error">
                     {t({
-                      en: "The kitchen is closed — couldn't load recipes. Refresh to try again.",
-                      es: "La cocina está cerrada — no se pudieron cargar las recetas. Recarga para reintentar.",
+                      en: "The kitchen is closed - couldn't load recipes. Refresh to try again.",
+                      es: "La cocina está cerrada - no se pudieron cargar las recetas. Recarga para reintentar.",
                     })}
                   </p>
                 )}

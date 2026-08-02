@@ -4,8 +4,8 @@ import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 
 /**
- * Defers the showcase — the real LanguageApp, which fires live study/deck
- * queries the moment it mounts — until it is nearly on screen. On the home
+ * Defers the showcase - the real LanguageApp, which fires live study/deck
+ * queries the moment it mounts - until it is nearly on screen. On the home
  * page it is a decorative miniature far below the fold, so mounting it eagerly
  * spent app-sized JS and API round-trips on a thumbnail nobody had scrolled to.
  */

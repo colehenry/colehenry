@@ -1,7 +1,7 @@
 /**
  * Fixed per-player chart colors, drawn from Catan resources and validated
  * for CVD separation + contrast on both surfaces (dataviz palette checks).
- * Assignment never changes with sort order or filters — color follows the
+ * Assignment never changes with sort order or filters - color follows the
  * player. Guests fall back to the muted swatch.
  */
 export const PLAYER_SLOTS: Record<string, number> = {

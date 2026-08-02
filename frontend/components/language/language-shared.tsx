@@ -57,7 +57,7 @@ const ES_SUBJECTS: Record<string, string> = {
   "3p": "ellos",
 };
 
-/** Spoken form of a conjugation cell — FR mirrors the backend exactly. */
+/** Spoken form of a conjugation cell - FR mirrors the backend exactly. */
 export function spokenConjugation(
   person: string,
   form: string,
@@ -143,7 +143,7 @@ export async function speakText(
   }
 }
 
-/** Tap-to-hear link — drop next to any French/Spanish word or phrase. */
+/** Tap-to-hear link - drop next to any French/Spanish word or phrase. */
 export function Speak({
   language,
   text,

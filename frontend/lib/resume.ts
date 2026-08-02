@@ -5,7 +5,7 @@
  *
  * Text fields are Localized<T> ({ en, es }) so the language toggle can swap
  * them and TypeScript refuses a bullet that's missing a translation. Dates
- * stay English-only — localizeDate() in lib/i18n/locale.tsx handles months
+ * stay English-only - localizeDate() in lib/i18n/locale.tsx handles months
  * and "present" at render time.
  */
 import type { Localized } from "@/lib/i18n/locale";
@@ -41,8 +41,8 @@ export type SkillGroup = {
 export const resume = {
   name: "Cole Henry",
   tagline: {
-    en: "Software engineer building agents and data tools in production systems.",
-    es: "Ingeniero de software que construye agentes y herramientas de datos en sistemas de producción.",
+    en: "AI software engineer building agents and data tools in production systems.",
+    es: "Ingeniero de software de IA que construye agentes y herramientas de datos en sistemas de producción.",
   },
   email: "crhenry81@gmail.com",
   github: "https://github.com/colehenry",
@@ -132,6 +132,7 @@ export const resume = {
         "MCP",
         "Vertex AI",
         "GCP",
+        "Airflow",
         "React",
         "TypeScript",
       ],

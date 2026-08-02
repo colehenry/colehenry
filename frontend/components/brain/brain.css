@@ -326,7 +326,72 @@
 .brain-prose hr { margin: 1.5em 0; border: 0; border-top: 1px solid var(--term-line); }
 .brain-wikilink-dead { color: var(--term-dim); text-decoration: underline dotted; cursor: default; }
 
+/* Public showcase. All content is bundled sample data and runs client-side. */
+.brain-showcase-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--term-line);
+  border-radius: 999px;
+  padding: 0.2rem 0.5rem;
+  color: var(--term-dim);
+  font-size: 0.65rem;
+}
+.brain-showcase-welcome {
+  border: 1px solid var(--term-line);
+  border-radius: 0.65rem;
+  padding: 1.25rem;
+  background: color-mix(in srgb, var(--term-bg-2) 82%, transparent);
+}
+.brain-showcase-prompt {
+  border: 1px solid var(--term-line);
+  border-radius: 0.45rem;
+  padding: 0.55rem 0.7rem;
+  color: var(--term-fg);
+  text-align: left;
+  font-size: 0.75rem;
+  transition: border-color 150ms ease, color 150ms ease, background 150ms ease;
+}
+.brain-showcase-prompt:hover {
+  border-color: var(--term-accent);
+  background: color-mix(in srgb, var(--term-accent) 7%, transparent);
+  color: var(--term-accent);
+}
+.brain-showcase-prompt:focus-visible {
+  outline: 2px solid var(--term-accent);
+  outline-offset: 2px;
+}
+.brain-showcase-controls {
+  flex: none;
+  border-top: 1px solid var(--term-line);
+  padding: 0.6rem 0.75rem;
+  background: var(--term-bg-2);
+}
+.brain-showcase-compact {
+  height: 340px;
+  min-height: 340px;
+  font-size: 0.78rem;
+}
+.brain-showcase-compact .brain-workspace-header {
+  min-height: 2.5rem;
+  padding: 0.35rem 0.65rem;
+}
+.brain-showcase-compact .brain-workspace-header-inner {
+  min-height: 1.8rem;
+}
+.brain-showcase-compact .brain-turn {
+  gap: 0.5rem;
+}
+.brain-showcase-compact .brain-showcase-controls {
+  padding: 0.45rem 0.65rem;
+}
+
 @media (max-width: 640px) {
+  .brain-showcase .brain-workspace-header-inner {
+    display: flex;
+    grid-template-columns: none;
+  }
+  .brain-showcase-badge { display: none; }
   .brain-workspace-header { min-height: 3.25rem; padding-right: calc(1rem + env(safe-area-inset-right)); padding-left: calc(1rem + env(safe-area-inset-left)); }
   .brain-workspace-header-inner { display: grid; width: 100%; min-width: 0; grid-template-columns: minmax(0, 1fr) 2rem 2rem; align-items: center; gap: 0.4rem; }
   .brain-workspace-header-inner > :first-child { min-width: 0; overflow: hidden; font-size: 0.78rem; text-overflow: ellipsis; white-space: nowrap; }

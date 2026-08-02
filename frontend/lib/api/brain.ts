@@ -185,7 +185,7 @@ async function* readSSE(res: Response): AsyncGenerator<ChatEvent> {
   }
 }
 
-/** Stateless chat (no persistence) — kept for completeness. */
+/** Stateless chat (no persistence) - kept for completeness. */
 export async function* streamBrainChat(
   messages: ChatMessage[],
   model: string | null,
@@ -223,7 +223,17 @@ export async function* streamConversationMessage(
 }
 
 // Model picker options (valid OpenRouter slugs). Provider drives the logo.
-export type ModelProvider = "anthropic" | "openai" | "google" | "deepseek" | "mistral" | "meta" | "qwen";
+export type ModelProvider =
+  | "anthropic"
+  | "openai"
+  | "google"
+  | "deepseek"
+  | "mistral"
+  | "meta"
+  | "qwen"
+  | "zai"
+  | "moonshot"
+  | "xai";
 export type ChatModel = {
   label: string;
   slug: string;
@@ -233,18 +243,20 @@ export type ChatModel = {
 };
 
 export const CHAT_MODELS: ChatModel[] = [
-  { label: "Claude Sonnet 4.6", slug: "anthropic/claude-sonnet-4.6", provider: "anthropic", hint: "balanced", price: { input: "$3", output: "$15" } },
-  { label: "Claude Opus 4.8", slug: "anthropic/claude-opus-4.8", provider: "anthropic", hint: "frontier", price: { input: "$5", output: "$25" } },
-  { label: "Claude Haiku 4.5", slug: "anthropic/claude-haiku-4.5", provider: "anthropic", hint: "fast", price: { input: "$1", output: "$5" } },
-  { label: "GPT-5.2", slug: "openai/gpt-5.2", provider: "openai", hint: "frontier", price: { input: "$1.75", output: "$14" } },
-  { label: "GPT-5 mini", slug: "openai/gpt-5-mini", provider: "openai", hint: "compact", price: { input: "$0.25", output: "$2" } },
-  { label: "gpt-oss 20B", slug: "openai/gpt-oss-20b", provider: "openai", hint: "open · fast", price: { input: "$0.03", output: "$0.14" } },
-  { label: "Gemini 2.5 Pro", slug: "google/gemini-2.5-pro", provider: "google", hint: "reasoning", price: { input: "$1.25", output: "$10" } },
-  { label: "Gemini 2.5 Flash", slug: "google/gemini-2.5-flash", provider: "google", hint: "fast", price: { input: "$0.30", output: "$2.50" } },
-  { label: "Gemini 2.5 Flash-Lite", slug: "google/gemini-2.5-flash-lite", provider: "google", hint: "low latency", price: { input: "$0.10", output: "$0.40" } },
-  { label: "DeepSeek V3.2", slug: "deepseek/deepseek-v3.2", provider: "deepseek", hint: "agentic", price: { input: "$0.23", output: "$0.34" } },
-  { label: "Qwen3 30B Instruct", slug: "qwen/qwen3-30b-a3b-instruct-2507", provider: "qwen", hint: "open · capable", price: { input: "$0.05", output: "$0.19" } },
-  { label: "Mistral Small 3.2", slug: "mistralai/mistral-small-3.2-24b-instruct", provider: "mistral", hint: "tool use", price: { input: "$0.08", output: "$0.20" } },
-  { label: "Mistral Nemo", slug: "mistralai/mistral-nemo", provider: "mistral", hint: "ultra-cheap", price: { input: "$0.02", output: "$0.03" } },
-  { label: "Llama 4 Scout", slug: "meta-llama/llama-4-scout", provider: "meta", hint: "huge context", price: { input: "$0.10", output: "$0.30" } },
+  { label: "DeepSeek V4 Flash", slug: "deepseek/deepseek-v4-flash", provider: "deepseek", hint: "default · fast generalist", price: { input: "$0.14", output: "$0.28" } },
+  { label: "GPT-5.6 Luna", slug: "openai/gpt-5.6-luna", provider: "openai", hint: "fast chat · summaries", price: { input: "$0.10", output: "$0.60" } },
+  { label: "Claude Haiku 4.5", slug: "anthropic/claude-haiku-4.5", provider: "anthropic", hint: "quick answers · concise writing", price: { input: "$1", output: "$5" } },
+  { label: "Qwen3.7 Flash", slug: "qwen/qwen3.7-flash", provider: "qwen", hint: "ultra-cheap · multilingual", price: { input: "$0.03", output: "$0.13" } },
+  { label: "Gemini 3.5 Flash Lite", slug: "google/gemini-3.5-flash-lite", provider: "google", hint: "focused tasks · large context", price: { input: "$0.30", output: "$2.50" } },
+  { label: "Mistral Small 4", slug: "mistralai/mistral-small-2603", provider: "mistral", hint: "efficient · multilingual", price: { input: "$0.15", output: "$0.60" } },
+  { label: "GPT-5.6 Terra", slug: "openai/gpt-5.6-terra", provider: "openai", hint: "balanced · everyday reasoning", price: { input: "$1", output: "$6" } },
+  { label: "Claude Sonnet 5", slug: "anthropic/claude-sonnet-5", provider: "anthropic", hint: "polished prose · judgment", price: { input: "$2", output: "$10" } },
+  { label: "DeepSeek V4 Pro", slug: "deepseek/deepseek-v4-pro", provider: "deepseek", hint: "deep reasoning · coding", price: { input: "$0.44", output: "$0.87" } },
+  { label: "Qwen3.7 Plus", slug: "qwen/qwen3.7-plus", provider: "qwen", hint: "multilingual · general reasoning", price: { input: "$0.32", output: "$1.28" } },
+  { label: "GLM 5.2", slug: "z-ai/glm-5.2", provider: "zai", hint: "structured reasoning · long documents", price: { input: "$0.72", output: "$2.25" } },
+  { label: "Gemini 3.6 Flash", slug: "google/gemini-3.6-flash", provider: "google", hint: "multimodal · web and app work", price: { input: "$1.50", output: "$7.50" } },
+  { label: "GPT-5.6 Sol", slug: "openai/gpt-5.6-sol", provider: "openai", hint: "frontier · complex reasoning", price: { input: "$5", output: "$30" } },
+  { label: "Claude Opus 5", slug: "anthropic/claude-opus-5", provider: "anthropic", hint: "frontier · hardest analysis", price: { input: "$5", output: "$25" } },
+  { label: "Grok 4.5", slug: "x-ai/grok-4.5", provider: "xai", hint: "frontier · STEM and knowledge", price: { input: "$2", output: "$6" } },
+  { label: "Kimi K3", slug: "moonshotai/kimi-k3", provider: "moonshot", hint: "frontier · long knowledge work", price: { input: "$3", output: "$15" } },
 ];

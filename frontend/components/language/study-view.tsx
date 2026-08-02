@@ -102,7 +102,7 @@ export function StudyView({
 
   useEffect(() => {
     // Production-card audio is the answer, so never autoplay it. The public
-    // preview never autoplays — audio only on an explicit button press.
+    // preview never autoplays - audio only on an explicit button press.
     if (!card || card.direction === "production" || readOnly) return;
     void speakText(
       cardLanguage,
@@ -331,7 +331,7 @@ export function StudyView({
                   Next card
                 </button>
                 <p className="xp-muted">
-                  Read-only preview — reviews aren&apos;t saved.
+                  Read-only preview - reviews aren&apos;t saved.
                 </p>
               </div>
             ) : (

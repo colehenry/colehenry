@@ -91,7 +91,7 @@ export function HeadToHead({ games }: { games: CatanGameSummary[] }) {
                     }
                   >
                     {rec.shared === 0 ? (
-                      "—"
+                      "-"
                     ) : (
                       <>
                         <span className={cn(leader === row && "font-semibold")}>

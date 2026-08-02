@@ -1,0 +1,195 @@
+"use client";
+
+import {
+  Check,
+  Cloud,
+  FileText,
+  Globe2,
+  Plus,
+  Sparkles,
+} from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+
+import { ModelPicker } from "@/components/brain/model-picker";
+import {
+  applyShowcaseEvent,
+  BRAIN_SHOWCASE_CONVERSATIONS,
+  EMPTY_SHOWCASE_PLAYBACK,
+  type ShowcaseConversation,
+  type ShowcasePlayback,
+} from "@/lib/brain-showcase";
+
+import "./brain.css";
+
+const EXAMPLE_MODEL_SLUGS = [
+  "deepseek/deepseek-v4-flash",
+  "mistralai/mistral-small-2603",
+  "anthropic/claude-opus-5",
+];
+
+export function BrainShowcase({ compact = false }: { compact?: boolean }) {
+  const [active, setActive] = useState<ShowcaseConversation | null>(() =>
+    compact ? BRAIN_SHOWCASE_CONVERSATIONS[0] : null,
+  );
+  const [playback, setPlayback] = useState<ShowcasePlayback>(
+    EMPTY_SHOWCASE_PLAYBACK,
+  );
+  const [eventIndex, setEventIndex] = useState(0);
+  const [model, setModel] = useState("deepseek/deepseek-v4-flash");
+
+  const startConversation = useCallback((conversation: ShowcaseConversation) => {
+    setActive(conversation);
+    setPlayback(EMPTY_SHOWCASE_PLAYBACK);
+    setEventIndex(0);
+  }, []);
+
+  function reset() {
+    setActive(null);
+    setPlayback(EMPTY_SHOWCASE_PLAYBACK);
+    setEventIndex(0);
+  }
+
+  useEffect(() => {
+    if (!active || eventIndex >= active.events.length) return;
+
+    const event = active.events[eventIndex];
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    const timer = window.setTimeout(() => {
+      setPlayback((current) => applyShowcaseEvent(current, event));
+      setEventIndex((current) => current + 1);
+    }, reduceMotion ? 0 : event.delay);
+
+    return () => window.clearTimeout(timer);
+  }, [active, eventIndex]);
+
+  useEffect(() => {
+    if (!compact || !active || !playback.complete) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const timer = window.setTimeout(() => {
+      const current = BRAIN_SHOWCASE_CONVERSATIONS.findIndex(
+        (conversation) => conversation.id === active.id,
+      );
+      const next = (current + 1) % BRAIN_SHOWCASE_CONVERSATIONS.length;
+      startConversation(BRAIN_SHOWCASE_CONVERSATIONS[next]);
+    }, 5000);
+    return () => window.clearTimeout(timer);
+  }, [active, compact, playback.complete, startConversation]);
+
+  return (
+    <div
+      className={`brain-term brain-workspace brain-showcase ${compact ? "brain-showcase-compact" : ""}`}
+    >
+      <section className="flex min-h-0 flex-1 flex-col">
+        <header className="brain-workspace-header">
+          <div className="brain-workspace-header-inner">
+            <span className="min-w-0 flex-1 truncate text-xs text-[var(--term-dim)]">
+              brain/examples
+            </span>
+            <ModelPicker
+              model={model}
+              onChange={setModel}
+              modelSlugs={EXAMPLE_MODEL_SLUGS}
+              dimBackground={false}
+              modal={false}
+            />
+            <span className="brain-showcase-badge">examples</span>
+            {!compact && (
+              <button
+                type="button"
+                onClick={reset}
+                className="brain-icon-control"
+                aria-label="New example chat"
+              >
+                <Plus className="size-4" />
+              </button>
+            )}
+          </div>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-hidden px-4 py-4 sm:px-6">
+          <div className="mx-auto max-w-3xl">
+            {!active ? (
+              <div className="brain-showcase-welcome">
+                <div className="flex items-center gap-2 text-xs text-[var(--term-dim)]">
+                  <Sparkles className="size-3.5 text-[var(--term-accent)]" />
+                  example questions
+                </div>
+                <p className="mt-3 text-sm text-[var(--term-fg)]">
+                  Choose a question to see a streamed example response.
+                </p>
+                <div className="mt-4 grid gap-2">
+                  {BRAIN_SHOWCASE_CONVERSATIONS.map((conversation) => (
+                    <button
+                      key={conversation.id}
+                      type="button"
+                      onClick={() => startConversation(conversation)}
+                      className="brain-showcase-prompt"
+                    >
+                      {conversation.prompt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-5">
+                <div className="brain-turn">
+                  <span className="term-user">colehenry</span>
+                  <span className="min-w-0 text-[var(--term-fg)]">
+                    {active.prompt}
+                  </span>
+                </div>
+                <div className="brain-turn">
+                  <span className="term-brain">brain</span>
+                  <div className="min-w-0 flex-1 space-y-2">
+                    {playback.tools.map((tool, index) => (
+                      <div
+                        key={`${tool.label}-${index}`}
+                        className="term-tool flex items-center gap-1.5 text-xs"
+                      >
+                        {tool.name === "web_search" ? (
+                          <Globe2 className="size-3.5 shrink-0" />
+                        ) : tool.name.includes("railway") ? (
+                          <Cloud className="size-3.5 shrink-0" />
+                        ) : (
+                          <FileText className="size-3.5 shrink-0" />
+                        )}
+                        <span>{tool.label}</span>
+                      </div>
+                    ))}
+                    <div
+                      className="brain-term-prose"
+                      aria-live="polite"
+                      aria-label="Example Brain response"
+                    >
+                      {playback.text ? (
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {playback.text}
+                        </ReactMarkdown>
+                      ) : (
+                        <span className="text-xs text-[var(--term-dim)]">
+                          checking context…
+                        </span>
+                      )}
+                      {!playback.complete && playback.text && (
+                        <span className="term-cursor" aria-hidden />
+                      )}
+                    </div>
+                    {playback.complete && (
+                      <span className="inline-flex items-center gap-1 text-[10px] text-[var(--term-dim)]">
+                        <Check className="size-3" /> example complete
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}

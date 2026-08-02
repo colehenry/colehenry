@@ -16,8 +16,8 @@ import { genderLabel } from "./language-shared";
 
 /**
  * Bulk-import words into a deck from one of two sources:
- *  - "paste"  — a newline/comma-separated list typed into a textarea
- *  - "kobo"   — an uploaded KoboReader.sqlite of highlights
+ *  - "paste"  - a newline/comma-separated list typed into a textarea
+ *  - "kobo"   - an uploaded KoboReader.sqlite of highlights
  * Both resolve every term (dictionary → LLM for phrases), dedupe against your
  * decks, and share one review → commit step. Terms already in a deck are shown
  * but unchecked by default.
@@ -321,7 +321,7 @@ export function ImportDialog({
                             )}
                           </td>
                           <td>
-                            {it.back || <span className="xp-muted">—</span>}
+                            {it.back || <span className="xp-muted">-</span>}
                             {exists && (
                               <span className="xp-muted">
                                 {" "}

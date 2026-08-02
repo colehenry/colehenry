@@ -18,7 +18,7 @@ type SoundRow = {
 const SOUND_GROUPS: { title: string; blurb: string; rows: SoundRow[] }[] = [
   {
     title: "Oral vowels",
-    blurb: "Letter groups map to one steady vowel — no gliding like English.",
+    blurb: "Letter groups map to one steady vowel - no gliding like English.",
     rows: [
       {
         grapheme: "é · -er · -ez",
@@ -43,7 +43,7 @@ const SOUND_GROUPS: { title: string; blurb: string; rows: SoundRow[] }[] = [
         grapheme: "u",
         ipa: "/y/",
         examples: ["tu", "rue", "musique"],
-        note: "Say /i/, then round the lips — not Spanish u.",
+        note: "Say /i/, then round the lips - not Spanish u.",
       },
       {
         grapheme: "o · au · eau",
@@ -98,7 +98,7 @@ const SOUND_GROUPS: { title: string; blurb: string; rows: SoundRow[] }[] = [
         grapheme: "r",
         ipa: "/ʁ/",
         examples: ["rue", "Paris", "parler"],
-        note: "Soft, in the throat — never rolled like Spanish rr.",
+        note: "Soft, in the throat - never rolled like Spanish rr.",
       },
       { grapheme: "ç", ipa: "/s/", examples: ["ça", "français"] },
       {
@@ -117,10 +117,10 @@ const SILENT_EXAMPLES = {
 };
 
 const LIAISONS: { phrase: string; note: string; forbidden?: boolean }[] = [
-  { phrase: "les amis", note: "s links as /z/ — lay-za-mi" },
+  { phrase: "les amis", note: "s links as /z/ - lay-za-mi" },
   { phrase: "vous avez", note: "vou-za-vay" },
-  { phrase: "un homme", note: "n carries over — œ̃-nɔm" },
-  { phrase: "petit ami", note: "the silent t comes back — pə-ti-ta-mi" },
+  { phrase: "un homme", note: "n carries over - œ̃-nɔm" },
+  { phrase: "petit ami", note: "the silent t comes back - pə-ti-ta-mi" },
   { phrase: "et aussi", note: "never liaise after et", forbidden: true },
   { phrase: "les héros", note: "h aspiré blocks the link", forbidden: true },
 ];
@@ -193,7 +193,7 @@ export function Pronunciation({
       <fieldset className="xp-group">
         <legend>Silent final consonants</legend>
         <p>
-          Final consonants are usually <b>silent</b> — except <b>C</b>, <b>R</b>
+          Final consonants are usually <b>silent</b> - except <b>C</b>, <b>R</b>
           , <b>F</b>, <b>L</b> (think <i>CaReFuL</i>), which usually sound.
         </p>
         <p className="mt-2">
@@ -220,7 +220,7 @@ export function Pronunciation({
         <legend>Liaison</legend>
         <p className="mb-2">
           A silent final consonant is pronounced when the next word starts with
-          a vowel — required inside noun and verb groups.
+          a vowel - required inside noun and verb groups.
         </p>
         <table className="xp-listview" style={{ background: "transparent" }}>
           <tbody>

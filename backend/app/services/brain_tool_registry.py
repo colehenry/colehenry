@@ -48,9 +48,9 @@ class BrainToolRegistry:
     def get(self, name: str) -> BrainTool | None:
         return self._tools.get(name)
 
-    def active_schemas(self) -> list[dict]:
+    def active_schemas(self, names: set[str] | None = None) -> list[dict]:
         return [
             tool.openai_schema()
             for tool in self._tools.values()
-            if tool.available()
+            if (names is None or tool.name in names) and tool.available()
         ]

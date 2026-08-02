@@ -3,37 +3,12 @@
 import { Download } from "lucide-react";
 import Image from "next/image";
 
+import { HighlightedText } from "@/components/portfolio/highlighted-text";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { localizeDate, useLocale } from "@/lib/i18n/locale";
 import { ui } from "@/lib/i18n/ui";
-import { resume, type Bullet } from "@/lib/resume";
-
-function HighlightedBullet({ bullet }: { bullet: Bullet }) {
-  if (!bullet.highlights?.length) return <>{bullet.text}</>;
-
-  const parts: React.ReactNode[] = [];
-  let remaining = bullet.text;
-
-  bullet.highlights.forEach((highlight) => {
-    const index = remaining.indexOf(highlight);
-    if (index === -1) return;
-
-    if (index > 0) {
-      parts.push(remaining.slice(0, index));
-    }
-    parts.push(
-      <strong key={`${highlight}-${parts.length}`} className="font-semibold text-foreground">
-        {highlight}
-      </strong>,
-    );
-    remaining = remaining.slice(index + highlight.length);
-  });
-
-  if (remaining) parts.push(remaining);
-
-  return <>{parts}</>;
-}
+import { resume } from "@/lib/resume";
 
 export function ResumeSection() {
   const { locale, t } = useLocale();
@@ -62,7 +37,7 @@ export function ResumeSection() {
                 aria-hidden
               />
               <p className="font-mono text-xs text-muted-foreground">
-                {localizeDate(job.start, locale)} —{" "}
+                {localizeDate(job.start, locale)} -{" "}
                 {localizeDate(job.end, locale)}
                 {job.location ? ` · ${t(job.location)}` : ""}
               </p>
@@ -75,7 +50,7 @@ export function ResumeSection() {
               <ul className="mt-2 list-disc space-y-1 pl-4 text-sm leading-relaxed text-muted-foreground marker:text-brand">
                 {job.bullets.map((b) => (
                   <li key={b.en.text}>
-                    <HighlightedBullet bullet={t(b)} />
+                    <HighlightedText value={t(b)} />
                   </li>
                 ))}
               </ul>
@@ -123,7 +98,7 @@ export function ResumeSection() {
                   ))}
                 </div>
                 <p className="mt-2 font-mono text-xs text-muted-foreground">
-                  {edu.start} — {edu.end}
+                  {edu.start} - {edu.end}
                 </p>
               </div>
             ))}

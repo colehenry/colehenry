@@ -1,9 +1,9 @@
 /* ---------------------------------------------------------------------------
- * "Qué no se te olvide" — faux Windows-XP application chrome.
+ * "Qué no se te olvide" - faux Windows-XP application chrome.
  *
  * One application window on a teal desktop: Luna-ish title bar, menu bar,
  * tree panel, sunken wells, beveled buttons, status bar. Tahoma 11–12px,
- * no shadows-as-decoration, no animation — desktop apps snap.
+ * no shadows-as-decoration, no animation - desktop apps snap.
  * All tokens are scoped to [data-section="language"]; `.dark` swaps in the
  * fictional "midnight" theme.
  * ------------------------------------------------------------------------- */
@@ -112,7 +112,7 @@
   white-space: nowrap;
   text-shadow: 1px 1px 1px rgb(0 0 0 / 0.4);
 }
-/* rotating FR/ES phrase in the title bar — click to hear it */
+/* rotating FR/ES phrase in the title bar - click to hear it */
 .xp-title-phrase {
   font: inherit;
   color: inherit;

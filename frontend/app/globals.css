@@ -7,7 +7,7 @@
 /* ---------------------------------------------------------------------------
  * colehenry.dev design tokens
  *
- * The raw HSL triplets (--bg, --fg, --accent, ...) are the source of truth —
+ * The raw HSL triplets (--bg, --fg, --accent, ...) are the source of truth -
  * Carolina blue brand (#7BAFD4), UNC navy companion (#13294B), cool
  * blue-tinted neutrals. Sections reskin themselves by overriding --accent via
  * a `data-section` attribute; everything downstream (buttons, rings,
@@ -16,7 +16,7 @@
  * ------------------------------------------------------------------------- */
 
 :root {
-  /* neutral base — faint blue tint, constant site-wide */
+  /* neutral base - faint blue tint, constant site-wide */
   --bg: 210 20% 99%;
   --fg: 215 25% 12%;
   --muted-hsl: 215 10% 45%;
@@ -25,14 +25,14 @@
   --radius: 0.75rem;
 
   /* brand */
-  --accent: 205 51% 45%; /* carolina blue, deepened for light-mode contrast */
+  --accent: 205 51% 42%; /* functional blue: 4.9:1 on the light background */
   --accent-2: 216 60% 18%; /* UNC navy #13294B companion */
   --accent-contrast: 0 0% 100%; /* text on solid accent */
-  /* true #7BAFD4, both modes — for display moments (name, logo cursor),
-     not functional UI that needs contrast */
-  --carolina: 205 51% 66%;
+  /* display blue keeps the Carolina character while clearing 3:1 for large
+     type on the light background; functional/small text uses --accent */
+  --carolina: 205 51% 55%;
 
-  /* motion scale — one easing, few durations */
+  /* motion scale - one easing, few durations */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --dur-fast: 150ms;
   --dur-base: 250ms;
@@ -59,11 +59,11 @@
   --ring: hsl(var(--accent) / 0.45);
 }
 
-/* section skins — one line reskins a section */
+/* section skins - one line reskins a section */
 [data-section="catan"] {
   --accent: 38 92% 52%; /* amber */
   --accent-contrast: 30 60% 10%;
-  /* per-player chart colors — brick, ore, wheat, plum, wood.
+  /* per-player chart colors - brick, ore, wheat, plum, wood.
      Validated (CVD + contrast) in this order; see components/catan/colors.ts */
   --catan-p1: #c14e33;
   --catan-p2: #4173ae;
@@ -83,7 +83,7 @@
 }
 
 [data-section="brain"] {
-  --accent: 262 52% 52%; /* violet — the second brain */
+  --accent: 262 52% 52%; /* violet - the second brain */
   --accent-contrast: 0 0% 100%;
 }
 /* all other sections inherit the site-wide Carolina blue */
@@ -97,6 +97,7 @@
   --accent: 205 51% 66%; /* carolina blue #7BAFD4, verbatim */
   --accent-2: 213 42% 60%; /* navy lifted to steel blue for dark visibility */
   --accent-contrast: 212 60% 10%; /* navy ink on solid carolina */
+  --carolina: 205 51% 66%; /* true Carolina blue remains unchanged in dark */
   --destructive: oklch(0.704 0.191 22.216);
 }
 
@@ -138,7 +139,7 @@
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
-  /* shadcn's "accent" (subtle hover surface) — not the brand accent */
+  /* shadcn's "accent" (subtle hover surface) - not the brand accent */
   --color-accent: var(--accent-subtle);
   --color-accent-foreground: var(--accent-subtle-foreground);
   --color-destructive: var(--destructive);
@@ -175,8 +176,7 @@
     @apply bg-background font-sans antialiased;
     scroll-behavior: smooth;
   }
-  /* body stays transparent so the fixed constellation canvas (-z-10) shows
-     through the page behind all content */
+  /* body stays transparent so page-scoped decorative layers show through */
   body {
     @apply text-foreground;
   }
@@ -218,9 +218,398 @@
     box-shadow: 0 100vmax 0 100vmax var(--background);
   }
 
-  /* mono section label — "01 / projects" */
+  /* mono section label - "01 / projects" */
   .section-label {
     @apply font-mono text-xs uppercase tracking-[0.2em] text-brand;
+  }
+
+  /* Deterministic homepage galaxy. All bright geometry is confined to the
+     outer 4.5% gutters; major objects remain outside the 64rem content rail. */
+  .galaxy-scene {
+    position: absolute;
+    inset: 3.5rem 0 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+    contain: paint;
+    --galaxy-paper: 38 32% 88%;
+    --galaxy-paper-shadow: 215 25% 12%;
+    --galaxy-blue-paper: 205 42% 74%;
+    --galaxy-navy-paper: 216 40% 28%;
+  }
+
+  .dark .galaxy-scene {
+    --galaxy-paper: 38 18% 72%;
+    --galaxy-paper-shadow: 215 25% 2%;
+    --galaxy-blue-paper: 205 35% 56%;
+    --galaxy-navy-paper: 213 32% 37%;
+  }
+
+  .galaxy-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(hsl(var(--fg) / 0.026) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--fg) / 0.026) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: linear-gradient(to bottom, black 0%, black 56%, transparent 82%);
+  }
+
+  .galaxy-connectors {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .galaxy-connectors line {
+    stroke: hsl(var(--accent));
+    stroke-width: 1;
+    stroke-linecap: round;
+  }
+
+  .galaxy-star {
+    position: absolute;
+    width: 3px;
+    height: 3px;
+    border-radius: 999px;
+    background: hsl(var(--fg) / 0.42);
+    transform: translate(-50%, -50%);
+  }
+
+  .galaxy-star[data-size="1"] {
+    width: 2px;
+    height: 2px;
+  }
+
+  .galaxy-star[data-size="3"] {
+    width: 4px;
+    height: 4px;
+  }
+
+  .galaxy-star[data-tone="quiet"] {
+    opacity: 0.35;
+  }
+
+  .galaxy-star[data-zone="field"] {
+    width: 3px;
+    height: 3px;
+    background: hsl(var(--fg) / 0.5);
+    opacity: 0.42;
+  }
+
+  .galaxy-star[data-zone="field"][data-size="2"] {
+    width: 4px;
+    height: 4px;
+  }
+
+  .galaxy-star[data-tone="bright"] {
+    background: hsl(var(--accent) / 0.7);
+    box-shadow: 0 0 0 3px hsl(var(--accent) / 0.06);
+  }
+
+  .galaxy-object {
+    position: absolute;
+    opacity: var(--galaxy-object-opacity);
+    transform: translate3d(
+        var(--galaxy-pull-x),
+        calc(var(--galaxy-shift) + var(--galaxy-pull-y)),
+        0
+      )
+      rotate(calc(var(--galaxy-rotation) + var(--galaxy-pull-turn)));
+    transform-origin: center;
+    will-change: transform, opacity;
+  }
+
+  .galaxy-object[data-side="left"] {
+    right: calc(50% + 34rem);
+  }
+
+  .galaxy-object[data-side="right"] {
+    left: calc(50% + 34rem);
+  }
+
+  .galaxy-object-surface {
+    position: absolute;
+    inset: 0;
+    display: block;
+  }
+
+  .galaxy-object-image {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: contain;
+    object-fit: contain;
+    image-rendering: pixelated;
+    pointer-events: none;
+    user-select: none;
+    filter: drop-shadow(
+      0 0.75rem 0.85rem hsl(var(--galaxy-paper-shadow) / 0.16)
+    );
+  }
+
+  .galaxy-object[data-kind="asteroid"] {
+    width: 8rem;
+    height: 8rem;
+  }
+
+  .galaxy-object[data-kind="ring-planet"] {
+    width: 11rem;
+    height: 11rem;
+  }
+
+  .galaxy-object[data-kind="spiral-galaxy"] {
+    width: 9rem;
+    height: 9rem;
+  }
+
+  .galaxy-object[data-kind="layered-moon"] {
+    width: 8.5rem;
+    height: 8.5rem;
+  }
+
+  .galaxy-moon-base {
+    z-index: 0;
+  }
+
+  .galaxy-moon-overlay {
+    z-index: 1;
+    top: 6%;
+    left: 6%;
+    width: 88%;
+    height: 88%;
+    transform: translateX(var(--galaxy-eclipse-shift));
+  }
+
+  @media (min-width: 768px) {
+    .galaxy-asteroid-sprite {
+      background-image: url("/portfolio/galaxy/pixel-asteroid.png");
+    }
+
+    .galaxy-lapwise-planet-sprite {
+      background-image: url("/portfolio/galaxy/pixel-lapwise-planet.png");
+    }
+
+    .galaxy-brain-galaxy-sprite {
+      background-image: url("/portfolio/galaxy/pixel-brain-galaxy.png");
+    }
+
+    .galaxy-moon-base {
+      background-image: url("/portfolio/galaxy/pixel-bilingual-moon-base.png");
+    }
+
+    .galaxy-moon-overlay {
+      background-image: url("/portfolio/galaxy/pixel-bilingual-moon-overlay.png");
+    }
+  }
+
+  .galaxy-warp {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 0;
+    width: 220px;
+    height: 220px;
+    overflow: hidden;
+    border-radius: 50%;
+    opacity: 0;
+    pointer-events: none;
+    mask-image: radial-gradient(circle, black 0 42%, transparent 72%);
+    background: radial-gradient(
+      circle,
+      hsl(28 96% 58% / 0.035),
+      transparent 68%
+    );
+    will-change: transform, opacity;
+  }
+
+  .galaxy-black-hole {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 90;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    opacity: 0;
+    pointer-events: none;
+    perspective: 80px;
+    will-change: transform, opacity;
+  }
+
+  .galaxy-black-hole::before {
+    position: absolute;
+    inset: 4px -11px;
+    z-index: 1;
+    border-radius: 50%;
+    background: conic-gradient(
+      from 0deg,
+      transparent 0 7%,
+      hsl(24 98% 54% / 0.96) 13%,
+      hsl(44 100% 70% / 0.75) 22%,
+      transparent 33% 52%,
+      hsl(16 94% 52% / 0.86) 62%,
+      hsl(38 100% 65% / 0.48) 72%,
+      transparent 84% 100%
+    );
+    box-shadow: 0 0 12px hsl(25 96% 56% / 0.38);
+    content: "";
+    filter: blur(0.35px);
+    mask-image: radial-gradient(circle, transparent 0 38%, black 46% 64%, transparent 72%);
+    animation: black-hole-accretion 1.15s linear infinite;
+    animation-play-state: paused;
+  }
+
+  .galaxy-black-hole-core {
+    position: absolute;
+    inset: 8px;
+    z-index: 2;
+    border-radius: 50%;
+    background: radial-gradient(
+      circle at 38% 32%,
+      hsl(0 0% 12%) 0,
+      hsl(0 0% 3%) 36%,
+      black 68%
+    );
+    box-shadow:
+      inset -3px -4px 7px black,
+      inset 2px 2px 4px hsl(30 96% 62% / 0.1),
+      0 0 5px black;
+  }
+
+  .galaxy-black-hole-particle {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    z-index: 4;
+    width: 2px;
+    height: 2px;
+    border-radius: 50%;
+    background: hsl(32 100% 68%);
+    box-shadow: 0 0 4px hsl(25 100% 58% / 0.85);
+    opacity: 0;
+    animation: black-hole-infall 1.35s ease-in infinite;
+    animation-delay: var(--infall-delay);
+    animation-play-state: paused;
+  }
+
+  .galaxy-black-hole-particle:nth-of-type(2) {
+    --infall-angle: 18deg;
+    --infall-delay: -0.2s;
+  }
+
+  .galaxy-black-hole-particle:nth-of-type(3) {
+    --infall-angle: 76deg;
+    --infall-delay: -0.9s;
+  }
+
+  .galaxy-black-hole-particle:nth-of-type(4) {
+    --infall-angle: 143deg;
+    --infall-delay: -0.45s;
+  }
+
+  .galaxy-black-hole-particle:nth-of-type(5) {
+    --infall-angle: 211deg;
+    --infall-delay: -1.1s;
+  }
+
+  .galaxy-black-hole-particle:nth-of-type(6) {
+    --infall-angle: 278deg;
+    --infall-delay: -0.7s;
+  }
+
+  .galaxy-black-hole-particle:nth-of-type(7) {
+    --infall-angle: 329deg;
+    --infall-delay: -0.05s;
+  }
+
+  .galaxy-black-hole[data-active="true"]::before {
+    animation-play-state: running;
+  }
+
+  .galaxy-black-hole[data-active="true"] .galaxy-black-hole-particle {
+    animation-play-state: running;
+  }
+
+  @media
+    (min-width: 1180px) and (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+    html.galaxy-cursor-active,
+    html.galaxy-cursor-active * {
+      cursor: none !important;
+    }
+  }
+
+  @media (min-width: 768px) and (max-width: 1179px) {
+    .galaxy-object[data-side="left"] {
+      right: auto;
+      left: -2.75rem;
+    }
+
+    .galaxy-object[data-side="right"] {
+      right: -2.75rem;
+      left: auto;
+    }
+
+    .galaxy-object[data-kind="asteroid"] {
+      width: 6.75rem;
+      height: 6.75rem;
+    }
+
+    .galaxy-object[data-kind="ring-planet"] {
+      width: 8.5rem;
+      height: 8.5rem;
+    }
+
+    .galaxy-object[data-kind="spiral-galaxy"] {
+      width: 7.5rem;
+      height: 7.5rem;
+    }
+
+    .galaxy-object[data-kind="layered-moon"] {
+      width: 7rem;
+      height: 7rem;
+    }
+
+    .galaxy-connectors {
+      display: none;
+    }
+
+    .galaxy-warp,
+    .galaxy-black-hole {
+      display: none;
+    }
+  }
+
+  @media (max-width: 767px) {
+    .galaxy-object,
+    .galaxy-grid,
+    .galaxy-connectors,
+    .galaxy-stars {
+      display: none;
+    }
+
+    .galaxy-warp,
+    .galaxy-black-hole {
+      display: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .galaxy-object {
+      opacity: 1;
+      transform: rotate(var(--galaxy-rotation));
+      will-change: auto;
+    }
+
+    .galaxy-warp,
+    .galaxy-black-hole {
+      display: none;
+    }
   }
 
   /* faint blueprint grid, fades out downward */
@@ -286,6 +675,32 @@
   }
 }
 
+@keyframes black-hole-accretion {
+  from {
+    transform: rotateX(66deg) rotateZ(0);
+  }
+  to {
+    transform: rotateX(66deg) rotateZ(1turn);
+  }
+}
+
+@keyframes black-hole-infall {
+  0% {
+    opacity: 0;
+    transform: rotate(var(--infall-angle)) translateX(31px) scale(0.6);
+  }
+  20% {
+    opacity: 0.9;
+  }
+  85% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(var(--infall-angle)) translateX(5px) scale(0.08);
+  }
+}
+
 @keyframes reveal {
   to {
     opacity: 1;
@@ -293,7 +708,7 @@
   }
 }
 
-/* cmd+k: the signature — selected row gets the solid accent bar */
+/* cmd+k: the signature - selected row gets the solid accent bar */
 [cmdk-item][data-selected="true"] {
   background: hsl(var(--accent));
   color: hsl(var(--accent-contrast));

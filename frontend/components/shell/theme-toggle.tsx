@@ -6,7 +6,7 @@ import { useSyncExternalStore } from "react";
 
 import { Button } from "@/components/ui/button";
 
-// True after hydration, false during SSR — avoids a theme-icon mismatch.
+// True after hydration, false during SSR - avoids a theme-icon mismatch.
 const emptySubscribe = () => () => {};
 function useMounted() {
   return useSyncExternalStore(

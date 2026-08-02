@@ -71,7 +71,7 @@ export function GameSummaryDialog({
                 {formatDay(game.played_at, true)}
                 <span className="flex items-center gap-1">
                   <MapPin className="size-3" />
-                  {game.location || "—"}
+                  {game.location || "-"}
                 </span>
               </DialogDescription>
             </DialogHeader>
@@ -112,7 +112,7 @@ export function GameSummaryDialog({
                     </span>
                   )}
                   <span className="w-10 text-right font-mono text-xs font-medium">
-                    {r.victory_points !== null ? `${r.victory_points} VP` : "—"}
+                    {r.victory_points !== null ? `${r.victory_points} VP` : "-"}
                   </span>
                 </li>
               ))}

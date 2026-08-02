@@ -1,13 +1,13 @@
 /**
  * The single registry of site sections. Drives the header nav, the cmd+k
- * palette, and the coming-soon pages — add a section here and every part of
+ * palette, and the coming-soon pages - add a section here and every part of
  * the shell picks it up.
  */
 export type Section = {
   slug: string;
   path: string;
   name: string;
-  /** value for the `data-section` attribute — keys into the CSS accent skins */
+  /** value for the `data-section` attribute - keys into the CSS accent skins */
   accent: string;
   description: string;
   ownerOnly?: boolean;
@@ -38,14 +38,14 @@ export const sections: Section[] = [
     name: "Recipes",
     accent: "recipes",
     description:
-      "colehenry@kitchen:~$ — recipes I actually cook, rated out of 5.",
+      "colehenry@kitchen:~$ - recipes I actually cook, rated out of 5.",
   },
   {
     slug: "challenges",
     path: "/challenges",
     name: "25",
     accent: "challenges",
-    description: "The 25 — a personal challenge log. Owner only.",
+    description: "The 25 - a personal challenge log. Owner only.",
     ownerOnly: true,
   },
   {
@@ -87,7 +87,7 @@ export const sections: Section[] = [
     path: "/brain",
     name: "Brain",
     accent: "brain",
-    description: "Second-brain vault — read, search, and chat over my notes.",
+    description: "Second-brain vault - read, search, and chat over my notes.",
     ownerOnly: true,
   },
 ];

@@ -21,7 +21,7 @@ type Entry = {
 };
 
 /**
- * Almanac strip — a rule-bound line of records, not a row of cards.
+ * Almanac strip - a rule-bound line of records, not a row of cards.
  */
 export function LifetimeStats({ data }: { data: CatanDashboard }) {
   const rows = data.leaderboard;
@@ -57,7 +57,7 @@ export function LifetimeStats({ data }: { data: CatanDashboard }) {
     {
       icon: "crown",
       label: "last winner",
-      value: lastGame?.winner ?? "—",
+      value: lastGame?.winner ?? "-",
       names: lastGame?.winner ? [lastGame.winner] : [],
       detail: lastGame ? formatDay(lastGame.played_at) : "",
     },
