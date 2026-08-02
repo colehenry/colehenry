@@ -5,6 +5,7 @@ import {
   FileText,
   FolderGit2,
   Home,
+  LogOut,
   Search,
 } from "lucide-react";
 import Link from "next/link";
@@ -13,7 +14,6 @@ import { useEffect, useRef, useState } from "react";
 
 import { LanguageToggle } from "@/components/shell/language-toggle";
 import { ThemeToggle } from "@/components/shell/theme-toggle";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -207,6 +207,19 @@ export function Header() {
                 ⌘K
               </span>
             </DropdownMenuItem>
+            {me ? (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={() => logout.mutate()}
+                  disabled={logout.isPending}
+                  className="rounded-lg px-2 py-1.5 focus:bg-brand focus:text-brand-contrast focus:**:text-brand-contrast"
+                >
+                  <LogOut />
+                  {nav.logout}
+                </DropdownMenuItem>
+              </>
+            ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -226,25 +239,6 @@ export function Header() {
           </button>
           <LanguageToggle />
           <ThemeToggle />
-          {me ? (
-            <div className="flex items-center gap-2">
-              <span
-                className="hidden items-center gap-1.5 font-mono text-xs text-muted-foreground sm:flex"
-                title={me.email}
-              >
-                <span className="size-1.5 rounded-full bg-brand-2" />
-                {nav.owner}
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => logout.mutate()}
-                disabled={logout.isPending}
-              >
-                {nav.logout}
-              </Button>
-            </div>
-          ) : null}
         </div>
       </div>
     </header>

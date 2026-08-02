@@ -80,6 +80,12 @@ test("public navigation hides login and defers prominent search", () => {
   assert.doesNotMatch(readSource("lib/i18n/ui.ts"), /login:/);
 });
 
+test("owner logout is available only in navigation menus", () => {
+  assert.match(header, /<DropdownMenuItem[\s\S]*?logout\.mutate\(\)[\s\S]*?nav\.logout/);
+  assert.match(commandPalette, /<CommandItem[\s\S]*?logout\.mutate\(\)[\s\S]*?p\.logout/);
+  assert.doesNotMatch(header, /<Button[\s\S]*?nav\.logout/);
+});
+
 function hslToRgb([h, s, l]) {
   s /= 100;
   l /= 100;
