@@ -277,7 +277,33 @@ test("result scores use singular point grammar and mark the Cambio caller", () =
   assert.equal(formatPoints(1), "1 pt");
   assert.equal(formatPoints(-1), "-1 pts");
   assert.match(table, /calledCambio && <Mascot scene=\{scene\} compact \/>/);
+  assert.doesNotMatch(table, />called Cambio</);
   assert.match(styles, /\.cb-dialog-row \.cb-mascot\.is-compact/);
+  assert.match(styles, /\.cb-result-score[\s\S]*?white-space: nowrap/);
+  assert.match(
+    styles,
+    /\.cb-dialog-row\.is-caller \.cb-dialog-cards[\s\S]*?padding-bottom: 86px/,
+  );
+  assert.match(
+    styles,
+    /\.cb-dialog-row \.cb-mascot\.is-compact[\s\S]*?left: 50%[\s\S]*?margin-left: -31px/,
+  );
+  assert.match(
+    styles,
+    /\.cb-dialog-row\.is-caller\.is-winner \.cb-dialog-cards[\s\S]*?padding-right: 100px[\s\S]*?padding-bottom: 0/,
+  );
+  assert.match(
+    styles,
+    /\.cb-dialog-row\.is-caller\.is-winner \.cb-mascot\.is-compact[\s\S]*?right: 12px[\s\S]*?left: auto/,
+  );
+  assert.match(
+    styles,
+    /\.cb-dialog-row\.is-caller\.is-winner \.cb-mascot\.is-compact svg[\s\S]*?width: 82px[\s\S]*?height: 93px/,
+  );
+  assert.match(
+    styles,
+    /\.cb-dialog-row \.cb-mascot\.is-compact \.cb-mascot-bubble \{[^}]*font-size: 9px;[^}]*\}/,
+  );
 });
 
 test("nameplates show names only and turn green when active", () => {

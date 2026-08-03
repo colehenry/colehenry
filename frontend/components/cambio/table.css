@@ -975,7 +975,7 @@
 }
 .cb-result-player-line {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
   font-size: 17px;
 }
@@ -985,14 +985,10 @@
 .cb-dialog-row.is-loser .cb-result-player-line {
   font-size: 14px;
 }
-.cb-result-player-line span:nth-child(2) {
+.cb-result-score {
   margin-left: auto;
   font-weight: 800;
-}
-.cb-result-caller {
-  margin-top: 2px;
-  color: var(--cb-text-soft);
-  font-size: 12px;
+  white-space: nowrap;
 }
 .cb-dialog-cards {
   display: flex;
@@ -1157,16 +1153,38 @@
 }
 .cb-dialog-row.is-caller {
   position: relative;
-  padding-right: 88px;
+}
+.cb-dialog-row.is-caller .cb-dialog-cards {
+  padding-bottom: 86px;
+}
+.cb-dialog-row.is-caller.is-winner .cb-dialog-cards {
+  min-height: 108px;
+  padding-right: 100px;
+  padding-bottom: 0;
 }
 .cb-dialog-row .cb-mascot.is-compact {
   position: absolute;
-  right: 10px;
-  bottom: 6px;
+  left: 50%;
+  bottom: 8px;
   z-index: 2;
+  margin-left: -31px;
   filter: drop-shadow(0 4px 4px rgb(0 0 0 / 0.25));
 }
+.cb-dialog-row.is-caller.is-winner .cb-mascot.is-compact {
+  right: 12px;
+  left: auto;
+  margin-left: 0;
+}
+.cb-dialog-row.is-caller.is-winner .cb-mascot.is-compact svg {
+  width: 82px;
+  height: 93px;
+}
+.cb-dialog-row.is-caller.is-winner .cb-mascot.is-compact .cb-mascot-bubble {
+  padding: 3px 8px;
+  font-size: 11px;
+}
 .cb-dialog-row .cb-mascot.is-compact svg {
+  display: block;
   width: 62px;
   height: 70px;
 }

@@ -95,6 +95,14 @@ test("public navigation keeps admin sign-in inside the dropdown", () => {
   assert.doesNotMatch(readSource("lib/i18n/ui.ts"), /login:/);
 });
 
+test("Cambio has a distinct yellow navigation dot", () => {
+  assert.match(
+    header,
+    /section\.slug === "cambio"[\s\S]*?bg-amber-400 ring-2 ring-amber-400\/20 dark:bg-amber-300/,
+  );
+  assert.doesNotMatch(header, /section\.slug === "cambio" &&/);
+});
+
 test("login page stays minimal and monochrome", () => {
   assert.match(login, /are you cole\? if not, good luck/);
   assert.match(login, /Sign in with Google/);

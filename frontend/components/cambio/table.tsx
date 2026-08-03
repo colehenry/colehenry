@@ -115,12 +115,11 @@ function ResultOverlay({
               >
                 <div className="cb-result-player-line">
                   <strong>{seatName(player.seat)}</strong>
-                  <span>{formatPoints(view.scores?.[player.seat] ?? 0)}</span>
+                  <span className="cb-result-score">
+                    {formatPoints(view.scores?.[player.seat] ?? 0)}
+                  </span>
                   {isWinner && <span aria-label="winner">🏆</span>}
                 </div>
-                {calledCambio && (
-                  <div className="cb-result-caller">called Cambio</div>
-                )}
                 {calledCambio && <Mascot scene={scene} compact />}
                 <div className="cb-dialog-cards">
                   {player.hand.map(({ uid }) => {
