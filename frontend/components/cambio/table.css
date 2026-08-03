@@ -236,57 +236,6 @@
   }
 }
 
-/* Seaside terrace - sky, sun, sea band, terracotta tabletop */
-.cb-scene-seaside .cb-backdrop {
-  background:
-    radial-gradient(
-      60% 40% at 78% 12%,
-      rgb(255 244 214 / 0.95),
-      transparent 60%
-    ),
-    radial-gradient(
-      150% 70% at 50% 128%,
-      #c07a4e 0%,
-      #b46b41 24%,
-      transparent 52%
-    ),
-    linear-gradient(
-      180deg,
-      #fbe5c4 0%,
-      #f4d9ad 14%,
-      #bfe0e6 30%,
-      #7fc3d9 44%,
-      #4f9ec4 52%,
-      #3d8bb6 58%,
-      #cdb089 58.4%,
-      #b98a5f 100%
-    );
-}
-
-/* Coffee shop - lightweight warm interior (preview until illustrated) */
-.cb-scene-cafe .cb-backdrop {
-  background:
-    radial-gradient(
-      50% 40% at 24% 16%,
-      rgb(255 226 170 / 0.7),
-      transparent 60%
-    ),
-    radial-gradient(
-      140% 70% at 50% 122%,
-      #6b4a34 0%,
-      #543826 30%,
-      transparent 55%
-    ),
-    linear-gradient(180deg, #3a2a20 0%, #4a3527 40%, #5c4230 60%, #71543c 100%);
-}
-
-/* Medieval tavern - lightweight fallback behind the SVG */
-.cb-scene-tavern .cb-backdrop {
-  background:
-    radial-gradient(40% 34% at 16% 46%, rgb(255 180 90 / 0.5), transparent 60%),
-    linear-gradient(180deg, #2b2620 0%, #3d352b 60%, #4a3d2e 100%);
-}
-
 /* --- HUD (only a settings disc lives on screen) --------------------------- */
 
 .cb-hud {
@@ -536,7 +485,6 @@
 .cb-nameplate {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
   padding: 3px 12px;
   border-radius: 999px;
   background: rgb(0 0 0 / 0.32);
@@ -544,19 +492,7 @@
   font-size: 12px;
   text-shadow: 0 1px 2px rgb(0 0 0 / 0.5);
 }
-.cb-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #7fe08a;
-  box-shadow: 0 0 6px #7fe08a;
-}
-.cb-dot.is-off {
-  background: #cfcfcf;
-  box-shadow: none;
-  opacity: 0.5;
-}
-/* --- hands: the 2×N grid + floating odd card ------------------------------ */
+/* --- hands: stable server-authored rows ----------------------------------- */
 
 .cb-hand {
   display: flex;
@@ -566,13 +502,16 @@
   min-height: 0;
 }
 .cb-grid {
-  display: grid;
-  grid-template-columns: repeat(2, auto);
+  display: flex;
+  flex-direction: column;
   gap: clamp(3px, 0.7vh, 6px);
 }
-.cb-grid-side {
+.cb-grid-row {
   display: flex;
+  justify-content: center;
   align-items: center;
+  gap: clamp(3px, 0.7vh, 6px);
+  min-height: clamp(60px, 13vh, 120px);
 }
 .cb-hand.is-opp {
   transform: perspective(1500px) rotateX(16deg);
@@ -871,13 +810,10 @@
 
 /* turn signaling lives in the nameplate; card backs stay equally legible. */
 .cb-nameplate.is-active {
+  --active: #7fe08a;
+  color: #7fe08a;
+  font-weight: 800;
   animation: cb-namepulse 1.6s ease-in-out infinite;
-}
-.cb-nameplate.is-active.is-you {
-  --active: var(--cb-glow-own);
-}
-.cb-nameplate.is-active {
-  --active: #ffe08a;
 }
 @keyframes cb-namepulse {
   0%,
@@ -982,22 +918,81 @@
   background: rgb(0 0 0 / 0.5);
 }
 .cb-dialog {
-  min-width: 300px;
-  max-width: 92%;
-  padding: 18px 20px;
+  width: min(640px, 92vw);
+  max-height: 92%;
+  overflow-y: auto;
+  padding: clamp(20px, 4vw, 36px);
   border-radius: 18px;
   background: var(--cb-panel);
   backdrop-filter: blur(10px);
   border: 1px solid var(--cb-panel-line);
   box-shadow: 0 20px 60px rgb(0 0 0 / 0.5);
 }
-.cb-dialog-title {
-  margin-bottom: 12px;
-  font-size: 20px;
-  font-weight: 800;
+.cb-result-title {
+  margin-bottom: 8px;
+  text-align: center;
+  font-family: var(--cb-deck-font);
+  font-size: clamp(46px, 9vw, 82px);
+  font-weight: 950;
+  line-height: 0.95;
+  letter-spacing: 0.035em;
+  text-shadow: 0 3px 0 rgb(0 0 0 / 0.18);
+}
+.cb-dialog.is-win .cb-result-title {
+  color: #248a3d;
+}
+.cb-dialog.is-loss .cb-result-title {
+  color: var(--cb-accent);
+}
+.cb-dialog.is-tie .cb-result-title {
+  color: #b77800;
+}
+.cb-result-subtitle {
+  margin: 0 auto 18px;
+  text-align: center;
+  color: var(--cb-text-soft);
+  font-weight: 700;
+}
+.cb-result-players {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 .cb-dialog-row {
-  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.34);
+  transition: transform 0.2s ease;
+}
+.cb-dialog-row.is-winner {
+  padding: 16px;
+  background: rgb(127 224 138 / 0.2);
+  border: 2px solid rgb(36 138 61 / 0.5);
+}
+.cb-dialog-row.is-loser {
+  margin-inline: 7%;
+  opacity: 0.72;
+}
+.cb-result-player-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 17px;
+}
+.cb-dialog-row.is-winner .cb-result-player-line {
+  font-size: clamp(24px, 4vw, 34px);
+}
+.cb-dialog-row.is-loser .cb-result-player-line {
+  font-size: 14px;
+}
+.cb-result-player-line span:nth-child(2) {
+  margin-left: auto;
+  font-weight: 800;
+}
+.cb-result-caller {
+  margin-top: 2px;
+  color: var(--cb-text-soft);
+  font-size: 12px;
 }
 .cb-dialog-cards {
   display: flex;
@@ -1005,16 +1000,30 @@
   margin-top: 5px;
   flex-wrap: wrap;
 }
+.cb-dialog-row.is-winner .cbc-sm {
+  --cbc-w: 54px;
+  --cbc-h: 76px;
+  --cbc-radius: 6px;
+}
+.cb-dialog-row.is-loser .cbc-sm {
+  --cbc-w: 32px;
+  --cbc-h: 45px;
+}
+.cb-showdown-ready-list {
+  margin-top: 16px;
+}
 .cb-again {
-  margin-top: 6px;
-  padding: 9px 18px;
+  display: block;
+  width: 100%;
+  margin-top: 16px;
+  padding: 12px 18px;
   border: none;
   border-radius: 999px;
   background: var(--cb-accent);
   color: #fff;
   font: inherit;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 800;
   cursor: pointer;
 }
 .cb-again:disabled {
@@ -1146,6 +1155,29 @@
   background: #f1d56b;
   color: #6e234f;
 }
+.cb-dialog-row.is-caller {
+  position: relative;
+  padding-right: 88px;
+}
+.cb-dialog-row .cb-mascot.is-compact {
+  position: absolute;
+  right: 10px;
+  bottom: 6px;
+  z-index: 2;
+  filter: drop-shadow(0 4px 4px rgb(0 0 0 / 0.25));
+}
+.cb-dialog-row .cb-mascot.is-compact svg {
+  width: 62px;
+  height: 70px;
+}
+.cb-dialog-row .cb-mascot.is-compact .cb-mascot-bubble {
+  margin-bottom: -2px;
+  padding: 2px 6px;
+  border-width: 1px;
+  border-radius: 8px 8px 2px 8px;
+  font-size: 9px;
+  box-shadow: 0 2px 0 rgb(39 33 29 / 0.25);
+}
 .cb-game.is-cambio-hit .cb-felt {
   animation: cb-table-wham 0.58s cubic-bezier(0.2, 0.8, 0.3, 1);
 }
@@ -1190,6 +1222,9 @@
   }
   .cb-game .cbc {
     --cbc-h: clamp(58px, 10.5vh, 92px);
+  }
+  .cb-grid-row {
+    min-height: clamp(58px, 10.5vh, 92px);
   }
   .cb-held .cbc {
     --cbc-h: clamp(78px, 13vh, 108px);
@@ -1261,16 +1296,6 @@
 .dark .cb-settings-full {
   background: rgb(255 255 255 / 0.08);
   color: var(--cb-text);
-}
-
-/* --- illustrated scene backdrop (SVG) ------------------------------------- */
-
-.cb-scene-svg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 0;
 }
 
 /* --- lobby + room gate (retheme, no XP chrome) ---------------------------- */

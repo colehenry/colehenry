@@ -46,6 +46,7 @@ BLIND_SWAP = "blind_swap"  # J/Q played
 KING = "king"  # black king played: look and/or swap, then done
 POWER_REVEAL = "power_reveal"  # selected card is briefly visible in place
 SNAP_GIVE = "snap_give"  # correct snap on an opponent card: choose an offload
+SHOWDOWN_PENDING = "showdown_pending"  # tied scores shown until players confirm
 ROUND_END = "round_end"
 
 
@@ -86,6 +87,7 @@ def power_of(card: Card) -> str | None:
 
 @dataclass
 class SnapContext:
+    window_id: int  # immutable identity; prevents delayed clicks hitting a new window
     rank: str  # rank to match (top of discard when the window opened)
     # A seat is blocked only after a wrong snap. Correct snaps may continue so
     # a player can shed every matching card they remember in the same window.
@@ -111,12 +113,16 @@ class GameState:
     stock: list[Card]  # draw pile, [-1] is the top
     discard: list[Card]  # [-1] is the top, face up
     knowledge: dict[int, set[int]]  # seat -> uids that seat has seen
+    # Visual row is authoritative so removing a list item never moves another
+    # physical card between the top and bottom rows.
+    hand_rows: dict[int, int] = field(default_factory=dict)
     turn: int = 0
     phase: str = OPENING
     drawn: Card | None = None
     king_looked: bool = False
     power_reveal: PowerRevealContext | None = None
     snap: SnapContext | None = None
+    next_snap_id: int = 0
     # Set once per turn when a card lands on the discard, consumed at end of
     # turn to decide whether a snap window opens.
     discarded_this_turn: bool = False
@@ -134,6 +140,12 @@ class GameState:
 
 
 class IllegalMove(Exception):
+    pass
+
+
+class StaleMove(IllegalMove):
+    """A once-valid realtime action that no longer targets the same state."""
+
     pass
 
 
@@ -165,6 +177,11 @@ def new_round(config: CambioConfig, seed: int | None = None) -> GameState:
         stock=deck,
         discard=[],
         knowledge={seat: set() for seat in range(config.num_players)},
+        hand_rows={
+            card.uid: min(index // 2, 1)
+            for hand in players
+            for index, card in enumerate(hand)
+        },
         phase=OPENING,
     )
     # Opening peek: bottom row = the last `opening_peek_count` slots.
@@ -224,18 +241,28 @@ def _slot_ok(state: GameState, seat: int, slot: int) -> bool:
     return 0 <= seat < len(state.players) and 0 <= slot < len(state.players[seat])
 
 
+def _open_row(state: GameState, seat: int) -> int:
+    """Choose a row for an added card without moving any cards already dealt."""
+    counts = [0, 0]
+    for card in state.players[seat]:
+        counts[state.hand_rows.get(card.uid, 0)] += 1
+    return 0 if counts[0] <= counts[1] else 1
+
+
 def legal_moves(state: GameState, seat: int) -> list[dict]:
     """Enumerate legal moves for a seat — drives the bot and the simulator."""
     moves: list[dict] = []
-    if state.phase == ROUND_END:
-        return moves
-
     if seat == SERVER_SEAT:
         if state.phase == OPENING:
             return [{"type": "close_opening"}]
         if state.phase == POWER_REVEAL:
             return [{"type": "close_power_reveal"}]
+        if state.phase == SHOWDOWN_PENDING:
+            return [{"type": "start_showdown"}]
         return [{"type": "close_snap"}] if state.snap is not None else []
+
+    if state.phase in (ROUND_END, SHOWDOWN_PENDING):
+        return moves
 
     # A snap window is an overlay, not a phase: everyone may snap while the
     # next player can begin their normal turn immediately.
@@ -246,7 +273,15 @@ def legal_moves(state: GameState, seat: int) -> list[dict]:
     ):
         for target in range(len(state.players)):
             for slot in range(len(state.players[target])):
-                moves.append({"type": "snap", "target": target, "slot": slot})
+                moves.append(
+                    {
+                        "type": "snap",
+                        "target": target,
+                        "slot": slot,
+                        "window_id": state.snap.window_id,
+                        "card_uid": state.players[target][slot].uid,
+                    }
+                )
 
     if state.round_end_pending:
         return moves
@@ -314,8 +349,16 @@ def reduce(state: GameState, seat: int, move: dict) -> GameState:
     state.events = []
     kind = move.get("type")
 
+    if kind == "snap" and (state.snap is None or state.phase == SNAP_GIVE):
+        raise StaleMove("snap window expired")
     if state.phase == ROUND_END:
         raise IllegalMove("round is over")
+    if state.phase == SHOWDOWN_PENDING:
+        if kind != "start_showdown" or seat != SERVER_SEAT:
+            raise IllegalMove("waiting for showdown confirmations")
+        _start_sudden_death(state)
+        state.move_seq += 1
+        return state
     if state.round_end_pending and kind not in ("snap", "close_snap"):
         raise IllegalMove("waiting for the final snap window to close")
 
@@ -391,6 +434,8 @@ def _apply_drawn(state: GameState, seat: int, move: dict) -> None:
         if not isinstance(slot, int) or not _slot_ok(state, seat, slot):
             raise IllegalMove("bad slot")
         replaced = state.players[seat][slot]
+        row = state.hand_rows.pop(replaced.uid, 0)
+        state.hand_rows[drawn.uid] = row
         state.players[seat][slot] = drawn
         state.drawn = None
         state.events.append(
@@ -490,7 +535,10 @@ def _swap_between(state: GameState, seat: int, move: dict) -> None:
     ):
         raise IllegalMove("bad swap target")
     a, b = state.players[seat][my], state.players[target][their]
+    a_row = state.hand_rows.get(a.uid, 0)
+    b_row = state.hand_rows.get(b.uid, 0)
     state.players[seat][my], state.players[target][their] = b, a
+    state.hand_rows[b.uid], state.hand_rows[a.uid] = a_row, b_row
     # No faces revealed; knowledge rides along with the uids.
     state.events.append(
         {
@@ -510,9 +558,18 @@ def _apply_snap(state: GameState, seat: int, move: dict) -> None:
     if seat in state.snap.attempted:
         raise IllegalMove("already attempted this window")
     target, slot = move.get("target"), move.get("slot")
-    if not isinstance(target, int) or not isinstance(slot, int) or not _slot_ok(state, target, slot):
+    window_id, card_uid = move.get("window_id"), move.get("card_uid")
+    if not all(isinstance(value, int) for value in (target, slot, window_id, card_uid)):
         raise IllegalMove("bad snap target")
+    if window_id != state.snap.window_id:
+        raise StaleMove("snap window expired")
+    if target < 0 or target >= len(state.players):
+        raise IllegalMove("bad snap target")
+    if not _slot_ok(state, target, slot):
+        raise StaleMove("snap card moved")
     card = state.players[target][slot]
+    if card.uid != card_uid:
+        raise StaleMove("snap card moved")
     _publicize(state, card)  # flipped for everyone before resolving
     correct = card.rank == state.snap.rank
     state.events.append(
@@ -528,6 +585,7 @@ def _apply_snap(state: GameState, seat: int, move: dict) -> None:
     )
     if correct:
         state.players[target].pop(slot)
+        state.hand_rows.pop(card.uid, None)
         state.discard.append(card)
         if not state.players[target]:
             _finish_round(state, [target], reason="empty_hand")
@@ -541,6 +599,7 @@ def _apply_snap(state: GameState, seat: int, move: dict) -> None:
         state.snap.attempted.add(seat)
         penalty = _draw_from_stock(state)
         if penalty is not None:
+            state.hand_rows[penalty.uid] = _open_row(state, seat)
             state.players[seat].append(penalty)
             state.events.append(
                 {"type": "penalty", "to": None, "seat": seat, "uid": penalty.uid}
@@ -554,6 +613,8 @@ def _apply_snap_give(state: GameState, seat: int, move: dict) -> None:
     if not isinstance(slot, int) or not _slot_ok(state, seat, slot):
         raise IllegalMove("bad slot")
     card = state.players[seat].pop(slot)
+    state.hand_rows.pop(card.uid, None)
+    state.hand_rows[card.uid] = _open_row(state, state.snap.receiver)
     state.players[state.snap.receiver].append(card)
     state.events.append(
         {
@@ -576,7 +637,11 @@ def _end_turn(state: GameState) -> None:
     """Finish the action, advance immediately, and expose snap as an overlay."""
     state.drawn = None
     if state.config.snap_enabled and state.discarded_this_turn:
-        state.snap = SnapContext(rank=state.discard[-1].rank)
+        state.next_snap_id += 1
+        state.snap = SnapContext(
+            window_id=state.next_snap_id,
+            rank=state.discard[-1].rank,
+        )
         state.events.append(
             {"type": "snap_open", "to": None, "rank": state.snap.rank}
         )
@@ -623,9 +688,30 @@ def _score_round(state: GameState) -> None:
     low = min(totals)
     winners = [s for s, t in enumerate(totals) if t == low]
     if len(winners) > 1 and state.config.tie_rule == "sudden_death":
-        _start_sudden_death(state, totals)
+        _finish_tie(state, winners, totals)
         return
     _finish_round(state, winners, totals=totals, reason="score")
+
+
+def _finish_tie(state: GameState, winners: list[int], totals: list[int]) -> None:
+    """Reveal the tied result and wait for room-level player confirmations."""
+    state.scores = totals
+    state.winners = winners
+    state.phase = SHOWDOWN_PENDING
+    state.snap = None
+    state.round_end_pending = False
+    for hand in state.players:
+        for card in hand:
+            _publicize(state, card)
+    state.events.append(
+        {
+            "type": "tie",
+            "to": None,
+            "scores": totals,
+            "winners": winners,
+            "hands": [[c.pub() for c in hand] for hand in state.players],
+        }
+    )
 
 
 def _finish_round(
@@ -656,14 +742,18 @@ def _finish_round(
     )
 
 
-def _start_sudden_death(state: GameState, tied_scores: list[int]) -> None:
-    """Immediately reshuffle and redeal one known card per player after a tie."""
+def _start_sudden_death(state: GameState) -> None:
+    """After confirmation, reshuffle and deal one known card per player."""
+    if state.phase != SHOWDOWN_PENDING or state.scores is None:
+        raise IllegalMove("showdown is not pending")
+    tied_scores = list(state.scores)
     previous_hands = [[c.pub() for c in hand] for hand in state.players]
     deck = build_deck(state.config, state.rng)
     state.players = [[deck.pop()] for _ in range(state.config.num_players)]
     state.stock = deck
     state.discard = []
     state.knowledge = {seat: set() for seat in range(state.config.num_players)}
+    state.hand_rows = {hand[0].uid: 0 for hand in state.players}
     state.turn = 0
     state.phase = OPENING
     state.drawn = None
@@ -741,7 +831,13 @@ def view_for(state: GameState, seat: int) -> dict:
         "discard_top": state.discard[-1].pub() if state.discard else None,
         "drawn": drawn,
         "players": [
-            {"seat": s, "hand": [{"uid": c.uid} for c in hand]}
+            {
+                "seat": s,
+                "hand": [
+                    {"uid": c.uid, "row": state.hand_rows.get(c.uid, 0)}
+                    for c in hand
+                ],
+            }
             for s, hand in enumerate(state.players)
         ],
         "known": known,
@@ -765,6 +861,7 @@ def view_for(state: GameState, seat: int) -> dict:
         ),
         "snap": (
             {
+                "window_id": state.snap.window_id,
                 "rank": state.snap.rank,
                 "attempted": sorted(state.snap.attempted),
                 "giver": state.snap.giver,

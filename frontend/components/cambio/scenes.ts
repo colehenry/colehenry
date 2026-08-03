@@ -1,11 +1,8 @@
 /** Scene registry (plan §7). A scene themes the TABLE surface + background and
  * is independent of the card deck (skins.ts) - decks and scenes compose freely.
  * A scene is applied via the `cb-scene-*` class on the game root; its visual
- * tokens (backdrop, surface, light tint, accent) live in table.css. Adding a
- * scene = a `.cb-scene-*` block there plus a row here.
- *
- * Art direction: Trattoria (warm illustrated). Ship Seaside first; others are
- * picker slots to be illustrated later. */
+ * image and foreground ambience live in table.css. Generated images are the
+ * only base layer; scenes intentionally have no SVG or CSS-art fallback. */
 
 export type Scene = "seaside" | "cafe" | "tavern";
 
@@ -15,7 +12,7 @@ export const SCENE_LABELS: Record<Scene, string> = {
   tavern: "Medieval tavern",
 };
 
-/** Fully illustrated vs. lightweight preview (picker marks the previews). */
+/** All registered scenes have final generated art. */
 export const SCENE_READY: Record<Scene, boolean> = {
   seaside: true,
   cafe: true,

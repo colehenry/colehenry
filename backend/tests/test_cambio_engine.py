@@ -13,6 +13,7 @@ from app.cambio import engine as E
 from app.cambio.engine import (
     Card,
     IllegalMove,
+    StaleMove,
     card_value,
     legal_moves,
     new_round,
@@ -43,6 +44,21 @@ def stack(state, rank, suit, uid=900):
 def close_snap(state):
     if state.snap is not None:
         reduce(state, E.SERVER_SEAT, {"type": "close_snap"})
+
+
+def attempt_snap(state, seat, target, slot):
+    card = state.players[target][slot]
+    reduce(
+        state,
+        seat,
+        {
+            "type": "snap",
+            "target": target,
+            "slot": slot,
+            "window_id": state.snap.window_id,
+            "card_uid": card.uid,
+        },
+    )
 
 
 # --- values -----------------------------------------------------------------
@@ -277,7 +293,7 @@ def snap_setup(rank="4"):
 def test_snap_own_correct_sheds_card():
     s = snap_setup("4")
     put(s, 1, 0, "4", "C")
-    reduce(s, 1, {"type": "snap", "target": 1, "slot": 0})
+    attempt_snap(s, 1, 1, 0)
     assert len(s.players[1]) == 3
     assert s.discard[-1].rank == "4"
     assert s.phase == E.TURN and s.snap is not None  # overlay stays open
@@ -289,11 +305,11 @@ def test_multiple_correct_snaps_are_allowed_in_one_window():
     put(s, 1, 0, "4", "C")
     put(s, 1, 1, "4", "S")
 
-    reduce(s, 1, {"type": "snap", "target": 1, "slot": 0})
+    attempt_snap(s, 1, 1, 0)
     assert any(move["type"] == "snap" for move in legal_moves(s, 1))
 
     # The second matching card shifted into slot 0 after the first was shed.
-    reduce(s, 1, {"type": "snap", "target": 1, "slot": 0})
+    attempt_snap(s, 1, 1, 0)
     assert len(s.players[1]) == 2
     assert [card.rank for card in s.discard[-2:]] == ["4", "4"]
     assert 1 not in s.snap.attempted
@@ -303,13 +319,13 @@ def test_snap_wrong_draws_penalty_and_publicizes():
     s = snap_setup("4")
     put(s, 1, 0, "9", "C")
     uid = s.players[1][0].uid
-    reduce(s, 1, {"type": "snap", "target": 1, "slot": 0})
+    attempt_snap(s, 1, 1, 0)
     assert len(s.players[1]) == 5  # kept + penalty
     # The flip revealed the card to everyone.
     assert uid in s.knowledge[0] and uid in s.knowledge[1]
     # A wrong snap blocks further attempts for this player in the window.
     with pytest.raises(IllegalMove):
-        reduce(s, 1, {"type": "snap", "target": 1, "slot": 1})
+        attempt_snap(s, 1, 1, 1)
 
 
 def test_snap_overlay_does_not_block_the_next_turn():
@@ -327,7 +343,7 @@ def test_empty_hand_wins_immediately():
     s = snap_setup("4")
     s.players[1] = s.players[1][:1]
     put(s, 1, 0, "4", "C")
-    reduce(s, 1, {"type": "snap", "target": 1, "slot": 0})
+    attempt_snap(s, 1, 1, 0)
     assert s.players[1] == []
     assert s.phase == E.ROUND_END
     assert s.winners == [1]
@@ -338,7 +354,7 @@ def test_snap_opponent_correct_offloads():
     s = snap_setup("4")
     put(s, 0, 1, "4", "S")  # seat 0 (the player who just played) holds a 4
     give_uid = s.players[1][2].uid
-    reduce(s, 1, {"type": "snap", "target": 0, "slot": 1})
+    attempt_snap(s, 1, 0, 1)
     assert s.phase == E.SNAP_GIVE
     assert len(s.players[0]) == 3
     reduce(s, 1, {"type": "snap_give", "slot": 2})
@@ -354,7 +370,7 @@ def test_offloading_last_card_wins_immediately():
     s = snap_setup("4")
     put(s, 0, 1, "4", "S")
     s.players[1] = s.players[1][:1]
-    reduce(s, 1, {"type": "snap", "target": 0, "slot": 1})
+    attempt_snap(s, 1, 0, 1)
     assert s.phase == E.SNAP_GIVE
     reduce(s, 1, {"type": "snap_give", "slot": 0})
     assert s.players[1] == []
@@ -364,7 +380,7 @@ def test_offloading_last_card_wins_immediately():
 def test_snap_opponent_wrong_snapper_pays():
     s = snap_setup("4")
     put(s, 0, 1, "9", "S")
-    reduce(s, 1, {"type": "snap", "target": 0, "slot": 1})
+    attempt_snap(s, 1, 0, 1)
     assert len(s.players[0]) == 4  # keeps their card
     assert len(s.players[1]) == 5  # snapper drew the penalty
     close_snap(s)
@@ -377,6 +393,51 @@ def test_snap_disabled_knob():
     reduce(s, 0, {"type": "play"})
     assert s.phase == E.TURN
     assert s.turn == 1
+
+
+def test_stale_snap_from_previous_window_never_reveals_or_penalizes():
+    s = snap_setup("4")
+    put(s, 1, 0, "4", "C")
+    card = s.players[1][0]
+    stale = {
+        "type": "snap",
+        "target": 1,
+        "slot": 0,
+        "window_id": s.snap.window_id,
+        "card_uid": card.uid,
+    }
+
+    # The opponent starts and finishes their turn, replacing the snap window.
+    stack(s, "6", "D", uid=904)
+    reduce(s, 1, {"type": "draw_stock"})
+    reduce(s, 1, {"type": "play"})
+    assert s.snap.rank == "6" and s.snap.window_id != stale["window_id"]
+
+    before_hand = [c.uid for c in s.players[1]]
+    before_knowledge = set(s.knowledge[0])
+    with pytest.raises(StaleMove):
+        reduce(s, 0, stale)
+    assert [c.uid for c in s.players[1]] == before_hand
+    assert s.knowledge[0] == before_knowledge
+    assert s.events == []
+
+
+def test_snap_removals_never_change_surviving_card_rows():
+    s = snap_setup("4")
+    put(s, 1, 0, "4", "C")
+    put(s, 1, 2, "4", "S")
+    original_rows = {card.uid: s.hand_rows[card.uid] for card in s.players[1]}
+
+    attempt_snap(s, 1, 1, 0)  # four cards to three
+    assert all(s.hand_rows[c.uid] == original_rows[c.uid] for c in s.players[1])
+
+    attempt_snap(s, 1, 1, 1)  # three cards to two; original slot 2 shifted
+    assert len(s.players[1]) == 2
+    assert all(s.hand_rows[c.uid] == original_rows[c.uid] for c in s.players[1])
+    rows_by_uid = {
+        slot["uid"]: slot["row"] for slot in view_for(s, 1)["players"][1]["hand"]
+    }
+    assert rows_by_uid == {c.uid: original_rows[c.uid] for c in s.players[1]}
 
 
 # --- cambio + scoring -------------------------------------------------------
@@ -424,13 +485,24 @@ def test_caller_penalty_knob():
     assert s.winners == [1]
 
 
-def test_tie_redeals_one_card_each_for_sudden_death():
+def test_tie_waits_for_confirmation_then_redeals_one_card_each():
     s = make_state()
     for seat in (0, 1):
         for i, (r, su) in enumerate([("A", "S" if seat else "H"), ("2", "C" if seat else "D"), ("3", "S" if seat else "H"), ("4", "C" if seat else "D")]):
             put(s, seat, i, r, su)
     reduce(s, 0, {"type": "cambio"})
     finish_final_turn(s, 1)
+    assert s.phase == E.SHOWDOWN_PENDING
+    assert s.scores == [10, 10]
+    assert s.winners == [0, 1]
+    assert all(
+        card.uid in s.knowledge[viewer]
+        for viewer in (0, 1)
+        for hand in s.players
+        for card in hand
+    )
+
+    reduce(s, E.SERVER_SEAT, {"type": "start_showdown"})
     assert s.phase == E.OPENING
     assert s.sudden_death
     assert s.winners is None and s.scores is None
@@ -465,7 +537,7 @@ def test_view_hides_hidden_cards():
     # Hands are uid-only.
     for p in v0["players"]:
         for slot in p["hand"]:
-            assert set(slot.keys()) == {"uid"}
+            assert set(slot.keys()) == {"uid", "row"}
     # known covers exactly the two opening-peek cards.
     assert len(v0["known"]) == 2
     my_known_uids = {s.players[0][2].uid, s.players[0][3].uid}
@@ -501,7 +573,7 @@ def test_round_end_reveals_everything():
 def test_legal_moves_cover_variable_hand_sizes():
     s = snap_setup("4")
     put(s, 1, 0, "9", "C")
-    reduce(s, 1, {"type": "snap", "target": 1, "slot": 0})  # wrong → 5 cards
+    attempt_snap(s, 1, 1, 0)  # wrong → 5 cards
     close_snap(s)
     assert s.turn == 1
     reduce(s, 1, {"type": "draw_stock"})

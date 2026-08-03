@@ -7,6 +7,7 @@ import type {
   CardFace,
   GameEvent,
   GameView,
+  HandSlot,
   Move,
   RoomInfo,
 } from "@/lib/api/cambio";
@@ -19,6 +20,7 @@ import {
   cardInteractionClass,
   deriveMoment,
   eventsAfter,
+  formatPoints,
 } from "./table-state";
 import "./table.css";
 import "./cards.css";
@@ -60,6 +62,107 @@ type OpponentSwapDiscard = {
   previous: CardFace | null;
 };
 type CambioImpact = { key: number; seat: number };
+
+function ResultOverlay({
+  view,
+  room,
+  seat,
+  ready,
+  skinArt,
+  scene,
+  seatName,
+}: {
+  view: GameView;
+  room: RoomInfo;
+  seat: number;
+  ready: () => void;
+  skinArt: boolean;
+  scene: Scene;
+  seatName: (seat: number) => string;
+}) {
+  const tied = view.phase === "showdown_pending";
+  const won = view.winners?.includes(seat) ?? false;
+  const meReady = room.seats.find((player) => player.seat === seat)?.ready;
+  const players = tied
+    ? view.players
+    : [...view.players].sort(
+        (a, b) =>
+          Number(view.winners?.includes(b.seat)) -
+          Number(view.winners?.includes(a.seat)),
+      );
+
+  return (
+    <div className="cb-overlay" role="dialog" aria-modal="true">
+      <div
+        className={`cb-dialog ${tied ? "is-tie" : won ? "is-win" : "is-loss"}`}
+      >
+        <div className="cb-result-title">
+          {tied ? "TIE" : won ? "YOU WIN" : "YOU LOSE"}
+        </div>
+        {tied && (
+          <div className="cb-result-subtitle">
+            One card each. Lowest score wins the showdown.
+          </div>
+        )}
+        <div className="cb-result-players">
+          {players.map((player) => {
+            const isWinner = !tied && view.winners?.includes(player.seat);
+            const calledCambio = view.cambio_caller === player.seat;
+            return (
+              <div
+                key={player.seat}
+                className={`cb-dialog-row ${tied ? "is-tied" : isWinner ? "is-winner" : "is-loser"} ${calledCambio ? "is-caller" : ""}`}
+              >
+                <div className="cb-result-player-line">
+                  <strong>{seatName(player.seat)}</strong>
+                  <span>{formatPoints(view.scores?.[player.seat] ?? 0)}</span>
+                  {isWinner && <span aria-label="winner">🏆</span>}
+                </div>
+                {calledCambio && (
+                  <div className="cb-result-caller">called Cambio</div>
+                )}
+                {calledCambio && <Mascot scene={scene} compact />}
+                <div className="cb-dialog-cards">
+                  {player.hand.map(({ uid }) => {
+                    const card = view.known[String(uid)];
+                    return (
+                      <PlayingCard
+                        key={uid}
+                        face={card ?? null}
+                        up={card != null}
+                        small
+                        skinArt={skinArt}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {tied && room.mode === "vs_human" && (
+          <div className="cb-ready-list cb-showdown-ready-list">
+            {room.seats
+              .filter((player) => player.kind === "human")
+              .map((player) => (
+                <div key={player.seat}>
+                  <span>{seatName(player.seat)}</span>
+                  <strong>{player.ready ? "ready" : "not ready"}</strong>
+                </div>
+              ))}
+          </div>
+        )}
+        <button className="cb-again" onClick={ready} disabled={meReady}>
+          {meReady
+            ? "Ready - waiting for opponent"
+            : tied
+              ? "Continue to showdown"
+              : "Ready for next round"}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function FullscreenIcon({ active }: { active: boolean }) {
   return active ? (
@@ -293,7 +396,6 @@ export function CambioTable({
    * round_end     dialog owns the fully revealed result
    */
 
-  const snapOpen = view.snap != null;
   const legal = view.legal_moves ?? [];
   const iMayGive = legal.some((move) => move.type === "snap_give");
   const iMaySnap = legal.some((move) => move.type === "snap");
@@ -397,9 +499,6 @@ export function CambioTable({
 
   // Turn ownership drives the nameplate and rails. Cards remain fully visible;
   // only server-authorized targets gain interaction styling.
-  const normalTurn =
-    !snapOpen &&
-    !["opening", "power_reveal", "snap_give", "round_end"].includes(phase);
   const railToMe = iMaySnap || iMayGive ? true : view.turn === seat;
   const opponentSwapIsTop =
     opponentSwap !== null &&
@@ -461,26 +560,25 @@ export function CambioTable({
 
   function renderHand(
     playerSeat: number,
-    hand: { uid: number }[],
+    hand: HandSlot[],
     mine: boolean,
   ) {
     const n = hand.length;
-    const preserveTwoByTwo = n === 3;
-    const gridCount = preserveTwoByTwo ? n : n - (n % 2);
-    const sideCard = !preserveTwoByTwo && n % 2 ? hand[n - 1] : null;
+    const indexed = hand.map((card, index) => ({ ...card, index }));
     return (
       <div className={`cb-hand ${mine ? "is-me" : "is-opp"}`}>
         {n === 0 && <span className="cb-empty-hand">no cards!</span>}
-        {gridCount > 0 && (
+        {n > 0 && (
           <div className="cb-grid">
-            {hand
-              .slice(0, gridCount)
-              .map(({ uid }, i) => renderSlot(playerSeat, i, uid, mine))}
-          </div>
-        )}
-        {sideCard && (
-          <div className="cb-grid-side">
-            {renderSlot(playerSeat, n - 1, sideCard.uid, mine)}
+            {[0, 1].map((row) => (
+              <div key={row} className="cb-grid-row">
+                {indexed
+                  .filter((card) => card.row === row)
+                  .map((card) =>
+                    renderSlot(playerSeat, card.index, card.uid, mine),
+                  )}
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -559,17 +657,13 @@ export function CambioTable({
           {/* opponent(s) */}
           <div className="cb-zone cb-zone-opp">
             {opponents.map((p) => {
-              const connected = room.seats.find(
-                (s) => s.seat === p.seat,
-              )?.connected;
               const isTurn = view.turn === p.seat;
               return (
                 <div key={p.seat} className="cb-player">
                   <div
-                    className={`cb-nameplate ${normalTurn && isTurn ? "is-active" : ""}`}
+                    className={`cb-nameplate ${isTurn ? "is-active" : ""}`}
                   >
-                    <span className={`cb-dot ${connected ? "" : "is-off"}`} />
-                    {seatName(p.seat)} · {p.hand.length}
+                    {seatName(p.seat)}
                   </div>
                   {renderHand(p.seat, p.hand, false)}
                 </div>
@@ -695,10 +789,9 @@ export function CambioTable({
             <div className="cb-player">
               {renderHand(seat, me.hand, true)}
               <div
-                className={`cb-nameplate ${normalTurn && view.turn === seat ? "is-active is-you" : ""}`}
+                className={`cb-nameplate ${view.turn === seat ? "is-active" : ""}`}
               >
-                <span className="cb-dot" />
-                You · {me.hand.length}
+                You
               </div>
             </div>
           </div>
@@ -760,48 +853,18 @@ export function CambioTable({
 
       {error && <div className="cb-toast">{error}</div>}
 
-      {/* round end */}
-      {phase === "round_end" && view.scores && (
-        <div className="cb-overlay">
-          <div className="cb-dialog">
-            <div className="cb-dialog-title">Round over</div>
-            {view.players.map((p) => (
-              <div key={p.seat} className="cb-dialog-row">
-                <b>
-                  {seatName(p.seat)}: {view.scores![p.seat]} pts
-                  {view.winners?.includes(p.seat) ? " 🏆" : ""}
-                  {view.cambio_caller === p.seat ? " (called Cambio)" : ""}
-                </b>
-                <div className="cb-dialog-cards">
-                  {p.hand.map(({ uid }) => {
-                    const c = view.known[String(uid)];
-                    return (
-                      <PlayingCard
-                        key={uid}
-                        face={c ?? null}
-                        up={c != null}
-                        small
-                        skinArt={skin === "art"}
-                      />
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-            <button
-              className="cb-again"
-              onClick={ready}
-              disabled={
-                room.seats.find((player) => player.seat === seat)?.ready
-              }
-            >
-              {room.seats.find((player) => player.seat === seat)?.ready
-                ? "Ready - waiting for opponent"
-                : "Ready for next round"}
-            </button>
-          </div>
-        </div>
-      )}
+      {(phase === "round_end" || phase === "showdown_pending") &&
+        view.scores && (
+          <ResultOverlay
+            view={view}
+            room={room}
+            seat={seat}
+            ready={ready}
+            skinArt={skin === "art"}
+            scene={scene}
+            seatName={seatName}
+          />
+        )}
     </div>
   );
 }

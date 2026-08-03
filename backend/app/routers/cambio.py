@@ -16,7 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.cambio.config import CambioConfig
-from app.cambio.engine import IllegalMove
+from app.cambio.engine import IllegalMove, StaleMove
 from app.cambio.rooms import Room, manager
 from app.db import SessionLocal, get_db
 from app.deps import require_cambio_host
@@ -195,6 +195,11 @@ async def game_socket(websocket: WebSocket, room_id: str):
                     await room.mark_ready(seat.seat)
                 elif kind == "ping":
                     await websocket.send_json({"type": "pong"})
+            except StaleMove:
+                # A delayed click from an older snap window is harmless. Send
+                # the authoritative state instead of surfacing an error toast.
+                if room.state is not None:
+                    await websocket.send_json(room.view_payload(seat.seat))
             except IllegalMove as exc:
                 await websocket.send_json({"type": "error", "message": str(exc)})
     except WebSocketDisconnect:
