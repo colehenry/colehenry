@@ -6,6 +6,7 @@ import {
   cardInteractionClass,
   deriveMoment,
   eventsAfter,
+  formatPoints,
 } from "../components/cambio/table-state.ts";
 
 const readSource = (path) =>
@@ -13,6 +14,7 @@ const readSource = (path) =>
 
 const table = readSource("components/cambio/table.tsx");
 const tableState = readSource("components/cambio/table-state.ts");
+const roomHook = readSource("components/cambio/use-room.ts");
 const styles = readSource("components/cambio/table.css");
 const backdrop = readSource("components/cambio/scene-backdrop.tsx");
 const scenes = readSource("components/cambio/scenes.ts");
@@ -253,9 +255,74 @@ test("inactive cards stay neutral while legal targets alone are emphasized", () 
   assert.doesNotMatch(styles, /@keyframes cb-nope/);
 });
 
-test("three-card hands retain their two-column positions", () => {
-  assert.match(table, /const preserveTwoByTwo = n === 3/);
-  assert.match(table, /const gridCount = preserveTwoByTwo \? n/);
+test("server-authored rows survive card removals without regrouping", () => {
+  assert.match(api, /HandSlot = \{ uid: number; row: 0 \| 1 \}/);
+  assert.match(table, /\.filter\(\(card\) => card\.row === row\)/);
+  assert.match(table, /renderSlot\(playerSeat, card\.index, card\.uid, mine\)/);
+  assert.match(styles, /\.cb-grid-row \{[\s\S]*?min-height:/);
+  assert.doesNotMatch(table, /preserveTwoByTwo|gridCount|sideCard/);
+});
+
+test("result screens distinguish ties, wins, and losses", () => {
+  assert.match(table, /view\.phase === "showdown_pending"/);
+  assert.match(table, /"TIE" : won \? "YOU WIN" : "YOU LOSE"/);
+  assert.match(table, /Continue to showdown/);
+  assert.match(table, /cb-showdown-ready-list/);
+  assert.match(styles, /\.cb-dialog-row\.is-winner[\s\S]*?font-size: clamp/);
+  assert.match(styles, /\.cb-dialog-row\.is-loser[\s\S]*?opacity:/);
+});
+
+test("result scores use singular point grammar and mark the Cambio caller", () => {
+  assert.equal(formatPoints(0), "0 pts");
+  assert.equal(formatPoints(1), "1 pt");
+  assert.equal(formatPoints(-1), "-1 pts");
+  assert.match(table, /calledCambio && <Mascot scene=\{scene\} compact \/>/);
+  assert.doesNotMatch(table, />called Cambio</);
+  assert.match(styles, /\.cb-dialog-row \.cb-mascot\.is-compact/);
+  assert.match(styles, /\.cb-result-score[\s\S]*?white-space: nowrap/);
+  assert.match(
+    styles,
+    /\.cb-dialog-row\.is-caller \.cb-dialog-cards[\s\S]*?padding-bottom: 86px/,
+  );
+  assert.match(
+    styles,
+    /\.cb-dialog-row \.cb-mascot\.is-compact[\s\S]*?left: 50%[\s\S]*?margin-left: -31px/,
+  );
+  assert.match(
+    styles,
+    /\.cb-dialog-row\.is-caller\.is-winner \.cb-dialog-cards[\s\S]*?padding-right: 100px[\s\S]*?padding-bottom: 0/,
+  );
+  assert.match(
+    styles,
+    /\.cb-dialog-row\.is-caller\.is-winner \.cb-mascot\.is-compact[\s\S]*?right: 12px[\s\S]*?left: auto/,
+  );
+  assert.match(
+    styles,
+    /\.cb-dialog-row\.is-caller\.is-winner \.cb-mascot\.is-compact svg[\s\S]*?width: 82px[\s\S]*?height: 93px/,
+  );
+  assert.match(
+    styles,
+    /\.cb-dialog-row \.cb-mascot\.is-compact \.cb-mascot-bubble \{[^}]*font-size: 9px;[^}]*\}/,
+  );
+});
+
+test("nameplates show names only and turn green when active", () => {
+  assert.doesNotMatch(table, /cb-dot|· \{.*hand\.length\}/);
+  assert.match(table, /className=\{`cb-nameplate \$\{isTurn \? "is-active"/);
+  assert.match(styles, /\.cb-nameplate\.is-active \{[\s\S]*?color: #7fe08a/);
+});
+
+test("generated scene images have no legacy SVG or CSS fallback behind them", () => {
+  assert.doesNotMatch(backdrop, /<Seaside|<Cafe|<Tavern|cb-scene-svg/);
+  assert.doesNotMatch(styles, /\.cb-scene-(?:seaside|cafe|tavern) \.cb-backdrop/);
+  assert.doesNotMatch(styles, /\.cb-scene-svg/);
+});
+
+test("realtime client uses server deadlines and suppresses stale or duplicate views", () => {
+  assert.match(api, /snap_deadline_ms\?: number \| null/);
+  assert.match(roomHook, /room\?\.snap_deadline_ms \?\? null/);
+  assert.match(roomHook, /msg\.view\.move_seq < latestSeqRef\.current/);
+  assert.match(roomHook, /pendingSeqRef\.current === latestSeqRef\.current/);
 });
 
 test("Cambio routes hide the site language switcher", () => {

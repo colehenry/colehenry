@@ -51,6 +51,10 @@ def play_round(
     while state.phase != E.ROUND_END and moves < HARD_STOP:
         if state.phase == E.OPENING:
             apply(E.SERVER_SEAT, {"type": "close_opening"})
+        elif state.phase == E.SHOWDOWN_PENDING:
+            # Headless bots have no confirmation UI, so both confirmations are
+            # implicit and the tied round proceeds immediately.
+            apply(E.SERVER_SEAT, {"type": "start_showdown"})
         elif state.phase == E.POWER_REVEAL:
             apply(E.SERVER_SEAT, {"type": "close_power_reveal"})
         elif state.phase == E.SNAP_GIVE:

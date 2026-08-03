@@ -206,10 +206,19 @@ def _snap_move(state: GameState, seat: int) -> dict | None:
         return None
     faces = _faces(state, seat)
     rank = state.snap.rank
+    def snap(target: int, slot: int, card: Card) -> dict:
+        return {
+            "type": "snap",
+            "target": target,
+            "slot": slot,
+            "window_id": state.snap.window_id,
+            "card_uid": card.uid,
+        }
+
     # Own certain match first: shedding is always good.
     for i, c in enumerate(state.players[seat]):
         if c.uid in faces and faces[c.uid].rank == rank:
-            return {"type": "snap", "target": seat, "slot": i}
+            return snap(seat, i, c)
     # Opponent certain match: only worth it if we hold something bad to
     # offload (otherwise it just shrinks their hand).
     _, worst = _worst_slot(state, seat)
@@ -219,5 +228,5 @@ def _snap_move(state: GameState, seat: int) -> dict | None:
                 continue
             for j, c in enumerate(state.players[opp]):
                 if c.uid in faces and faces[c.uid].rank == rank:
-                    return {"type": "snap", "target": opp, "slot": j}
+                    return snap(opp, j, c)
     return None

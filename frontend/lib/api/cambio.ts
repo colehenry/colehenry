@@ -86,7 +86,7 @@ export function getStats(): Promise<CambioStats> {
 /* --- WebSocket types (server is authoritative; these mirror view_for) ----- */
 
 export type CardFace = { uid: number; rank: string; suit: string | null };
-export type HandSlot = { uid: number };
+export type HandSlot = { uid: number; row: 0 | 1 };
 
 export type Belief = {
   dist: Record<string, number>;
@@ -117,6 +117,7 @@ export type GameView = {
     card?: CardFace;
   } | null;
   snap: {
+    window_id: number;
     rank: string;
     attempted: number[];
     giver: number | null;
@@ -141,6 +142,7 @@ export type RoomInfo = {
   snap_window_ms?: number;
   opening_deadline_ms?: number | null;
   power_reveal_deadline_ms?: number | null;
+  snap_deadline_ms?: number | null;
 };
 
 export type ServerMessage =
@@ -159,7 +161,13 @@ export type Move =
   | { type: "blind_swap"; slot: number; target: number; target_slot: number }
   | { type: "king_look"; target: number; slot: number }
   | { type: "king_swap"; slot: number; target: number; target_slot: number }
-  | { type: "snap"; target: number; slot: number }
+  | {
+      type: "snap";
+      target: number;
+      slot: number;
+      window_id: number;
+      card_uid: number;
+    }
   | { type: "snap_give"; slot: number };
 
 export function wsUrl(roomId: string, token: string, name: string, seatToken?: string) {

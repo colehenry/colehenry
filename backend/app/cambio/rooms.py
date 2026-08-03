@@ -85,6 +85,8 @@ class Room:
         self._power_reveal_task: asyncio.Task | None = None
         self._power_reveal_deadline: float | None = None
         self._snap_task: asyncio.Task | None = None
+        self._snap_task_id: int | None = None
+        self._snap_deadline: float | None = None
         self._bot_task: asyncio.Task | None = None
         self._bot_rng = random.Random()
 
@@ -112,11 +114,13 @@ class Room:
     # --- lifecycle ---------------------------------------------------------
 
     async def start_round(self) -> None:
+        self._cancel_snap_timer()
         for seat in self.seats:
             if seat.kind == "human":
                 seat.ready = False
         self.round_no += 1
         self.state = new_round(self.config, seed=None)
+        self._snap_deadline = None
         self._opening_deadline = time.time() + self.config.opening_peek_ms / 1000
         await self.recorder(self, "start", {"round_no": self.round_no})
         await self.broadcast()
@@ -125,17 +129,40 @@ class Room:
         self.state.events = []
         self._arm_followups()
 
+    async def start_showdown(self) -> None:
+        """Continue a tied round after every human has confirmed."""
+        if self.state is None or self.state.phase != E.SHOWDOWN_PENDING:
+            raise IllegalMove("showdown is not pending")
+        self._cancel_snap_timer()
+        for seat in self.seats:
+            if seat.kind == "human":
+                seat.ready = False
+        reduce(self.state, E.SERVER_SEAT, {"type": "start_showdown"})
+        self._opening_deadline = time.time() + self.config.opening_peek_ms / 1000
+        self._power_reveal_deadline = None
+        self._snap_deadline = None
+        self.touched_at = time.time()
+        await self.broadcast()
+        self.state.events = []
+        self._arm_followups()
+
     async def mark_ready(self, seat_number: int) -> None:
         """Ready one human for the first or next round."""
         async with self.lock:
-            if self.state is not None and self.state.phase != E.ROUND_END:
+            if self.state is not None and self.state.phase not in (
+                E.ROUND_END,
+                E.SHOWDOWN_PENDING,
+            ):
                 raise IllegalMove("round already started")
             seat = self.seats[seat_number]
             if seat.kind != "human" or not seat.connected:
                 raise IllegalMove("seat is not connected")
             seat.ready = True
             if self.humans_ready():
-                await self.start_round()
+                if self.state is not None and self.state.phase == E.SHOWDOWN_PENDING:
+                    await self.start_showdown()
+                else:
+                    await self.start_round()
             else:
                 await self.broadcast()
 
@@ -146,6 +173,9 @@ class Room:
                 raise IllegalMove("round not started")
             was_opening = self.state.phase == E.OPENING
             was_power_reveal = self.state.phase == E.POWER_REVEAL
+            previous_snap_id = (
+                self.state.snap.window_id if self.state.snap is not None else None
+            )
             reduce(self.state, seat, move)
             is_opening = self.state.phase == E.OPENING
             is_power_reveal = self.state.phase == E.POWER_REVEAL
@@ -159,6 +189,15 @@ class Room:
                 )
             elif not is_power_reveal:
                 self._power_reveal_deadline = None
+            current_snap_id = (
+                self.state.snap.window_id if self.state.snap is not None else None
+            )
+            if current_snap_id is None:
+                self._snap_deadline = None
+            elif current_snap_id != previous_snap_id:
+                self._snap_deadline = (
+                    time.time() + self.config.snap_window_ms / 1000
+                )
             self.touched_at = time.time()
             snap_correct = next(
                 (
@@ -190,10 +229,12 @@ class Room:
                         "cambio_caller": self.state.cambio_caller,
                     },
                 )
-        await self.broadcast()
-        if self.state is not None:
+            # Keep state mutation, its transient events, and the resulting view
+            # in one room-critical section so simultaneous sockets cannot
+            # overwrite or reorder one another's broadcasts.
+            await self.broadcast()
             self.state.events = []
-        self._arm_followups()
+            self._arm_followups()
 
     # --- fan-out -----------------------------------------------------------
 
@@ -235,6 +276,13 @@ class Room:
                     and self._power_reveal_deadline is not None
                     else None
                 ),
+                "snap_deadline_ms": (
+                    round(self._snap_deadline * 1000)
+                    if self.state is not None
+                    and self.state.snap is not None
+                    and self._snap_deadline is not None
+                    else None
+                ),
             },
             "view": view,
         }
@@ -269,7 +317,7 @@ class Room:
 
     def _arm_followups(self) -> None:
         state = self.state
-        if state is None or state.phase == E.ROUND_END:
+        if state is None or state.phase in (E.ROUND_END, E.SHOWDOWN_PENDING):
             return
         if state.phase == E.OPENING:
             self._arm_opening_timer()
@@ -320,27 +368,45 @@ class Room:
         self._power_reveal_task = asyncio.create_task(close_later())
 
     def _arm_snap_timer(self) -> None:
+        state = self.state
+        if state is None or state.snap is None or self._snap_deadline is None:
+            return
+        snap_id = state.snap.window_id
+        if (
+            self._snap_task is not None
+            and not self._snap_task.done()
+            and self._snap_task_id == snap_id
+        ):
+            return
         if self._snap_task is not None and not self._snap_task.done():
             self._snap_task.cancel()
+        self._snap_task_id = snap_id
+        deadline = self._snap_deadline
 
         async def close_later() -> None:
-            await asyncio.sleep(self.config.snap_window_ms / 1000)
+            await asyncio.sleep(max(0, deadline - time.time()))
             while True:
                 state = self.state
                 if state is None:
                     return
-                if state.snap is not None and state.phase != E.SNAP_GIVE:
+                if state.snap is None or state.snap.window_id != snap_id:
+                    return
+                if state.phase != E.SNAP_GIVE:
                     try:
                         await self.apply(E.SERVER_SEAT, {"type": "close_snap"})
                     except IllegalMove:
                         pass
                     return
-                if state.phase == E.SNAP_GIVE:
-                    await asyncio.sleep(0.5)  # wait out the offload choice
-                    continue
-                return  # phase moved on without us
+                await asyncio.sleep(0.5)  # wait out the offload choice
 
         self._snap_task = asyncio.create_task(close_later())
+
+    def _cancel_snap_timer(self) -> None:
+        if self._snap_task is not None and not self._snap_task.done():
+            self._snap_task.cancel()
+        self._snap_task = None
+        self._snap_task_id = None
+        self._snap_deadline = None
 
     def _arm_bot(self) -> None:
         bots = [s.seat for s in self.seats if s.kind == "bot"]

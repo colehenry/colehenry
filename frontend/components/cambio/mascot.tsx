@@ -6,11 +6,17 @@ import type { Scene } from "./scenes";
 
 /** The Cambio mascot changes costume with the table while remaining the same
  * familiar character: seaside local, café barista, or tavern jester. */
-export function Mascot({ scene }: { scene: Scene }) {
+export function Mascot({
+  scene,
+  compact = false,
+}: {
+  scene: Scene;
+  compact?: boolean;
+}) {
   const shirtClip = `cb-shirt-${scene}`;
   return (
     <motion.div
-      className={`cb-mascot is-${scene}`}
+      className={`cb-mascot is-${scene} ${compact ? "is-compact" : ""}`}
       initial={{ opacity: 0, y: 60, scale: 0.6, rotate: -8 }}
       animate={{ opacity: 1, y: 0, scale: 1, rotate: 0 }}
       exit={{ opacity: 0, y: 40, scale: 0.7, rotate: 6 }}

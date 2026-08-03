@@ -189,7 +189,12 @@ export function Header() {
                     >
                       <span
                         data-section={section.accent}
-                        className="size-2 rounded-full bg-brand"
+                        className={cn(
+                          "size-2 rounded-full",
+                          section.slug === "cambio"
+                            ? "bg-amber-400 ring-2 ring-amber-400/20 dark:bg-amber-300"
+                            : "bg-brand",
+                        )}
                       />
                       <span className="min-w-0 truncate">{section.name}</span>
                       <span className="ml-auto shrink-0 text-xs tracking-widest text-muted-foreground">

@@ -1,6 +1,10 @@
 export type Tone = "you" | "snap" | "power" | "good" | "neutral";
 export type Moment = { key: string; tone: Tone; hint: string | null };
 
+export function formatPoints(score: number): string {
+  return `${score} ${score === 1 ? "pt" : "pts"}`;
+}
+
 export type PromptState = {
   phase: string;
   moveSeq: number;
@@ -34,7 +38,8 @@ export function deriveMoment(state: PromptState): Moment {
     kingLooked,
   } = state;
 
-  if (phase === "round_end") return { key: "end", tone: "neutral", hint: null };
+  if (phase === "round_end" || phase === "showdown_pending")
+    return { key: "end", tone: "neutral", hint: null };
   if (phase === "opening") return { key: "opening", tone: "neutral", hint: null };
   if (phase === "power_reveal")
     return {

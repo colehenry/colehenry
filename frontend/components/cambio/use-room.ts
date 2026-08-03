@@ -32,9 +32,11 @@ export function useRoom(roomId: string, token: string, name: string | null) {
   // Events from views we already consumed, kept separately so animations can
   // replay them once (each view's events describe only the last move).
   const [events, setEvents] = useState<GameEvent[]>([]);
-  const [snapDeadline, setSnapDeadline] = useState<number | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const closedRef = useRef(false);
+  const latestSeqRef = useRef(-1);
+  const latestRoundRef = useRef(-1);
+  const pendingSeqRef = useRef<number | null>(null);
 
   const storageKey = `cambio-seat-${roomId}`;
 
@@ -62,23 +64,25 @@ export function useRoom(roomId: string, token: string, name: string | null) {
           setRoom(msg.room);
           setStatus("waiting");
         } else if (msg.type === "view") {
+          const incomingRound = msg.room.round_no ?? 0;
+          if (
+            incomingRound < latestRoundRef.current ||
+            (incomingRound === latestRoundRef.current &&
+              msg.view.move_seq < latestSeqRef.current)
+          ) {
+            return;
+          }
+          latestRoundRef.current = incomingRound;
+          latestSeqRef.current = msg.view.move_seq;
+          pendingSeqRef.current = null;
           setRoom(msg.room);
           setView(msg.view);
           setStatus("playing");
           if (msg.view.events.length) {
             setEvents((prev) => [...prev.slice(-80), ...msg.view.events]);
           }
-          if (msg.view.snap != null) {
-            // Fresh deadline only when a new window opens (attempts reset it
-            // server-side by re-arming; simplest faithful client model is to
-            // restart the bar on every snap-phase view).
-            setSnapDeadline(
-              Date.now() + ((msg.room.snap_window_ms as number) ?? 3000),
-            );
-          } else {
-            setSnapDeadline(null);
-          }
         } else if (msg.type === "error") {
+          pendingSeqRef.current = null;
           setError(msg.message);
           setTimeout(() => setError(null), 2500);
         }
@@ -106,12 +110,17 @@ export function useRoom(roomId: string, token: string, name: string | null) {
   }, [roomId, token, name, storageKey]);
 
   const send = useCallback((move: Move) => {
-    wsRef.current?.send(JSON.stringify({ type: "move", move }));
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if (pendingSeqRef.current === latestSeqRef.current) return;
+    pendingSeqRef.current = latestSeqRef.current;
+    ws.send(JSON.stringify({ type: "move", move }));
   }, []);
 
   const ready = useCallback(() => {
     wsRef.current?.send(JSON.stringify({ type: "ready" }));
   }, []);
 
+  const snapDeadline = room?.snap_deadline_ms ?? null;
   return { status, seat, view, room, error, events, snapDeadline, send, ready };
 }
