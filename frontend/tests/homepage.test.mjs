@@ -14,8 +14,8 @@ const styles = readSource("app/globals.css");
 const login = readSource("app/login/page.tsx");
 
 test("homepage identifies the AI software engineer role in both locales", () => {
-  assert.match(resume, /en: "AI software engineer/);
-  assert.match(resume, /es: "Ingeniero de software de IA/);
+  assert.match(resume, /en: "AI Software Engineer/);
+  assert.match(resume, /es: "Ingeniero de software \(IA\)/);
 });
 
 test("homepage hero keeps compact spacing below the mobile navigation", () => {
@@ -33,7 +33,7 @@ test("homepage hero keeps compact spacing below the mobile navigation", () => {
 
 test("projects expose status, engineering proof, and visible destinations", () => {
   assert.match(homepage, /Formula 1 Analytics Platform/);
-  assert.match(homepage, /76 seasons of race and telemetry data/);
+  assert.match(homepage, /76 seasons of race data/);
   assert.match(homepage, /Visit lapwise\.dev/);
   assert.match(homepage, /href="https:\/\/lapwise\.dev"/);
 
@@ -48,12 +48,13 @@ test("projects expose status, engineering proof, and visible destinations", () =
   assert.doesNotMatch(homepage, /->/);
 });
 
-test("current role includes Airflow in its technology tags", () => {
+test("current role includes its updated technology tags", () => {
   const currentRole = resume.slice(
     resume.indexOf('en: "AI Software Engineer"'),
-    resume.indexOf('en: "Analytics Engineer"'),
+    resume.indexOf('en: "Data Engineer"'),
   );
-  assert.match(currentRole, /"Airflow"/);
+  assert.match(currentRole, /"FastAPI"/);
+  assert.match(currentRole, /"LangGraph"/);
 });
 
 test("default and social metadata are recruiter-specific", () => {
