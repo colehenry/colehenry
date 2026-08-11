@@ -53,12 +53,12 @@ const heroSkills = ["LLM agents", "RAG", "React", "Python"];
 
 const heroResumeHighlights: Localized<string[]> = {
   en: [
-    "Build production LLM data analysis agents and RAG systems for 150+ internal daily users.",
-    "Ship React and TypeScript data tools backed by Python services, GCP, and large-scale streaming/social data pipelines.",
+    "Build production multi-agent LLM systems on Vertex AI and LangGraph for 180+ weekly internal users.",
+    "Build React and TypeScript analytics tools with FastAPI and data pipelines for streaming, sales, and social data.",
   ],
   es: [
-    "Construyo agentes LLM de análisis de datos y sistemas RAG en producción para más de 150 usuarios internos diarios.",
-    "Desarrollo herramientas de datos en React y TypeScript respaldadas por servicios en Python, GCP y pipelines de datos de streaming y redes sociales a gran escala.",
+    "Construyo sistemas LLM multiagente y plataformas de datos en producción para más de 180 usuarios semanales.",
+    "Desarrollo herramientas de analítica en React/TypeScript y FastAPI para datos de streaming, ventas y redes sociales.",
   ],
 };
 
@@ -75,15 +75,15 @@ const heroResumeSkills = [
 
 const lapwiseDescription: Localized<HighlightableText> = {
   en: {
-    text: "Explore race results, season standings, telemetry replay, driver history, discussion, and natural-language analysis. Python pipelines model 76 seasons of race and telemetry data for a FastAPI and PostgreSQL backend.",
-    highlights: ["telemetry replay", "natural-language analysis", "76 seasons"],
+    text: "Full-stack F1 analytics platform. Built an AI analyst for natural-language analysis across 76 seasons of race data, generating live charts, tables, and analysis through a router agent with specialized sub-agents. Developed the full-stack app in Next.js, React, FastAPI, and PostgreSQL, and launched a daily grid guessing game with a leaderboard synced to live race data.",
+    highlights: ["AI analyst", "76 seasons", "specialized sub-agents"],
   },
   es: {
-    text: "Explora resultados de carreras, clasificaciones de temporada, repetición de telemetría, historiales de pilotos, debate y análisis en lenguaje natural. Pipelines en Python modelan 76 temporadas de datos de carreras y telemetría para un backend en FastAPI y PostgreSQL.",
+    text: "Desarrollé un analista de IA sobre 76 temporadas de F1 que genera gráficos, tablas y análisis mediante un router con subagentes especializados. Desarrollé la app full-stack con Next.js, React, FastAPI y PostgreSQL. Lancé un juego diario de parrilla con ranking sincronizado con datos de carrera en tiempo real.",
     highlights: [
-      "repetición de telemetría",
-      "análisis en lenguaje natural",
+      "analista de IA",
       "76 temporadas",
+      "subagentes especializados",
     ],
   },
 };

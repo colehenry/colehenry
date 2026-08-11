@@ -41,8 +41,8 @@ export type SkillGroup = {
 export const resume = {
   name: "Cole Henry",
   tagline: {
-    en: "AI software engineer building agents and data tools in production systems.",
-    es: "Ingeniero de software de IA que construye agentes y herramientas de datos en sistemas de producción.",
+    en: "AI Software Engineer building production multi-agent LLM systems, data platforms, and internal products used by 180+ weekly users.",
+    es: "Ingeniero de software (IA) centrado en sistemas LLM multiagente y plataformas de datos en producción, usados por más de 180 usuarios semanales.",
   },
   email: "crhenry81@gmail.com",
   github: "https://github.com/colehenry",
@@ -55,7 +55,7 @@ export const resume = {
       company: "Interscope Records (UMG)",
       role: {
         en: "AI Software Engineer",
-        es: "Ingeniero de Software de IA",
+        es: "Ingeniero de software (IA)",
       },
       start: "Sep 2025",
       end: "present",
@@ -66,83 +66,71 @@ export const resume = {
       bullets: [
         {
           en: {
-            text: "Shipped production LLM agents serving 150+ internal users daily, built on Python backend services (LangGraph / MCP) running on GCP with Vertex AI and GCS-backed pipelines processing large-scale streaming and social data.",
+            text: "Architected and built a multi-agent LLM system on Vertex AI and LangGraph serving 180+ weekly internal users; interviewed 20+ stakeholders to encode domain knowledge and design specialized agents for business and data queries",
             highlights: [
-              "LLM agents",
-              "150+ internal users daily",
-              "Python",
-              "LangGraph / MCP",
+              "multi-agent LLM system",
+              "180+ weekly internal users",
+              "20+ stakeholders",
+              "Vertex AI",
+              "LangGraph",
             ],
           },
           es: {
-            text: "Lancé agentes LLM en producción que atienden a más de 150 usuarios internos al día, construidos sobre servicios backend en Python (LangGraph / MCP) en GCP con Vertex AI y pipelines sobre GCS que procesan datos de streaming y redes sociales a gran escala.",
+            text: "Diseñé y desarrollé un sistema LLM multiagente con Vertex AI y LangGraph para 180+ usuarios internos semanales; definí agentes especializados a partir de entrevistas con 20+ stakeholders",
             highlights: [
-              "agentes LLM",
-              "más de 150 usuarios internos al día",
-              "Python",
-              "LangGraph / MCP",
-            ],
-          },
-        },
-        {
-          en: {
-            text: "Designed and built a RAG knowledge platform that lets LLM agents answer questions from internal docs, cutting manual analytics reporting 50%.",
-            highlights: ["RAG knowledge platform", "LLM agents", "50%"],
-          },
-          es: {
-            text: "Diseñé y construí una plataforma de conocimiento RAG que permite a agentes LLM responder preguntas a partir de documentación interna, reduciendo un 50% los informes analíticos manuales.",
-            highlights: [
-              "plataforma de conocimiento RAG",
-              "agentes LLM",
-              "50%",
+              "sistema LLM multiagente",
+              "180+ usuarios internos semanales",
+              "20+ stakeholders",
+              "Vertex AI",
+              "LangGraph",
             ],
           },
         },
         {
           en: {
-            text: "Built an A&R research app that surfaces 100+ new artists weekly through automated pipelines, used by A&R to evaluate signings.",
-            highlights: ["100+ new artists weekly"],
-          },
-          es: {
-            text: "Construí una aplicación de investigación para A&R que descubre más de 100 artistas nuevos cada semana mediante pipelines automatizados, usada por A&R para evaluar fichajes.",
-            highlights: ["más de 100 artistas nuevos cada semana"],
-          },
-        },
-        {
-          en: {
-            text: "Built a React + TypeScript analytics platform replacing 30+ Tableau dashboards, with embedded AI agents for natural-language data analysis.",
+            text: "Built a React/TypeScript analytics platform with FastAPI backend that replaced 30+ Tableau dashboards and embedded AI agents directly on report pages, enabling natural language queries against live data",
             highlights: [
-              "React + TypeScript",
+              "React/TypeScript analytics platform",
+              "FastAPI backend",
               "30+ Tableau dashboards",
               "AI agents",
             ],
           },
           es: {
-            text: "Construí una plataforma de analítica en React + TypeScript que reemplazó más de 30 dashboards de Tableau, con agentes de IA integrados para el análisis de datos en lenguaje natural.",
+            text: "Desarrollé una plataforma de analítica en React/TypeScript y FastAPI que sustituyó 30+ dashboards de Tableau e incorporó agentes de IA para consultar datos en lenguaje natural",
             highlights: [
-              "React + TypeScript",
-              "30 dashboards de Tableau",
+              "plataforma de analítica en React/TypeScript y FastAPI",
+              "30+ dashboards de Tableau",
               "agentes de IA",
             ],
           },
         },
+        {
+          en: {
+            text: "Built a TypeScript and Python A&R research application ingesting TikTok, streaming, and social data to surface thousands of emerging artists per week, with team workspace and artist outreach tools used for signing decisions",
+            highlights: [
+              "TypeScript and Python",
+              "thousands of emerging artists per week",
+              "artist outreach tools",
+            ],
+          },
+          es: {
+            text: "Desarrollé una app de scouting de A&R en TypeScript y Python que cruza datos de TikTok, streaming y redes sociales para detectar miles de artistas emergentes y apoyar decisiones de fichaje",
+            highlights: [
+              "TypeScript y Python",
+              "miles de artistas emergentes",
+              "decisiones de fichaje",
+            ],
+          },
+        },
       ],
-      tech: [
-        "Python",
-        "LangGraph",
-        "MCP",
-        "Vertex AI",
-        "GCP",
-        "Airflow",
-        "React",
-        "TypeScript",
-      ],
+      tech: ["Vertex AI", "LangGraph", "React", "TypeScript", "FastAPI"],
     },
     {
       company: "Interscope Records (UMG)",
       role: {
-        en: "Analytics Engineer",
-        es: "Ingeniero de Analítica",
+        en: "Data Engineer",
+        es: "Ingeniero de datos",
       },
       start: "Sep 2024",
       end: "Aug 2025",
@@ -153,22 +141,22 @@ export const resume = {
       bullets: [
         {
           en: {
-            text: "Designed and maintained core data pipelines in Python and BigQuery powering automated executive and international reporting.",
+            text: "Built and maintained Python and BigQuery pipelines powering daily and weekly executive reporting across streaming and sales data",
             highlights: ["Python", "BigQuery"],
           },
           es: {
-            text: "Diseñé y mantuve pipelines de datos clave en Python y BigQuery que alimentan informes ejecutivos e internacionales automatizados.",
+            text: "Desarrollé y mantuve pipelines en Python y BigQuery para reporting ejecutivo diario y semanal de streaming y ventas",
             highlights: ["Python", "BigQuery"],
           },
         },
         {
           en: {
-            text: "Built 15+ Tableau dashboards used by international stakeholders.",
-            highlights: ["15+ Tableau dashboards"],
+            text: "Designed a reporting layer serving 15+ standardized views to international stakeholders, reducing ad-hoc requests by consolidating metrics into queryable data models",
+            highlights: ["15+ standardized views"],
           },
           es: {
-            text: "Construí más de 15 dashboards de Tableau usados por equipos internacionales.",
-            highlights: ["15 dashboards de Tableau"],
+            text: "Creé una capa de reporting con 15+ vistas estandarizadas para equipos internacionales, centralizando métricas y reduciendo peticiones ad hoc",
+            highlights: ["15+ vistas estandarizadas", "peticiones ad hoc"],
           },
         },
       ],
@@ -189,22 +177,22 @@ export const resume = {
       bullets: [
         {
           en: {
-            text: "Built a natural language → SOQL service, enabling non-technical users to query Salesforce, reducing tickets by 30%.",
-            highlights: ["natural language → SOQL", "30%"],
+            text: "Built an LLM-powered natural language to Salesforce query service, letting non-technical users run database queries in plain English and reducing support tickets by 30%",
+            highlights: ["LLM-powered", "30%"],
           },
           es: {
-            text: "Construí un servicio de lenguaje natural → SOQL que permite a usuarios no técnicos consultar Salesforce, reduciendo los tickets un 30%.",
-            highlights: ["lenguaje natural → SOQL", "30%"],
+            text: "Desarrollé un servicio LLM que convierte lenguaje natural en consultas de Salesforce, reduciendo un 30 % los tickets de soporte",
+            highlights: ["servicio LLM", "30 %", "tickets de soporte"],
           },
         },
         {
           en: {
-            text: "Built an error logging system processing 10K+ daily events with 99.9% accuracy, improving debugging efficiency.",
-            highlights: ["10K+ daily events", "99.9% accuracy"],
+            text: "Designed an error monitoring system processing 10K+ daily events, enabling rapid debugging across the platform",
+            highlights: ["10K+ daily events", "rapid debugging"],
           },
           es: {
-            text: "Construí un sistema de registro de errores que procesa más de 10.000 eventos diarios con un 99,9% de precisión, mejorando la eficiencia de la depuración.",
-            highlights: ["10.000 eventos diarios", "99,9% de precisión"],
+            text: "Creé un sistema de monitorización de errores para 10.000+ eventos diarios, agilizando la depuración de la plataforma",
+            highlights: ["10.000+ eventos diarios", "depuración"],
           },
         },
       ],
@@ -279,15 +267,20 @@ export const resume = {
       skills: [
         "LangGraph",
         "RAG",
-        "LLM agents",
-        "Embeddings",
         "Vertex AI",
         "MCP",
       ],
     },
     {
       label: { en: "Cloud & data", es: "Cloud y datos" },
-      skills: ["GCP", "GCS", "BigQuery", "FastAPI"],
+      skills: [
+        "GCP",
+        "BigQuery",
+        "React",
+        "Next.js",
+        "FastAPI",
+        "PostgreSQL",
+      ],
     },
   ] satisfies SkillGroup[],
 };
