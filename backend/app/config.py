@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     # Learning hub (drill generation / session composer / explain). Falls back
     # to FALLBACK_MODEL then MULTILINGUAL_MODEL when unset; any OpenAI-compatible slug.
     learning_model: str = ""
+    # Tutor chat (streaming, tool-calling). Needs low latency, unlike drill generation.
+    tutor_model: str = "google/gemini-3.8-flash"
+    tutor_fallback_model: str = "mistralai/mistral-small-2603"
 
     # Brain (/brain) — private Obsidian vault synced from a GitHub repo.
     # All optional so local dev degrades gracefully when unset.

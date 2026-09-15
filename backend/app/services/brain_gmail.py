@@ -24,7 +24,7 @@ from app.services.brain_calendar import (
     encrypt_refresh_token,
     encryption_configured,
 )
-from app.services.brain_tool_registry import BrainTool
+from app.services.tool_registry import BrainTool
 
 log = logging.getLogger(__name__)
 

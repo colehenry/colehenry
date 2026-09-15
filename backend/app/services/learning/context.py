@@ -105,7 +105,7 @@ def build_context(db: Session, sprint: int, purpose: str = "drill") -> dict:
         "recent_errors": [{"error": e.error, "correct": e.correct, "why": e.spanish_source} for e in errors],
         "due_review_count": int(due),
     }
-    if purpose in ("drill", "explain", "text", "micro"):
+    if purpose in ("drill", "explain", "text", "micro", "tutor"):
         ctx["core_vocab_known"] = known[:200]
         ctx["core_vocab_learning"] = learning[:120]
         ctx["recognition_vocab"] = recognition[:80]

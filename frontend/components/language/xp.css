@@ -2016,3 +2016,325 @@
   padding: 0 6px;
   opacity: 0.8;
 }
+
+/* --- tutor dock (bottom-right) ----------------------------------------------- */
+
+.tutor-pill {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  z-index: 60;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: min(340px, calc(100vw - 28px));
+  padding: 4px 10px 4px 8px;
+  border: 1px solid var(--xp-title-b);
+  border-radius: 7px;
+  background: linear-gradient(180deg, var(--xp-title-a) 0%, var(--xp-title-b) 100%);
+  color: var(--xp-title-text);
+  font-family: var(--xp-font);
+  font-size: 12px;
+  font-weight: 700;
+  text-shadow: 1px 1px 1px rgb(0 0 0 / 0.4);
+  box-shadow: 2px 3px 8px rgb(0 0 0 / 0.35);
+  cursor: pointer;
+}
+.tutor-pill:hover {
+  filter: brightness(1.08);
+}
+.tutor-pill-icon {
+  font-size: 13px;
+}
+.tutor-pill-chip {
+  overflow: hidden;
+  max-width: 200px;
+  padding: 0 6px;
+  border-radius: 3px;
+  background: rgb(255 255 255 / 0.18);
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tutor-dock {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  width: min(400px, calc(100vw - 28px));
+  height: min(560px, calc(100vh - 40px));
+  border: 1px solid var(--xp-title-b);
+  border-radius: 8px 8px 0 0;
+  background: var(--xp-face);
+  color: var(--xp-text);
+  font-family: var(--xp-font);
+  font-size: 12px;
+  box-shadow: 4px 5px 12px rgb(0 0 0 / 0.4);
+}
+.tutor-titlebar {
+  flex-shrink: 0;
+}
+.tutor-title-actions {
+  display: inline-flex;
+  gap: 2px;
+}
+.tutor-body {
+  flex: 1;
+  overflow-y: auto;
+  margin: 6px 6px 0;
+  padding: 8px;
+  border: 1px solid var(--xp-well-border);
+  background: var(--xp-well);
+  line-height: 1.5;
+}
+.tutor-empty {
+  color: var(--xp-text-muted);
+}
+.tutor-notice,
+.tutor-error {
+  margin-top: 4px;
+  padding: 4px 6px;
+  border: 1px solid #c9a400;
+  background: var(--xp-tooltip-bg);
+  color: var(--xp-tooltip-text);
+  font-size: 11px;
+}
+.tutor-msg {
+  margin-bottom: 10px;
+}
+.tutor-msg.is-user {
+  padding: 4px 8px;
+  border-left: 3px solid var(--xp-select);
+  background: var(--xp-stripe);
+  white-space: pre-wrap;
+}
+.tutor-msg-chip,
+.tutor-thread-chip {
+  display: inline-block;
+  margin-bottom: 2px;
+  padding: 0 5px;
+  border-radius: 3px;
+  background: var(--xp-face);
+  color: var(--xp-text-muted);
+  font-size: 10px;
+}
+.tutor-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  margin-bottom: 4px;
+  color: var(--xp-text-muted);
+  font-size: 10.5px;
+  font-style: italic;
+}
+.tutor-cursor {
+  color: var(--xp-text-muted);
+  animation: tutor-blink 1s steps(2) infinite;
+}
+@keyframes tutor-blink {
+  to {
+    opacity: 0;
+  }
+}
+
+/* markdown inside a reply */
+.tutor-md > :first-child {
+  margin-top: 0;
+}
+.tutor-md > :last-child {
+  margin-bottom: 0;
+}
+.tutor-md p,
+.tutor-md ul,
+.tutor-md ol,
+.tutor-md table {
+  margin: 0 0 8px;
+}
+.tutor-md h1,
+.tutor-md h2,
+.tutor-md h3,
+.tutor-md h4 {
+  margin: 10px 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.tutor-md ul,
+.tutor-md ol {
+  padding-left: 18px;
+}
+.tutor-md li {
+  margin: 2px 0;
+}
+.tutor-md code {
+  padding: 0 3px;
+  background: var(--xp-stripe);
+  font-size: 11px;
+}
+.tutor-md table {
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.tutor-md th,
+.tutor-md td {
+  padding: 2px 6px;
+  border: 1px solid var(--xp-face-lo);
+  text-align: left;
+}
+.tutor-md hr {
+  margin: 8px 0;
+  border: 0;
+  border-top: 1px dotted var(--xp-face-lo);
+}
+
+/* [[fr:…]] — the text is the play button */
+.tutor-fr {
+  cursor: pointer;
+  border-bottom: 1px dotted var(--xp-link);
+  font-family: var(--xp-doc-font);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.tutor-fr:hover .tutor-fr-text,
+.tutor-fr.is-busy .tutor-fr-text {
+  color: var(--xp-link);
+}
+.tutor-fr.is-slow {
+  border-bottom-style: dashed;
+}
+.tutor-fr-play {
+  margin-left: 3px;
+  color: var(--xp-text-muted);
+  font-family: var(--xp-font);
+  font-size: 9px;
+  vertical-align: 1px;
+}
+.tutor-fr.is-busy .tutor-fr-play {
+  color: var(--xp-link);
+}
+.tutor-vocab {
+  padding: 0 3px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--xp-select) 14%, transparent);
+}
+.tutor-new {
+  padding: 0 2px;
+  border-bottom: 1px dashed var(--xp-text-muted);
+  color: var(--xp-text-muted);
+}
+.tutor-md .xp-link {
+  font-size: 12px;
+}
+
+/* presets · compose · footer */
+.tutor-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 6px 6px 0;
+}
+.tutor-preset {
+  padding: 1px 7px;
+  border: 1px solid var(--xp-face-lo);
+  border-radius: 9px;
+  background: var(--xp-face-hi);
+  color: var(--xp-text);
+  font-family: var(--xp-font);
+  font-size: 11px;
+  cursor: pointer;
+}
+.tutor-preset:hover:not(:disabled) {
+  border-color: var(--xp-link);
+  color: var(--xp-link);
+}
+.tutor-preset:disabled {
+  color: var(--xp-disabled);
+  cursor: default;
+}
+.tutor-compose {
+  display: flex;
+  flex-shrink: 0;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 6px 6px 0;
+}
+.tutor-input {
+  flex: 1;
+  min-height: 0;
+  resize: none;
+}
+.tutor-footer {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px 6px;
+  font-size: 10.5px;
+}
+.tutor-footer .xp-muted {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tutor-lang {
+  display: inline-flex;
+  gap: 6px;
+}
+.tutor-lang .xp-link.is-active {
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+/* thread list */
+.tutor-thread-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px;
+  border-bottom: 1px dotted var(--xp-face-lo);
+}
+.tutor-thread-row.is-active {
+  background: var(--xp-stripe);
+}
+.tutor-thread-open {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--xp-text);
+  font-family: var(--xp-font);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.tutor-thread-open:hover .tutor-thread-title {
+  color: var(--xp-link);
+}
+.tutor-thread-title {
+  overflow: hidden;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .tutor-dock {
+    right: 8px;
+    bottom: 8px;
+    width: calc(100vw - 16px);
+    height: min(70vh, 560px);
+  }
+  .tutor-pill {
+    right: 8px;
+    bottom: 8px;
+  }
+}

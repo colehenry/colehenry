@@ -30,15 +30,18 @@ def _configured() -> bool:
     return bool(s.google_tts_api_key and s.cloudinary_url)
 
 
-def synthesize(language: str, text: str) -> str:
-    """Return a cached mp3 URL for `text`, or "" when TTS isn't configured."""
+def synthesize(language: str, text: str, rate: float = 1.0) -> str:
+    """Return a cached mp3 URL for `text`, or "" when TTS isn't configured.
+    `rate` < 1 slows the voice (tutor "say it slowly"); each rate is its own clip."""
     text = text.strip()
+    rate = min(2.0, max(0.5, float(rate or 1.0)))
     if not text or language not in VOICES or not _configured():
         return ""
     settings = get_settings()
 
     # One clip per (language, text); re-requests hit the existing asset.
-    digest = hashlib.sha1(f"{language}:{text}".encode()).hexdigest()[:20]
+    key = f"{language}:{text}" if rate == 1.0 else f"{language}:{text}@{rate:g}"
+    digest = hashlib.sha1(key.encode()).hexdigest()[:20]
     public_id = f"language-audio/{language}/{digest}"
 
     import cloudinary
@@ -69,7 +72,7 @@ def synthesize(language: str, text: str) -> str:
             json={
                 "input": {"text": text},
                 "voice": VOICES[language],
-                "audioConfig": {"audioEncoding": "MP3"},
+                "audioConfig": {"audioEncoding": "MP3", "speakingRate": rate},
             },
             timeout=15,
         )

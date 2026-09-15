@@ -36,6 +36,8 @@ from app.models.learning import (
     LearningSession,
     LearningState,
     LearningTest,
+    LearningTutorMessage,
+    LearningTutorThread,
     LearningVocab,
 )
 from app.models.project import Project, Visibility
@@ -82,6 +84,8 @@ __all__ = [
     "LearningSession",
     "LearningState",
     "LearningTest",
+    "LearningTutorMessage",
+    "LearningTutorThread",
     "LearningVocab",
     "LexiqueEntry",
     "Project",

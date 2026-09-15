@@ -152,12 +152,12 @@ export function playAudio(url: string): Promise<void> {
   });
 }
 
-function browserSpeak(language: LanguageCode, text: string): Promise<void> {
+function browserSpeak(language: LanguageCode, text: string, rate = 1): Promise<void> {
   if (typeof window === "undefined" || !window.speechSynthesis) return Promise.resolve();
   return new Promise((resolve) => {
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = language === "fr" ? "fr-FR" : "es-ES";
-    utterance.rate = 0.9;
+    utterance.rate = 0.9 * rate;
     utterance.onend = () => resolve();
     utterance.onerror = () => resolve();
     window.speechSynthesis.cancel();
@@ -171,12 +171,13 @@ const speechUrlCache = new Map<string, Promise<string>>();
 /**
  * Speak any FR/ES text: cached server TTS when configured, otherwise the
  * browser's speech synthesis. `knownUrl` (e.g. a card's audio_url) skips
- * the round-trip.
+ * the round-trip. `rate` < 1 slows the voice (tutor "say it slowly").
  */
 export async function speakText(
   language: LanguageCode,
   text: string,
   knownUrl?: string,
+  rate = 1,
 ): Promise<void> {
   text = text.trim();
   if (!text) return;
@@ -188,22 +189,22 @@ export async function speakText(
   const forms = splitForms(text);
   if (forms.length > 1) {
     for (const form of forms) {
-      await speakText(language, form);
+      await speakText(language, form, undefined, rate);
       await new Promise((resolve) => window.setTimeout(resolve, 250));
     }
     return;
   }
-  const key = `${language}:${text}`;
+  const key = rate === 1 ? `${language}:${text}` : `${language}:${text}@${rate}`;
   let pending = speechUrlCache.get(key);
   if (!pending) {
-    pending = fetchSpeechUrl(language, text).catch(() => "");
+    pending = fetchSpeechUrl(language, text, rate).catch(() => "");
     speechUrlCache.set(key, pending);
   }
   const url = await pending;
   if (url) {
     await playAudio(url);
   } else {
-    await browserSpeak(language, text);
+    await browserSpeak(language, text, rate);
   }
 }
 

@@ -14,6 +14,9 @@ import { FRENCH_ACCENTS, articleIssue } from "@/lib/french/articles";
 import { SELF_SCORES, checkTyped, dictationScore, normalize, wordDiff, type TypedResult } from "@/lib/french/grading";
 import { Fr, Speak, speakText } from "./language-shared";
 import { RefSectionInline } from "./reference-view";
+import { TutorInline } from "./tutor/tutor-inline";
+import { useTutorFocus } from "./tutor/tutor-provider";
+import type { TutorFocus } from "@/lib/api/tutor";
 
 export type GradedItem = {
   exercise: Exercise;
@@ -282,6 +285,25 @@ export function ExerciseRunner({
   const gradeMutation = useMutation({
     mutationFn: (args: { sentence: string; target: string; sprint: number }) => gradeSentence(args),
   });
+
+  // What the tutor sees while this question is up: the item, and once checked, the answer given.
+  const tutorFocus = useMemo<TutorFocus | null>(() => {
+    if (!ex) return null;
+    const expected = ex.kind === "mc" ? (ex.options.find((o) => o.id === ex.answer_id)?.text ?? "") : (ex.accepted[0] ?? "");
+    const given = ex.kind === "mc" ? (ex.options.find((o) => o.id === picked)?.text ?? "") : typed;
+    return {
+      surface: "exercise",
+      format: ex.format,
+      prompt: ex.prompt,
+      prompt_es: ex.prompt_es || undefined,
+      expected: expected || undefined,
+      given: checked ? given || undefined : undefined,
+      correct: checked ? checked.correct : undefined,
+      target_ids: ex.target_ids.length ? ex.target_ids : undefined,
+      sprint: ex.sprint,
+    };
+  }, [ex, picked, typed, checked]);
+  useTutorFocus(tutorFocus);
 
   // autoplay audio on arrival
   useEffect(() => {
@@ -841,6 +863,11 @@ export function ExerciseRunner({
                   [{mode === "explain" ? "explique" : mode === "compare_es" ? "vs español" : "prononciation"}]
                 </button>
               ))}
+              <TutorInline
+                focus={tutorFocus}
+                label="[✦ tuteur]"
+                prefill={checked && !checked.correct ? "¿Por qué está mal mi respuesta? Explícame la regla." : undefined}
+              />
               <button type="button" className="xp-btn is-default" style={{ marginLeft: "auto" }} disabled={!canAdvance} onClick={next}>
                 {index + 1 >= queue.length ? "Terminer" : "Suivant"} (Enter)
               </button>

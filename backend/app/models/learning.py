@@ -223,3 +223,36 @@ class LearningInterference(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+
+class LearningTutorThread(Base):
+    """One tutor conversation. `focus` is the on-screen context it was opened from
+    (exercise / reference / text / vocab) so the thread can be found from that item again."""
+
+    __tablename__ = "learning_tutor_threads"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String(160), default="", nullable=False)
+    focus: Mapped[dict] = mapped_column(PortableJSONB, default=dict, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class LearningTutorMessage(Base):
+    __tablename__ = "learning_tutor_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    thread_id: Mapped[int] = mapped_column(
+        ForeignKey("learning_tutor_threads.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    role: Mapped[str] = mapped_column(String(16), nullable=False)  # user | assistant
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    focus: Mapped[dict | None] = mapped_column(PortableJSONB)  # user turns: what was on screen
+    tool_calls: Mapped[list | None] = mapped_column(PortableJSONB)  # assistant turns: activity trail
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )

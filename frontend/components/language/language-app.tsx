@@ -12,6 +12,8 @@ import {
 } from "@/lib/api/language";
 import { getDashboard } from "@/lib/api/learning";
 import { Speak } from "./language-shared";
+import { TutorDock } from "@/components/language/tutor/tutor-dock";
+import { TutorProvider } from "@/components/language/tutor/tutor-provider";
 import { StudyView } from "./study-view";
 import { DecksView } from "./decks-view";
 import { TextsView } from "./texts-view";
@@ -317,6 +319,10 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
   );
 
   return (
+    <TutorProvider
+      onOpenRef={readOnly ? undefined : goRefFromPractice}
+      onOpenActivity={readOnly ? undefined : (id) => goPractice({ activityId: id })}
+    >
     <div data-section="language" id="quenoseteolvide-app" className="xp-app">
       <div className="xp-desktop">
         <div className={`xp-window ${wide ? "is-wide" : "is-narrow"}`}>
@@ -861,6 +867,8 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
           </div>
         </>
       )}
+      {!readOnly && <TutorDock />}
     </div>
+    </TutorProvider>
   );
 }

@@ -1,7 +1,7 @@
 """Pydantic shapes for /language/learning."""
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -236,3 +236,44 @@ class ExplainIn(BaseModel):
     mode: str = "explain"
     context: str = ""
     sprint: int | None = None
+
+
+# ---------------------------------------------------------------------------
+# tutor chat
+# ---------------------------------------------------------------------------
+
+
+class TutorThreadIn(BaseModel):
+    focus: dict[str, Any] | None = None
+    title: str = ""
+
+
+class TutorThreadOut(BaseModel):
+    id: int
+    title: str
+    focus: dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class TutorMessageOut(BaseModel):
+    id: int
+    role: str
+    content: str
+    focus: dict[str, Any] | None = None
+    tool_calls: list[Any] | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class TutorThreadDetail(TutorThreadOut):
+    messages: list[TutorMessageOut]
+
+
+class TutorMessageIn(BaseModel):
+    content: str = Field(min_length=1, max_length=4000)
+    focus: dict[str, Any] | None = None
+    lang: Literal["es", "en"] = "es"  # explanation language; French examples + Spanish bridge regardless
