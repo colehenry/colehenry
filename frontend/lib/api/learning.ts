@@ -581,6 +581,21 @@ export const explanationSchema = z.object({
 export type Explanation = z.infer<typeof explanationSchema>;
 export type ExplainMode = "explain" | "compare_es" | "why_tense" | "more_examples" | "pronunciation";
 
+export const gradeSchema = z.object({
+  score: z.number(),
+  correct: z.boolean(),
+  corrected: z.string(),
+  explanation: z.string(),
+  issues: z.array(z.object({ kind: z.string(), text: z.string(), fix: z.string() })),
+  model: z.string(),
+});
+export type Grade = z.infer<typeof gradeSchema>;
+
+/** Model-graded free writing; rejects with 503 when no model is configured. */
+export function gradeSentence(body: { sentence: string; target: string; sprint?: number }): Promise<Grade> {
+  return apiFetch("/language/learning/grade", gradeSchema, { method: "POST", body: JSON.stringify(body) });
+}
+
 export function explainFrench(body: { text: string; mode: ExplainMode; context?: string }): Promise<Explanation> {
   return apiFetch("/language/learning/explain", explanationSchema, { method: "POST", body: JSON.stringify(body) });
 }

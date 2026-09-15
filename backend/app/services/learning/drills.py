@@ -25,6 +25,7 @@ import random
 import re
 import uuid
 from dataclasses import dataclass, field, replace
+from datetime import datetime, timedelta, timezone
 
 from app.curriculum.pronunciation import PRON_BY_ID, PronTarget
 from app.curriculum.sentences import (
@@ -135,6 +136,7 @@ class PoolItem:
     mastery: dict = field(default_factory=dict)  # dim → 0..1
     attempts: int = 0
     priority: int = 2
+    last_seen_at: datetime | None = None
 
     @property
     def french_forms(self) -> list[str]:
@@ -409,6 +411,36 @@ def vocabulary_lesson(rng: random.Random, pool: list[PoolItem], sprint: int, cou
             exercise["group"] = "vocab-lesson"
             exercise["meta"] = {**exercise.get("meta", {}), "lesson_stage": stage, "retry_missed": True}
             out.append(exercise)
+    return out
+
+
+KNOWN_FOR_WRITING = 0.75
+PRODUCTIVE_CEILING = 0.6
+WRITING_REST = timedelta(days=1)
+
+
+def writing_candidates(pool: list[PoolItem], now: datetime | None = None) -> list[PoolItem]:
+    """Words recognized but not yet productive, rested at least a day - spaced
+    production, never same-session production. Falls back to unrested words
+    only when nothing has rested."""
+    now = now or datetime.now(timezone.utc)
+    ready = [p for p in pool if p.mastery.get("recognition", 0.0) >= KNOWN_FOR_WRITING and p.mastery.get("written_production", 0.0) < PRODUCTIVE_CEILING]
+    rested = [p for p in ready if p.last_seen_at is None or now - p.last_seen_at >= WRITING_REST]
+    return rested or ready
+
+
+def write_sentences(rng: random.Random, pool: list[PoolItem], sprint: int, count: int, now: datetime | None = None) -> list[dict]:
+    """Free production: one original sentence per word, graded by the model
+    (strict on article / gender / agreement). The catalog example is the
+    sample shown only when the model is unavailable."""
+    out = []
+    for item in _weighted_sample(rng, writing_candidates(pool, now), count, "written_production"):
+        out.append(_base(
+            "write_sentence", "typed", sprint, "writing", {"writing": 0.5, "vocabulary": 0.5}, instructions="Écris une phrase avec",
+            prompt=item.display, prompt_es=item.spanish, accepted=[item.example_fr] if item.example_fr else [], explanation=_vocab_explanation(item), refs=_vocab_refs(item),
+            target_ids=[item.id], difficulty=3,
+            meta={"dim": "written_production", "llm_graded": True, "lenient": True, "target_word": item.display_head, "article_required": item.is_noun},
+        ))
     return out
 
 

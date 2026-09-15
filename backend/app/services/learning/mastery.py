@@ -50,6 +50,7 @@ FORMAT_DIM = {
     "es_to_fr": "written_production",
     "srs_recognition": "recognition",
     "srs_production": "written_production",
+    "write_sentence": "written_production",
     "context_choice": "contextual_use",
 }
 
@@ -146,7 +147,7 @@ def record_results(db: Session, results: list[dict], *, session_id: int | None =
         # interference log: failed repairs recycle; matching patterns get logged
         if r["format"] == "error_repair":
             _touch_interference(db, r, when)
-        elif not r["correct"] and r.get("answer") and r["format"] in ("sentence_transform", "translation_ladder", "es_to_fr", "verb_drill"):
+        elif not r["correct"] and r.get("answer") and r["format"] in ("sentence_transform", "translation_ladder", "es_to_fr", "verb_drill", "write_sentence"):
             _detect_interference(db, r, when)
     db.commit()
     return rows

@@ -57,6 +57,7 @@ function progressFromAttempt(attempt: Attempt): RunnerProgress {
 
 const FORMATS: { id: string; label: string; llm?: boolean; needsTarget?: string }[] = [
   { id: "vocab_lesson", label: "Guided vocabulary lesson" },
+  { id: "write_sentence", label: "Write with yesterday's words" },
   { id: "sentence_transform", label: "Sentence transformations", llm: true },
   { id: "translation_ladder", label: "Translation ladder", llm: true },
   { id: "es_to_fr", label: "Spanish → French", llm: true },

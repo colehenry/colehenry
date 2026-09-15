@@ -37,6 +37,7 @@ from app.schemas.learning import (
     EncounterIn,
     ExercisesIn,
     ExplainIn,
+    GradeIn,
     InterferenceIn,
     InterferenceOut,
     InterferenceUpdate,
@@ -99,7 +100,7 @@ def _pool(db: Session, sprint: int, *, statuses: tuple[str, ...] = ("core",), on
             spanish_connection=r.spanish_connection, pronunciation_warning=r.pronunciation_warning, refs=list(r.reference_links or []),
             mastery={"recognition": r.recognition, "audio_recognition": r.audio_recognition, "written_production": r.written_production,
                      "spoken_production": r.spoken_production, "contextual_use": r.contextual_use},
-            attempts=r.attempts, priority=r.priority if r.sprint == sprint else max(r.priority, 2),
+            attempts=r.attempts, priority=r.priority if r.sprint == sprint else max(r.priority, 2), last_seen_at=r.last_seen_at,
         )
         out.append(item)
     return out
@@ -290,6 +291,10 @@ def build_exercises(db: Session, body: ExercisesIn) -> dict:
         ex = drills.vocabulary_lesson(rng, pool, sprint, count)
     elif fmt == "audio_comprehension":
         ex = drills.audio_comprehension(rng, pool, sprint, count)
+    elif fmt == "write_sentence":
+        ex = drills.write_sentences(rng, pool, sprint, count)
+        if not ex:
+            meta["rejected"] = ["No rested words yet - finish a vocabulary lesson, come back tomorrow"]
     elif fmt == "dictation":
         ex = drills.dictation(rng, pool, sprint, count, level=int(params.get("level") or 1))
     elif fmt == "sentence_transform":
@@ -547,6 +552,18 @@ def delete_interference(item_id: int, db: Session = Depends(get_db)):
 # ---------------------------------------------------------------------------
 # explain
 # ---------------------------------------------------------------------------
+
+
+@router.post(f"{PREFIX}/grade")
+def grade(body: GradeIn, db: Session = Depends(get_db)):
+    """Model-graded free writing; 503 when no model is configured so the runner falls back to self-judging."""
+    if not body.sentence.strip():
+        raise HTTPException(status_code=400, detail="sentence is required")
+    sprint = body.sprint or get_state(db).active_sprint
+    out = llm_learning.grade_sentence(db, sentence=body.sentence, target=body.target, sprint=sprint)
+    if out is None:
+        raise HTTPException(status_code=503, detail="LLM unavailable")
+    return out
 
 
 @router.post(f"{PREFIX}/explain")

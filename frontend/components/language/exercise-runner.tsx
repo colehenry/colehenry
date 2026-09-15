@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 
-import { explainFrench, type Exercise, type ExplainMode, type ResultIn } from "@/lib/api/learning";
+import { explainFrench, gradeSentence, type Exercise, type ExplainMode, type Grade, type ResultIn } from "@/lib/api/learning";
 import { FRENCH_ACCENTS, articleIssue } from "@/lib/french/articles";
 import { SELF_SCORES, checkTyped, dictationScore, wordDiff, type TypedResult } from "@/lib/french/grading";
 import { Fr, Speak, speakText } from "./language-shared";
@@ -245,10 +245,16 @@ export function ExerciseRunner({
   const isDictation = ex?.meta?.dictation === true;
   const articleRequired = ex?.meta?.article_required === true;
   const lenient = ex?.meta?.lenient === true;
+  const llmGraded = ex?.meta?.llm_graded === true;
   const selfScale = Array.isArray(ex?.meta?.self_scale) ? (ex!.meta.self_scale as string[]) : ["raté", "difficile", "bien", "fluide"];
 
   const explainMutation = useMutation({
     mutationFn: (args: { text: string; mode: ExplainMode; context?: string }) => explainFrench(args),
+  });
+  const [verdict, setVerdict] = useState<Grade | null>(null);
+  // Free writing: the model grades; without one, fall back to the sample + self-judgement.
+  const gradeMutation = useMutation({
+    mutationFn: (args: { sentence: string; target: string; sprint: number }) => gradeSentence(args),
   });
 
   // autoplay audio on arrival
@@ -261,7 +267,9 @@ export function ExerciseRunner({
       setChecked(null);
       setRevealed(false);
       setExplain(null);
+      setVerdict(null);
       explainMutation.reset();
+      gradeMutation.reset();
       if (ex.audio && ex.autoplay) void speakText(ex.audio.language, ex.audio.text);
     }, 0);
     const focusTimer = window.setTimeout(() => inputRef.current?.focus(), 30);
@@ -349,7 +357,21 @@ export function ExerciseRunner({
   }, [checked, autoAdvanceMs, next, ex?.kind]);
 
   const checkTypedAnswer = useCallback(() => {
-    if (!ex || checked) return;
+    if (!ex || checked || gradeMutation.isPending) return;
+    if (llmGraded) {
+      if (!typed.trim()) return;
+      gradeMutation.mutate(
+        { sentence: typed, target: String(ex.meta?.target_word ?? ex.prompt), sprint: ex.sprint },
+        {
+          onSuccess: (grade) => {
+            setVerdict(grade);
+            commit(typed, grade.correct, grade.score);
+          },
+          onError: () => setChecked({ correct: false, score: -1, detail: checkTyped(typed, ex.accepted) }),
+        },
+      );
+      return;
+    }
     if (isDictation) {
       // any accepted variant counts ("une maison" for "la maison")
       const score = Math.max(0, ...ex.accepted.map((expected) => dictationScore(expected, typed)));
@@ -364,7 +386,7 @@ export function ExerciseRunner({
       return;
     }
     commit(typed, r.correct, r.score, r);
-  }, [ex, checked, typed, isDictation, lenient, commit]);
+  }, [ex, checked, typed, isDictation, lenient, llmGraded, commit, gradeMutation]);
 
   const pickOption = useCallback(
     (id: string) => {
@@ -489,7 +511,7 @@ export function ExerciseRunner({
         )}
         {showPromptText && ex.kind !== "self" && (
           <div className={`pr-prompt ${ex.prompt.length > 60 ? "is-small" : ""}`} style={{ whiteSpace: "pre-wrap" }}>
-            {ex.audio?.language === "fr" || ex.kind === "intro" ? <Fr text={ex.prompt} /> : ex.prompt}
+            {ex.audio?.language === "fr" || ex.kind === "intro" || ex.format === "write_sentence" ? <Fr text={ex.prompt} /> : ex.prompt}
           </div>
         )}
         {ex.prompt_es && showPromptText && ex.kind !== "self" && ex.format !== "es_to_fr" && (
@@ -554,8 +576,8 @@ export function ExerciseRunner({
               <>
                 <AccentBar inputRef={inputRef} onInsert={setTyped} />
                 <div className="pr-actions">
-                  <button type="button" className="xp-btn is-default" onClick={checkTypedAnswer}>
-                    Vérifier (Enter)
+                  <button type="button" className="xp-btn is-default" disabled={gradeMutation.isPending} onClick={checkTypedAnswer}>
+                    {gradeMutation.isPending ? "✦ …" : "Vérifier (Enter)"}
                   </button>
                   <button type="button" className="xp-btn is-small" onClick={() => commit("", false, 0)}>
                     Je ne sais pas
@@ -611,7 +633,7 @@ export function ExerciseRunner({
         {checked && checked.score === -1 && ex.kind === "typed" && (
           <div className="pr-feedback">
             <div>
-              Pas dans la liste. Réponses possibles :
+              {llmGraded ? "Modèle indisponible - compare avec l'exemple :" : "Pas dans la liste. Réponses possibles :"}
               <ul className="pr-steps" style={{ fontSize: 13 }}>
                 {ex.accepted.slice(0, 4).map((a) => (
                   <li key={a}>
@@ -632,7 +654,29 @@ export function ExerciseRunner({
         )}
         {checked && checked.score >= 0 && (
           <div className={`pr-feedback ${checked.correct ? "is-correct" : "is-wrong"}`}>
-            {ex.kind === "typed" && (
+            {ex.kind === "typed" && verdict && (
+              <div>
+                {checked.correct ? <b className="ok">✓</b> : <b className="ko">✗</b>} {Math.round(verdict.score * 100)}%
+                {verdict.corrected && verdict.corrected.trim() !== typed.trim() && (
+                  <div className="mt-1">
+                    <b><Fr text={verdict.corrected} /></b> <Speak language="fr" text={verdict.corrected} label="►" />
+                  </div>
+                )}
+                {verdict.issues.length > 0 && (
+                  <ul className="pr-steps" style={{ fontSize: 12 }}>
+                    {verdict.issues.map((issue, i) => (
+                      <li key={`${issue.kind}-${i}`}>
+                        <b className={["article", "gender", "agreement", "verb", "missing_target"].includes(issue.kind) ? "ko" : ""}>{issue.kind}</b>
+                        {issue.text && <> · {issue.text}</>}
+                        {issue.fix && <> → <Fr text={issue.fix} /></>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {verdict.explanation && <div className="mt-1">{verdict.explanation}</div>}
+              </div>
+            )}
+            {ex.kind === "typed" && !verdict && (
               <div>
                 {checked.correct ? <b className="ok">✓</b> : <b className="ko">✗</b>}{" "}
                 {checked.detail?.exact ? "exact" : ""}

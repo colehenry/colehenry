@@ -225,6 +225,12 @@ class InterferenceOut(BaseModel):
     created_at: datetime
 
 
+class GradeIn(BaseModel):
+    sentence: str
+    target: str = ""
+    sprint: int | None = None
+
+
 class ExplainIn(BaseModel):
     text: str
     mode: str = "explain"

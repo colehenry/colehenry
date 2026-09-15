@@ -470,6 +470,51 @@ def explain_french(db: Session, *, text: str, mode: str, sprint: int, context_se
 
 
 # ---------------------------------------------------------------------------
+# grade free writing
+# ---------------------------------------------------------------------------
+
+GRADE_SYSTEM = """You grade ONE French sentence written by a learner (A0 French, C1 Spanish). Metropolitan France French.
+The learner had to use a given target word in an original sentence. Be strict where it matters, generous elsewhere:
+- HARD FAIL (score ≤ 0.5, correct=false): target word missing or not used as itself; noun without its article or with the wrong-gender article; wrong verb conjugation or agreement; not French / not a sentence.
+- MINOR (score 0.8–0.95, correct=true): accents, single-letter spelling slips, missing final punctuation, slightly unnatural but clear phrasing.
+- PERFECT (score 1.0): natural, correct, target used properly.
+Always give the corrected sentence (unchanged if perfect). Explanation in Spanish, ≤ 40 words, name the rule not the feeling.
+issue kinds: article | gender | agreement | verb | spelling | vocab | missing_target | other.
+Output ONLY JSON: {"score": number, "correct": boolean, "corrected": str, "explanation": str, "issues": [{"kind": str, "text": str, "fix": str}]}"""
+
+ISSUE_KINDS = {"article", "gender", "agreement", "verb", "spelling", "vocab", "missing_target", "other"}
+HARD_ISSUES = {"article", "gender", "agreement", "verb", "missing_target"}
+
+
+def grade_sentence(db: Session, *, sentence: str, target: str, sprint: int) -> dict | None:
+    sentence = sentence.strip()[:300]
+    if not available():
+        return None
+    ctx = build_context(db, sprint, purpose="explain")
+    ctx.pop("core_vocab_known", None)
+    user = json.dumps({"target_word": target, "sentence": sentence, "learner": ctx}, ensure_ascii=False)
+    data, model = chat_json(GRADE_SYSTEM, user, max_tokens=500, temperature=0.2)
+    if not data or "score" not in data:
+        return None
+    issues = [
+        {"kind": str(i.get("kind", "other")) if str(i.get("kind", "")) in ISSUE_KINDS else "other", "text": str(i.get("text", ""))[:120], "fix": str(i.get("fix", ""))[:120]}
+        for i in (data.get("issues") or []) if isinstance(i, dict)
+    ][:6]
+    try:
+        score = max(0.0, min(1.0, float(data["score"])))
+    except (TypeError, ValueError):
+        return None
+    # the rubric's hard fails are not negotiable, whatever the model's own verdict
+    if any(i["kind"] in HARD_ISSUES for i in issues):
+        score = min(score, 0.5)
+    correct = score >= 0.8
+    return {
+        "score": round(score, 2), "correct": correct, "corrected": str(data.get("corrected", ""))[:300],
+        "explanation": str(data.get("explanation", ""))[:500], "issues": issues, "model": model,
+    }
+
+
+# ---------------------------------------------------------------------------
 # prepared interfaces (v2 — not wired to UI yet)
 # ---------------------------------------------------------------------------
 

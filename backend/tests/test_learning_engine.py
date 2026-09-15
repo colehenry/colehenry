@@ -11,6 +11,7 @@ from app.curriculum.vocab import VOCAB, items_for_sprint
 from app.services.learning import drills
 from app.services.learning.context import allowed_vocabulary, unknown_ratio
 from app.services.learning.grammar import SentenceSpec, accepted_fr, render_es, render_fr, verb_info
+from app.services.learning import llm_learning
 from app.services.learning.llm_learning import _params_hash
 from app.services.learning.mastery import KNOWN_THRESHOLD, PRODUCTIVE_THRESHOLD, ema
 from app.services.learning.text import article_issue, check_typed, dictation_score, drop_ne, normalize
@@ -274,6 +275,43 @@ def test_cloze_blank_swallows_article_and_offers_wrong_gender():
     assert "la maison" in texts
     assert "le maison" in texts
     assert exercise["meta"]["article_required"] is True
+
+
+def test_write_sentences_picks_known_unproductive_rested_words():
+    from dataclasses import replace as dc_replace
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime(2026, 9, 15, 12, tzinfo=timezone.utc)
+    pool = drills.pool_from_curriculum(1, only_sprint=True)
+    known_rested = dc_replace(pool[0], mastery={"recognition": 0.9, "written_production": 0.2}, last_seen_at=now - timedelta(days=2))
+    known_fresh = dc_replace(pool[1], mastery={"recognition": 0.9, "written_production": 0.2}, last_seen_at=now - timedelta(hours=2))
+    productive = dc_replace(pool[2], mastery={"recognition": 0.9, "written_production": 0.9}, last_seen_at=now - timedelta(days=5))
+    unknown = dc_replace(pool[3], mastery={"recognition": 0.3}, last_seen_at=None)
+    chosen = drills.writing_candidates([known_rested, known_fresh, productive, unknown], now)
+    assert [c.id for c in chosen] == [known_rested.id]
+    # nothing rested yet → the fresh known word is still offered rather than an empty activity
+    assert [c.id for c in drills.writing_candidates([known_fresh, productive, unknown], now)] == [known_fresh.id]
+    [exercise] = drills.write_sentences(random.Random(1), [known_rested], 1, 6, now)
+    assert exercise["format"] == "write_sentence" and exercise["kind"] == "typed"
+    assert exercise["meta"]["llm_graded"] and exercise["meta"]["lenient"]
+    assert exercise["prompt"] == known_rested.display
+    assert drills.write_sentences(random.Random(1), [unknown], 1, 6, now) == []
+
+
+def test_grade_sentence_clamps_hard_failures(monkeypatch):
+    monkeypatch.setattr(llm_learning, "available", lambda: True)
+    monkeypatch.setattr(llm_learning, "build_context", lambda db, sprint, purpose="drill": {})
+    monkeypatch.setattr(llm_learning, "chat_json", lambda *a, **k: ({
+        "score": 0.95, "correct": True, "corrected": "Je suis à la maison.", "explanation": "artículo",
+        "issues": [{"kind": "gender", "text": "le maison", "fix": "la maison"}],
+    }, "test-model"))
+    out = llm_learning.grade_sentence(None, sentence="Je suis à le maison.", target="la maison", sprint=1)
+    assert out["score"] == 0.5 and out["correct"] is False
+    assert out["issues"][0]["kind"] == "gender"
+    monkeypatch.setattr(llm_learning, "chat_json", lambda *a, **k: ({"score": 1.0, "correct": True, "corrected": "x", "explanation": "", "issues": []}, "m"))
+    assert llm_learning.grade_sentence(None, sentence="Je suis à la maison.", target="la maison", sprint=1)["correct"] is True
+    monkeypatch.setattr(llm_learning, "available", lambda: False)
+    assert llm_learning.grade_sentence(None, sentence="x", target="y", sprint=1) is None
 
 
 def test_first_evidence_sets_known_and_productive():
