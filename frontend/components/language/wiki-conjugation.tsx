@@ -3,7 +3,7 @@
 // Conjugation center tab: saved-verb browser, full conjugation tables,
 // drill generation, and verb-set management.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -211,12 +211,14 @@ function ConjugationTable({
 export function Conjugation({
   readOnly,
   initialVerbId,
+  initialInfinitive,
   initialLanguage,
   onDrillsCreated,
   onStudyVerbSet,
 }: {
   readOnly: boolean;
   initialVerbId?: number | null;
+  initialInfinitive?: string | null;
   initialLanguage?: LanguageCode;
   onDrillsCreated: () => void;
   onStudyVerbSet: (setId: number, language: LanguageCode) => void;
@@ -253,6 +255,17 @@ export function Conjugation({
     queryKey: ["language", "verb-sets", language],
     queryFn: () => listVerbSets(language),
   });
+
+  // Deep link by infinitive (from the Core Verb Atlas / drills).
+  useEffect(() => {
+    if (!initialInfinitive || !verbs.data) return;
+    const match = verbs.data.find(
+      (verb) => verb.infinitive.toLowerCase() === initialInfinitive.toLowerCase(),
+    );
+    if (!match) return;
+    const timer = window.setTimeout(() => setSelectedVerbId(match.id), 0);
+    return () => window.clearTimeout(timer);
+  }, [initialInfinitive, verbs.data]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();

@@ -20,6 +20,7 @@ import {
   type TextAnnotation,
   type TextLookup,
 } from "@/lib/api/language";
+import { encounterVocab, type EncounterIn } from "@/lib/api/learning";
 import {
   genderLabel,
   languageName,
@@ -39,6 +40,15 @@ const EMPTY_TEXT_FORM = {
 
 type TextSelection = { start: number; end: number; selectedText: string };
 type Point = { top: number; left: number };
+
+function sentenceAround(content: string, start: number, end: number): string {
+  let left = start;
+  while (left > 0 && !/[.!?\n]/.test(content[left - 1])) left -= 1;
+  let right = end;
+  while (right < content.length && !/[.!?\n]/.test(content[right])) right += 1;
+  if (right < content.length && /[.!?]/.test(content[right])) right += 1;
+  return content.slice(left, right).trim();
+}
 
 type AnnotationDraft = {
   note: string;
@@ -85,9 +95,13 @@ function enrichDraft(
 export function TextsView({
   decks,
   readOnly = false,
+  onOpenRef,
+  onDrillSentence,
 }: {
   decks: Deck[];
   readOnly?: boolean;
+  onOpenRef?: (ref: string) => void;
+  onDrillSentence?: (sentence: string) => void;
 }) {
   const [openTextId, setOpenTextId] = useState<number | null>(null);
 
@@ -101,6 +115,8 @@ export function TextsView({
       decks={decks}
       readOnly={readOnly}
       onBack={() => setOpenTextId(null)}
+      onOpenRef={onOpenRef}
+      onDrillSentence={onDrillSentence}
     />
   );
 }
@@ -370,11 +386,15 @@ function Reader({
   decks,
   readOnly,
   onBack,
+  onOpenRef,
+  onDrillSentence,
 }: {
   textId: number;
   decks: Deck[];
   readOnly: boolean;
   onBack: () => void;
+  onOpenRef?: (ref: string) => void;
+  onDrillSentence?: (sentence: string) => void;
 }) {
   const queryClient = useQueryClient();
   const readerRef = useRef<HTMLDivElement>(null);
@@ -420,6 +440,7 @@ function Reader({
   const [editId, setEditId] = useState<number | null>(null);
   const [drafts, setDrafts] = useState<Record<number, AnnotationDraft>>({});
   const [cardDeckId, setCardDeckId] = useState<number | "">("");
+  const [learningStatus, setLearningStatus] = useState("");
 
   const detail = useQuery({
     queryKey: ["language", "text", textId],
@@ -602,6 +623,39 @@ function Reader({
       queryClient.invalidateQueries({ queryKey: ["language", "decks"] });
     },
   });
+
+  const encounterMutation = useMutation({
+    mutationFn: (body: EncounterIn) => encounterVocab(body),
+    onSuccess: (item) => {
+      setLearningStatus(item.status === "core" ? "Core" : "Encountered");
+      queryClient.invalidateQueries({ queryKey: ["language", "vocab"] });
+      queryClient.invalidateQueries({ queryKey: ["language", "dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["language", "decks"] });
+    },
+    onError: () => setLearningStatus("Save failed"),
+  });
+
+  const saveToLearning = (
+    selectedText: string,
+    status: "encountered" | "core",
+    data: Partial<TextLookup> & { translation?: string },
+    start: number,
+    end: number,
+  ) => {
+    if (!text) return;
+    setLearningStatus("");
+    encounterMutation.mutate({
+      french: data.headword || selectedText,
+      spanish: data.translation || "",
+      part_of_speech: data.part_of_speech || "",
+      gender: data.gender || "",
+      ipa: data.ipa || "",
+      example_fr: sentenceAround(text.content, start, end),
+      text_id: text.id,
+      lexeme_id: data.lexeme_id ?? null,
+      status,
+    });
+  };
 
   const captureSelection = () => {
     const root = readerRef.current;
@@ -810,6 +864,20 @@ function Reader({
           {popoverAnnotation.cognate_note && (
             <div>ES: {popoverAnnotation.cognate_note}</div>
           )}
+          {!readOnly && (
+            <div className="flex flex-wrap gap-2">
+              <button type="button" className="xp-link" disabled={encounterMutation.isPending} onClick={() => saveToLearning(popoverAnnotation.selected_text, "encountered", popoverAnnotation, popoverAnnotation.start_offset, popoverAnnotation.end_offset)}>
+                [encountered]
+              </button>
+              <button type="button" className="xp-link" disabled={encounterMutation.isPending} onClick={() => saveToLearning(popoverAnnotation.selected_text, "core", popoverAnnotation, popoverAnnotation.start_offset, popoverAnnotation.end_offset)}>
+                [→ core]
+              </button>
+              <button type="button" className="xp-link" onClick={() => onOpenRef?.("spelling")}>
+                [spelling]
+              </button>
+              {learningStatus && <span className="xp-muted">{learningStatus}</span>}
+            </div>
+          )}
           {!popoverAnnotation.translation &&
             !popoverAnnotation.note &&
             !popoverAnnotation.cognate_note && <div>no note yet</div>}
@@ -834,6 +902,13 @@ function Reader({
               onClick={() => createAnnotationMutation.mutate()}
             >
               Add note
+            </button>
+            <button
+              type="button"
+              className="xp-btn is-small"
+              onClick={() => onDrillSentence?.(sentenceAround(text.content, selection.start, selection.end))}
+            >
+              Drill sentence
             </button>
             <Speak
               language={text.language}
@@ -862,6 +937,18 @@ function Reader({
           {selectionLookup.data?.cognate_note && (
             <div>ES: {selectionLookup.data.cognate_note}</div>
           )}
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="xp-link" disabled={!selectionLookup.data || encounterMutation.isPending} onClick={() => selectionLookup.data && saveToLearning(selection.selectedText, "encountered", selectionLookup.data, selection.start, selection.end)}>
+              [encountered]
+            </button>
+            <button type="button" className="xp-link" disabled={!selectionLookup.data || encounterMutation.isPending} onClick={() => selectionLookup.data && saveToLearning(selection.selectedText, "core", selectionLookup.data, selection.start, selection.end)}>
+              [→ core]
+            </button>
+            <button type="button" className="xp-link" onClick={() => onOpenRef?.("spelling")}>
+              [spelling]
+            </button>
+            {learningStatus && <span className="xp-muted">{learningStatus}</span>}
+          </div>
         </div>
       )}
 

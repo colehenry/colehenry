@@ -24,7 +24,7 @@ import { Conjugation } from "./wiki-conjugation";
 import { Pronunciation } from "./wiki-pronunciation";
 import { ES_TENSES, TENSES, personSlotLabel } from "./wiki-tenses";
 
-export type WikiTab = "search" | "conjugation" | "pronunciation";
+export type WikiTab = "search" | "conjugation" | "pronunciation" | "references";
 export type WikiQuery = { language: LanguageCode; word: string };
 
 function freqLabel(freq: number): string {
@@ -39,6 +39,7 @@ export function WikiView({
   readOnly = false,
   initialTab = "search",
   initialQuery = null,
+  initialInfinitive = null,
   onTabChange,
   onStudyDeck,
   onStudyVerbSet,
@@ -48,6 +49,7 @@ export function WikiView({
   readOnly?: boolean;
   initialTab?: WikiTab;
   initialQuery?: WikiQuery | null;
+  initialInfinitive?: string | null;
   onTabChange?: (tab: WikiTab) => void;
   onStudyDeck: (deckId: number) => void;
   onStudyVerbSet: (setId: number, language: LanguageCode) => void;
@@ -109,6 +111,7 @@ export function WikiView({
           <Conjugation
             readOnly={readOnly}
             initialVerbId={conjugationVerbId}
+            initialInfinitive={initialInfinitive}
             initialLanguage={conjugationLanguage}
             onDrillsCreated={onDrillsCreated}
             onStudyVerbSet={onStudyVerbSet}

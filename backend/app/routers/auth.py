@@ -1,5 +1,6 @@
 import html
 import secrets
+from urllib.parse import urlsplit, urlunsplit
 
 from authlib.integrations.starlette_client import OAuth, OAuthError
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
@@ -43,8 +44,24 @@ oauth.register(
 )
 
 
+def _canonical_oauth_entry(request: Request) -> RedirectResponse | None:
+    """Keep OAuth state and callback cookies on one exact browser origin."""
+    callback = urlsplit(settings.oauth_redirect_uri)
+    current = urlsplit(str(request.url))
+    if not callback.scheme or not callback.netloc:
+        return None
+    if (current.scheme, current.netloc) == (callback.scheme, callback.netloc):
+        return None
+    canonical_url = urlunsplit(
+        (callback.scheme, callback.netloc, current.path, current.query, "")
+    )
+    return RedirectResponse(canonical_url)
+
+
 @router.get("/google/login")
 async def google_login(request: Request):
+    if canonical := _canonical_oauth_entry(request):
+        return canonical
     return await oauth.google.authorize_redirect(request, settings.oauth_redirect_uri)
 
 
@@ -148,6 +165,8 @@ stored credential.</p></body></html>""",
 
 @router.get("/google/calendar/connect", response_class=HTMLResponse)
 async def google_calendar_disclosure(request: Request, user: User = Depends(require_owner)):
+    if canonical := _canonical_oauth_entry(request):
+        return canonical
     return _disclosure_page("calendar", _new_consent(request, "calendar"))
 
 
@@ -175,6 +194,8 @@ async def google_calendar_connect(
 
 @router.get("/google/gmail/connect", response_class=HTMLResponse)
 async def google_gmail_disclosure(request: Request, user: User = Depends(require_owner)):
+    if canonical := _canonical_oauth_entry(request):
+        return canonical
     return _disclosure_page("gmail", _new_consent(request, "gmail"))
 
 
@@ -276,7 +297,7 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
         httponly=True,
         secure=settings.cookie_secure,
         samesite="lax",
-        domain=settings.cookie_domain or None,
+        domain=settings.effective_cookie_domain or None,
         path="/",
     )
     return response
@@ -286,7 +307,7 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
 async def logout(response: Response):
     response.delete_cookie(
         key=settings.cookie_name,
-        domain=settings.cookie_domain or None,
+        domain=settings.effective_cookie_domain or None,
         path="/",
     )
     return {"ok": True}

@@ -21,6 +21,7 @@ from app.routers.language.cards import card_out
 from app.routers.language.shared import now_utc, public, router
 from app.schemas.language import ReviewIn, ReviewOut, StudyQueue
 from app.services.fsrs_engine import grade
+from app.services.learning.mastery import on_card_review
 
 
 @public.get("/study/queue", response_model=StudyQueue)
@@ -123,6 +124,7 @@ def review_card(body: ReviewIn, db: Session = Depends(get_db)):
     state_before = review.state
     now = now_utc()
     grade(review, body.rating, now)
+    on_card_review(db, card, body.rating)  # curriculum cards feed vocab mastery
     db.add(
         ReviewLog(
             card_id=card.id,
