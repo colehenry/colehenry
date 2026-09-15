@@ -7,7 +7,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { importVocab, listVocab, setVocabStatus, type VocabItem } from "@/lib/api/learning";
-import { Speak } from "./language-shared";
+import { Fr, Speak } from "./language-shared";
 
 const DIMS: [keyof VocabItem, string][] = [
   ["recognition", "Recognize"],
@@ -176,11 +176,10 @@ function RowGroup({
     <>
       <tr className="is-clickable" onClick={onToggle}>
         <td>
-          <Speak language="fr" text={r.french.split(" / ")[0]} label="►" />
+          <Speak language="fr" text={r.display.split(" / ")[0]} label="►" />
         </td>
         <td style={{ fontWeight: 700 }}>
-          {r.french}
-          {r.gender && <span className="xp-muted"> ({r.gender})</span>}
+          <Fr text={r.display} />
           {r.false_friend && <span title="faux ami"> ⚠</span>}
         </td>
         <td>{r.spanish}</td>

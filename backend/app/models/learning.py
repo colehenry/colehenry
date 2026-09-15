@@ -155,6 +155,31 @@ class LearningSession(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class LearningAttempt(Base):
+    """A practice run in progress: the exercise set plus what has been graded
+    so far, so a lesson survives a quit, a reload, or a detour into the wiki.
+    Rows are finished (not deleted) when the runner completes them."""
+
+    __tablename__ = "learning_attempts"
+    __table_args__ = (Index("ix_learning_attempts_open", "finished_at", "activity_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    activity_id: Mapped[str] = mapped_column(String(60), nullable=False)
+    title: Mapped[str] = mapped_column(String(160), default="", nullable=False)
+    format: Mapped[str] = mapped_column(String(40), default="", nullable=False)
+    skill: Mapped[str] = mapped_column(String(20), default="grammar", nullable=False)
+    sprint: Mapped[int] = mapped_column(Integer, nullable=False)
+    session_id: Mapped[int | None] = mapped_column(ForeignKey("learning_sessions.id", ondelete="SET NULL"))
+    payload: Mapped[dict] = mapped_column(PortableJSONB, default=dict, nullable=False)  # the ExerciseSet as served
+    index: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    graded: Mapped[list] = mapped_column(PortableJSONB, default=list, nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class LearningTest(Base):
     """A sprint mastery-test attempt: the generated test, answers, profile."""
 

@@ -4,14 +4,20 @@
 // or pick a format by hand ("Generate drill"). Results go through the shared
 // mastery pipeline; a completion row is written per finished activity.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   buildExercises,
+  createAttempt,
+  finishAttempt,
+  getAttempt,
   getSession,
+  listAttempts,
   submitResults,
+  updateAttempt,
   type Activity,
+  type Attempt,
   type Exercise,
   type ExerciseSet,
   type ExercisesIn,
@@ -19,7 +25,7 @@ import {
   type Resource,
 } from "@/lib/api/learning";
 import { type Deck } from "@/lib/api/language";
-import { ExerciseRunner, RunnerSummaryView, toResult, type RunnerSummary } from "./exercise-runner";
+import { ExerciseRunner, RunnerSummaryView, toResult, type GradedItem, type RunnerProgress, type RunnerSummary } from "./exercise-runner";
 import { StudyView } from "./study-view";
 
 export type PracticeConfig = {
@@ -33,7 +39,21 @@ export type PracticeConfig = {
   sessionId?: number;
   title?: string;
   fresh?: boolean;
+  /** Resume a stored attempt instead of building a new set. */
+  attemptId?: number;
 };
+
+/** Rebuild the runner's state from a stored attempt: graded rows point back into the queue by exercise id. */
+function progressFromAttempt(attempt: Attempt): RunnerProgress {
+  const queue = attempt.payload.exercises;
+  const byId = new Map(queue.map((exercise) => [exercise.id, exercise]));
+  const graded: GradedItem[] = [];
+  for (const row of attempt.graded) {
+    const exercise = byId.get(row.exercise_id);
+    if (exercise) graded.push({ exercise, answer: row.answer, correct: row.correct, score: row.score, timeMs: row.time_ms });
+  }
+  return { queue, index: graded.length, graded };
+}
 
 const FORMATS: { id: string; label: string; llm?: boolean; needsTarget?: string }[] = [
   { id: "vocab_lesson", label: "Guided vocabulary lesson" },
@@ -76,6 +96,7 @@ export function PracticeView({
   onOpenRef,
   onOpenTexts,
   onStartTest,
+  onRunningChange,
 }: {
   config: PracticeConfig | null;
   decks: Deck[];
@@ -85,6 +106,8 @@ export function PracticeView({
   onOpenRef: (ref: string) => void;
   onOpenTexts: () => void;
   onStartTest: (sprint: number) => void;
+  /** Tells the shell which activity is mid-run (for the URL hash and the reference drawer). */
+  onRunningChange?: (activityId: string | null) => void;
 }) {
   const queryClient = useQueryClient();
   const [current, setCurrent] = useState<PracticeConfig | null>(config);
@@ -92,12 +115,60 @@ export function PracticeView({
   const [summary, setSummary] = useState<RunnerSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [planIndex, setPlanIndex] = useState<number | null>(null);
+  const [openedAttemptId, setOpenedAttemptId] = useState<number | null>(null);
+  // once the learner starts something new here, stored attempts stop feeding the runner
+  const [detached, setDetached] = useState(false);
+  // graded rows already written as results, per run - a resumed run's stored rows count as written
+  const submitted = useRef<{ run: RunnerProgress | null; count: number }>({ run: null, count: 0 });
 
-  const sessionId = current?.sessionId ?? config?.sessionId;
+  // Which stored attempt feeds this view: an explicit resume, or an unfinished run of the
+  // activity being started directly (so a reload on #practice/<activity> lands mid-lesson).
+  const direct = !!(config && !config.sessionId && !config.attemptId && (config.activityId || config.format));
+  const openAttempts = useQuery({ queryKey: ["language", "attempts"], queryFn: listAttempts, enabled: direct && !!config?.activityId });
+  const openMatch =
+    direct && config?.activityId && !config.fresh ? openAttempts.data?.find((a) => a.activity_id === config.activityId && !a.finished_at) : undefined;
+  const resumeId = detached ? null : (config?.attemptId ?? openMatch?.id ?? null);
+  const resumeQuery = useQuery({
+    queryKey: ["language", "attempt", resumeId],
+    queryFn: () => getAttempt(resumeId as number),
+    enabled: resumeId != null,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
+  const resumed = resumeQuery.data && !resumeQuery.data.finished_at && !detached ? resumeQuery.data : null;
+  const resume = useMemo(() => (resumed ? progressFromAttempt(resumed) : null), [resumed]);
+  const effectiveCurrent: PracticeConfig | null =
+    current ?? (resumed ? { activityId: resumed.activity_id, sprint: resumed.sprint, title: resumed.title, sessionId: resumed.session_id ?? undefined, attemptId: resumed.id } : null);
+  const effectiveSet = set ?? resumed?.payload ?? null;
+  const attemptId = openedAttemptId ?? resumed?.id ?? null;
+
+  const sessionId = effectiveCurrent?.sessionId ?? config?.sessionId;
   const session = useQuery({
     queryKey: ["language", "session", sessionId],
     queryFn: () => getSession(sessionId as number),
     enabled: sessionId != null,
+  });
+
+  const sprint = effectiveSet?.sprint ?? effectiveCurrent?.sprint ?? activeSprint;
+  const activity = effectiveSet?.activity ?? null;
+  const activityId = effectiveCurrent?.activityId ?? effectiveCurrent?.format ?? "manual";
+  const activityTitle = activityLabel(activity, effectiveCurrent?.title ?? FORMATS.find((f) => f.id === effectiveCurrent?.format)?.label ?? activityId);
+
+  const openAttempt = useMutation({
+    mutationFn: (data: ExerciseSet) =>
+      createAttempt({
+        activity_id: activityId,
+        title: activityTitle,
+        format: data.format ?? current?.format ?? "",
+        skill: data.activity?.skill ?? data.exercises[0]?.skill ?? "grammar",
+        sprint: data.sprint,
+        session_id: sessionId ?? null,
+        payload: data,
+      }),
+    onSuccess: (attempt) => {
+      setOpenedAttemptId(attempt.id);
+      queryClient.invalidateQueries({ queryKey: ["language", "attempts"] });
+    },
   });
 
   const load = useMutation({
@@ -105,16 +176,27 @@ export function PracticeView({
     onSuccess: (data) => {
       setSet(data);
       setSummary(null);
+      setDetached(true);
+      setOpenedAttemptId(null);
+      submitted.current = { run: null, count: 0 };
       setError(data.exercises.length ? null : "Nothing generated" + (data.rejected.length ? ` - ${data.rejected.slice(0, 2).join("; ")}` : ""));
+      if (data.exercises.length) openAttempt.mutate(data);
     },
     onError: (e: Error) => setError(e.message),
   });
+
+  useEffect(() => {
+    onRunningChange?.(effectiveSet && !summary && effectiveSet.exercises.length ? activityId : null);
+  }, [effectiveSet, summary, activityId, onRunningChange]);
+  useEffect(() => () => onRunningChange?.(null), [onRunningChange]);
 
   const start = useCallback(
     (cfg: PracticeConfig) => {
       setCurrent(cfg);
       setSummary(null);
       setSet(null);
+      setDetached(true);
+      setOpenedAttemptId(null);
       setError(null);
       load.mutate({
         activity_id: cfg.activityId,
@@ -130,22 +212,24 @@ export function PracticeView({
     [load, activeSprint],
   );
 
-  // auto-start a direct activity config (not a session, not the picker)
+  // Auto-start a direct activity config (not a session, not the picker) unless a stored run resumes it.
+  const started = useRef(false);
   useEffect(() => {
-    if (config && !config.sessionId && (config.activityId || config.format)) {
-      load.mutate({
-        activity_id: config.activityId,
-        format: config.format,
-        params: config.params,
-        targets: config.targets,
-        source: config.source ?? "auto",
-        sprint: config.sprint ?? activeSprint,
-        count: config.count,
-        fresh: config.fresh,
-      });
-    }
+    if (!direct || !config || started.current) return;
+    if (config.activityId && (openAttempts.isLoading || openMatch)) return;
+    started.current = true;
+    load.mutate({
+      activity_id: config.activityId,
+      format: config.format,
+      params: config.params,
+      targets: config.targets,
+      source: config.source ?? "auto",
+      sprint: config.sprint ?? activeSprint,
+      count: config.count,
+      fresh: config.fresh,
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config]);
+  }, [config, direct, openMatch, openAttempts.isLoading]);
 
   const submit = useMutation({
     mutationFn: submitResults,
@@ -157,20 +241,52 @@ export function PracticeView({
     },
   });
 
-  const sprint = set?.sprint ?? current?.sprint ?? activeSprint;
-  const activity = set?.activity ?? null;
-  const activityId = current?.activityId ?? current?.format ?? "manual";
+  const saveProgress = useMutation({
+    mutationFn: (args: { id: number; progress: RunnerProgress; queueChanged: boolean }) =>
+      updateAttempt(args.id, {
+        index: args.progress.index,
+        graded: args.progress.graded.map((item) => ({
+          exercise_id: item.exercise.id,
+          answer: item.answer,
+          correct: item.correct,
+          score: item.score,
+          time_ms: item.timeMs,
+        })),
+        payload: args.queueChanged && effectiveSet ? { ...effectiveSet, exercises: args.progress.queue } : undefined,
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["language", "attempts"] }),
+  });
+
+  // Every graded item is written immediately, so a quit or reload keeps what was earned.
+  const written = useCallback((): number => {
+    if (submitted.current.run !== resume) submitted.current = { run: resume, count: resume?.graded.length ?? 0 };
+    return submitted.current.count;
+  }, [resume]);
+  const onProgress = useCallback(
+    (progress: RunnerProgress) => {
+      const fresh = progress.graded.slice(written());
+      if (fresh.length) {
+        submitted.current.count = progress.graded.length;
+        submit.mutate({ results: fresh.map((it) => toResult(it, sprint, activityId)), session_id: sessionId ?? null });
+      }
+      if (attemptId != null) {
+        saveProgress.mutate({ id: attemptId, progress, queueChanged: progress.queue.length !== (effectiveSet?.exercises.length ?? 0) });
+      }
+    },
+    [submit, saveProgress, sprint, activityId, sessionId, attemptId, effectiveSet, written],
+  );
 
   const finishRunner = useCallback(
     (s: RunnerSummary) => {
       setSummary(s);
-      const results = s.items.map((it) => toResult(it, sprint, activityId));
+      const fresh = s.items.slice(written());
+      submitted.current.count = s.items.length;
       submit.mutate({
-        results,
+        results: fresh.map((it) => toResult(it, sprint, activityId)),
         session_id: sessionId ?? null,
         completion: {
           activity_id: activityId,
-          name: activityLabel(activity, current?.title ?? FORMATS.find((f) => f.id === current?.format)?.label ?? activityId),
+          name: activityTitle,
           skill: activity?.skill ?? s.items[0]?.exercise.skill ?? "grammar",
           sprint,
           score: s.score,
@@ -178,8 +294,13 @@ export function PracticeView({
           minutes: Math.max(1, Math.round(s.seconds / 60)),
         },
       });
+      if (attemptId != null) {
+        void finishAttempt(attemptId)
+          .catch(() => {})
+          .finally(() => queryClient.invalidateQueries({ queryKey: ["language", "attempts"] }));
+      }
     },
-    [sprint, activityId, activity, current, sessionId, submit],
+    [sprint, activityId, activity, activityTitle, sessionId, submit, attemptId, queryClient, written],
   );
 
   const completeNonDrill = useCallback(
@@ -200,19 +321,29 @@ export function PracticeView({
     const plan = session.data;
     const active = planIndex != null ? plan.plan[planIndex] : null;
 
-    if (active && set && !summary) {
+    if (active && effectiveSet && !summary) {
       return (
         <ExerciseRunner
-          exercises={set.exercises}
+          exercises={effectiveSet.exercises}
           title={active.name}
-          subtitle={`${active.minutes} min · ${set.source}${set.model ? ` · ${set.model}` : ""}`}
+          subtitle={`${active.minutes} min · ${effectiveSet.source}${effectiveSet.model ? ` · ${effectiveSet.model}` : ""}`}
+          crumbs={
+            <>
+              <button type="button" className="xp-link" onClick={onExit}>Dashboard</button>
+              <span className="is-sep">›</span>
+              <button type="button" className="xp-link" onClick={() => { setSet(null); setPlanIndex(null); }}>Session</button>
+            </>
+          }
           onFinish={finishRunner}
           onExit={() => {
             setSet(null);
             setPlanIndex(null);
           }}
           onOpenRef={onOpenRef}
-          autoAdvanceMs={set.exercises[0]?.meta?.timed ? 600 : 0}
+          onProgress={onProgress}
+          resume={resume}
+          autoAdvanceMs={effectiveSet.exercises[0]?.meta?.timed ? 600 : 0}
+          retryMissed={effectiveSet.format === "vocab_lesson"}
         />
       );
     }
@@ -362,20 +493,27 @@ export function PracticeView({
   }
 
   // ---- single activity / manual --------------------------------------------
-  if (set && !summary && set.exercises.length) {
+  if (effectiveSet && !summary && effectiveSet.exercises.length) {
     return (
       <ExerciseRunner
-        exercises={set.exercises}
-        title={activityLabel(activity, current?.title ?? FORMATS.find((f) => f.id === current?.format)?.label ?? "Practice")}
-        subtitle={set.source}
+        key={resumed?.id ?? "fresh"}
+        exercises={effectiveSet.exercises}
+        title={activityTitle}
+        subtitle={effectiveSet.source}
+        crumbs={
+          <>
+            <button type="button" className="xp-link" onClick={onExit}>Dashboard</button>
+            <span className="is-sep">›</span>
+            <span>Sprint {sprint}</span>
+          </>
+        }
         onFinish={finishRunner}
-        onExit={() => {
-          setSet(null);
-          setCurrent(null);
-        }}
+        onExit={onExit}
         onOpenRef={onOpenRef}
-        autoAdvanceMs={set.exercises[0]?.meta?.timed ? 600 : 0}
-        retryMissed={set.format === "vocab_lesson"}
+        onProgress={onProgress}
+        resume={resume}
+        autoAdvanceMs={effectiveSet.exercises[0]?.meta?.timed ? 600 : 0}
+        retryMissed={effectiveSet.format === "vocab_lesson"}
       />
     );
   }
@@ -383,23 +521,23 @@ export function PracticeView({
     return (
       <RunnerSummaryView
         summary={summary}
-        title={activityLabel(activity, current?.title ?? "Practice")}
-        onAgain={() => current && start({ ...current, fresh: current.source === "llm" })}
+        title={activityTitle}
+        onAgain={() => effectiveCurrent && start({ ...effectiveCurrent, attemptId: undefined, fresh: effectiveCurrent.source === "llm" })}
         onBack={onExit}
       />
     );
   }
-  if (load.isPending) {
+  if (load.isPending || (resumeId != null && resumeQuery.isLoading) || (direct && !!config?.activityId && openAttempts.isLoading)) {
     return (
       <div className="xp-well flex h-72 flex-col items-center justify-center gap-1">
-        <span>Building…</span>
+        <span>{load.isPending ? "Building…" : "Resuming…"}</span>
         {(current?.source === "llm" || (activity?.kind === "llm" && current?.source !== "deterministic")) && (
           <span className="xp-muted">✦ AI</span>
         )}
       </div>
     );
   }
-  return <Picker activeSprint={activeSprint} onStart={start} error={error} lastConfig={current} />;
+  return <Picker activeSprint={activeSprint} onStart={start} error={error} lastConfig={effectiveCurrent} />;
 }
 
 function Picker({

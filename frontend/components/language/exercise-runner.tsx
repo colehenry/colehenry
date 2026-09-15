@@ -9,8 +9,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 
 import { explainFrench, type Exercise, type ExplainMode, type ResultIn } from "@/lib/api/learning";
+import { FRENCH_ACCENTS, articleIssue } from "@/lib/french/articles";
 import { SELF_SCORES, checkTyped, dictationScore, wordDiff, type TypedResult } from "@/lib/french/grading";
-import { Speak, speakText } from "./language-shared";
+import { Fr, Speak, speakText } from "./language-shared";
 
 export type GradedItem = {
   exercise: Exercise;
@@ -28,6 +29,55 @@ export type RunnerSummary = {
   bySkill: Record<string, { score: number; n: number }>;
   seconds: number;
 };
+
+/** Snapshot the runner emits after every graded item - what a resumable attempt stores. */
+export type RunnerProgress = {
+  queue: Exercise[];
+  index: number;
+  graded: GradedItem[];
+};
+
+/** Retry copies of the missed items that asked for one (never retries of retries). */
+function missedRetries(all: GradedItem[]): Exercise[] {
+  return all
+    .filter((item) => !item.correct && item.exercise.meta?.retry_missed === true && item.exercise.meta?.is_retry !== true)
+    .map((item) => ({
+      ...item.exercise,
+      id: `${item.exercise.id}-retry`,
+      instructions: `Retry · ${item.exercise.instructions.replace(/^\d\s*\/\s*\d\s*·\s*/, "")}`,
+      meta: { ...item.exercise.meta, is_retry: true },
+    }));
+}
+
+/** Inserts an accented letter at the caret and hands focus back to the input. */
+function AccentBar({ inputRef, onInsert }: { inputRef: React.RefObject<HTMLInputElement | null>; onInsert: (next: string) => void }) {
+  return (
+    <div className="pr-accents" aria-label="Accents">
+      {FRENCH_ACCENTS.map((accent) => (
+        <button
+          key={accent}
+          type="button"
+          tabIndex={-1}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => {
+            const input = inputRef.current;
+            if (!input) return;
+            const start = input.selectionStart ?? input.value.length;
+            const end = input.selectionEnd ?? start;
+            const next = input.value.slice(0, start) + accent + input.value.slice(end);
+            onInsert(next);
+            requestAnimationFrame(() => {
+              input.focus();
+              input.setSelectionRange(start + accent.length, start + accent.length);
+            });
+          }}
+        >
+          {accent}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export function toResult(item: GradedItem, sprint: number, activityId: string, extraMeta: Record<string, unknown> = {}): ResultIn {
   const ex = item.exercise;
@@ -139,25 +189,46 @@ export function ExerciseRunner({
   exercises,
   title,
   subtitle,
+  crumbs,
   onFinish,
   onExit,
   onOpenRef,
+  onProgress,
+  resume,
   autoAdvanceMs = 0,
   retryMissed = false,
 }: {
   exercises: Exercise[];
   title: string;
   subtitle?: string;
+  crumbs?: React.ReactNode;
   onFinish: (summary: RunnerSummary) => void;
   onExit: () => void;
   onOpenRef?: (ref: string) => void;
+  onProgress?: (progress: RunnerProgress) => void;
+  resume?: RunnerProgress | null;
   autoAdvanceMs?: number;
   retryMissed?: boolean;
 }) {
-  const [queue, setQueue] = useState(exercises);
-  const [retryAdded, setRetryAdded] = useState(false);
-  const [index, setIndex] = useState(0);
-  const [graded, setGraded] = useState<GradedItem[]>([]);
+  // A resumed attempt that stopped after its last item still owes the retry pass; build it up front.
+  const [initial] = useState(() => {
+    const queue = resume?.queue ?? exercises;
+    const graded = resume?.graded ?? [];
+    let retryAdded = queue.some((ex) => ex.meta?.is_retry === true);
+    let fullQueue = queue;
+    if (resume && graded.length >= queue.length && retryMissed && !retryAdded) {
+      const retries = missedRetries(graded);
+      if (retries.length) {
+        fullQueue = [...queue, ...retries];
+        retryAdded = true;
+      }
+    }
+    return { queue: fullQueue, graded, index: resume ? graded.length : 0, retryAdded };
+  });
+  const [queue, setQueue] = useState(initial.queue);
+  const [retryAdded, setRetryAdded] = useState(initial.retryAdded);
+  const [index, setIndex] = useState(initial.index);
+  const [graded, setGraded] = useState<GradedItem[]>(initial.graded);
   const [typed, setTyped] = useState("");
   const [picked, setPicked] = useState<string | null>(null);
   const [checked, setChecked] = useState<{ correct: boolean; score: number; detail?: TypedResult } | null>(null);
@@ -172,6 +243,7 @@ export function ExerciseRunner({
   const passage = typeof ex?.meta?.passage === "string" ? (ex.meta.passage as string) : "";
   const speakAfter = typeof ex?.meta?.speak_after === "string" ? (ex.meta.speak_after as string) : "";
   const isDictation = ex?.meta?.dictation === true;
+  const articleRequired = ex?.meta?.article_required === true;
   const lenient = ex?.meta?.lenient === true;
   const selfScale = Array.isArray(ex?.meta?.self_scale) ? (ex!.meta.self_scale as string[]) : ["raté", "difficile", "bien", "fluide"];
 
@@ -207,6 +279,19 @@ export function ExerciseRunner({
     [onFinish, startedAt],
   );
 
+  const lastReported = useRef<{ graded: number; index: number; queue: number }>({
+    graded: graded.length,
+    index,
+    queue: queue.length,
+  });
+  useEffect(() => {
+    if (!onProgress) return;
+    const last = lastReported.current;
+    if (last.graded === graded.length && last.index === index && last.queue === queue.length) return;
+    lastReported.current = { graded: graded.length, index, queue: queue.length };
+    onProgress({ queue, index, graded });
+  }, [graded, index, queue, onProgress]);
+
   const commit = useCallback(
     (answer: string, correct: boolean, score: number, detail?: TypedResult) => {
       if (!ex || checked) return;
@@ -222,28 +307,35 @@ export function ExerciseRunner({
     [ex, checked, speakAfter],
   );
 
-  const next = useCallback(() => {
-    if (!checked) return;
-    const all = graded;
-    if (index + 1 >= queue.length) {
-      const missed = all.filter((item) => !item.correct && item.exercise.meta?.retry_missed === true && item.exercise.meta?.is_retry !== true);
-      if (retryMissed && !retryAdded && missed.length) {
-        const retries = missed.map((item) => ({
-          ...item.exercise,
-          id: `${item.exercise.id}-retry`,
-          instructions: `Retry · ${item.exercise.instructions.replace(/^\d\s*\/\s*\d\s*·\s*/, "")}`,
-          meta: { ...item.exercise.meta, is_retry: true },
-        }));
+  // End of the queue: one retry pass over misses (when asked), then finish.
+  const advanceFromEnd = useCallback(
+    (all: GradedItem[]) => {
+      const retries = retryMissed && !retryAdded ? missedRetries(all) : [];
+      if (retries.length) {
         setQueue((current) => [...current, ...retries]);
         setRetryAdded(true);
-        setIndex((current) => current + 1);
+        setIndex(all.length);
         return;
       }
       finish(all);
+    },
+    [finish, retryMissed, retryAdded],
+  );
+
+  const next = useCallback(() => {
+    if (!checked) return;
+    if (index + 1 >= queue.length) {
+      advanceFromEnd(graded);
     } else {
       setIndex((i) => i + 1);
     }
-  }, [checked, graded, index, queue.length, finish, retryMissed, retryAdded]);
+  }, [checked, graded, index, queue.length, advanceFromEnd]);
+
+  // A resumed attempt with nothing left to answer goes straight to its summary.
+  useEffect(() => {
+    if (resume && initial.index >= initial.queue.length && initial.queue.length > 0) finish(initial.graded);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const nextIntro = useCallback(() => {
     if (index + 1 < queue.length) setIndex((current) => current + 1);
@@ -259,8 +351,8 @@ export function ExerciseRunner({
   const checkTypedAnswer = useCallback(() => {
     if (!ex || checked) return;
     if (isDictation) {
-      const expected = ex.accepted[0] ?? "";
-      const score = dictationScore(expected, typed);
+      // any accepted variant counts ("une maison" for "la maison")
+      const score = Math.max(0, ...ex.accepted.map((expected) => dictationScore(expected, typed)));
       const detail = checkTyped(typed, ex.accepted);
       commit(typed, score >= 0.85, Math.max(score, detail.score), detail);
       return;
@@ -346,6 +438,19 @@ export function ExerciseRunner({
 
   return (
     <div className="pr-shell">
+      {crumbs && (
+        <div className="pr-crumbs">
+          {crumbs}
+          <span className="is-sep">›</span>
+          <b>{title}</b>
+          {ex.meta?.lesson_stage ? (
+            <>
+              <span className="is-sep">›</span>
+              <span>{String(ex.meta.lesson_stage)}</span>
+            </>
+          ) : null}
+        </div>
+      )}
       <div className="pr-top">
         <b style={{ color: "var(--xp-text)" }}>{title}</b>
         {subtitle && <span>{subtitle}</span>}
@@ -357,7 +462,7 @@ export function ExerciseRunner({
         </span>
         {graded.length > 0 && <span>{Math.round((graded.reduce((a, b) => a + b.score, 0) / graded.length) * 100)}%</span>}
         <button type="button" className="xp-link" onClick={onExit}>
-          [quit]
+          [save & quit]
         </button>
       </div>
 
@@ -384,7 +489,7 @@ export function ExerciseRunner({
         )}
         {showPromptText && ex.kind !== "self" && (
           <div className={`pr-prompt ${ex.prompt.length > 60 ? "is-small" : ""}`} style={{ whiteSpace: "pre-wrap" }}>
-            {ex.prompt}
+            {ex.audio?.language === "fr" || ex.kind === "intro" ? <Fr text={ex.prompt} /> : ex.prompt}
           </div>
         )}
         {ex.prompt_es && showPromptText && ex.kind !== "self" && ex.format !== "es_to_fr" && (
@@ -393,6 +498,14 @@ export function ExerciseRunner({
 
         {ex.kind === "intro" && (
           <div className="pr-feedback">
+            {typeof ex.meta?.gender === "string" && ex.meta.gender ? (
+              <div className="fr-gender-key mb-1">
+                <span className={`is-${ex.meta.gender}`}>
+                  <i />
+                  {ex.meta.gender === "f" ? "féminin" : "masculin"}
+                </span>
+              </div>
+            ) : null}
             <div>{ex.explanation}</div>
             <div className="pr-actions">
               <button type="button" className="xp-btn is-default" onClick={nextIntro}>Continue (Enter)</button>
@@ -414,7 +527,7 @@ export function ExerciseRunner({
                   onClick={() => pickOption(o.id)}
                 >
                   <kbd>{i + 1}</kbd>
-                  <span>{o.text}</span>
+                  <span>{o.audio?.language === "fr" || ex.format === "cloze" ? <Fr text={o.text} /> : o.text}</span>
                   {checked && o.audio && <Speak language={o.audio.language} text={o.audio.text} label="►" />}
                 </button>
               );
@@ -434,19 +547,21 @@ export function ExerciseRunner({
               autoCapitalize="off"
               spellCheck={false}
               lang="fr"
-              placeholder={isDictation ? "écris ce que tu entends" : "→ français"}
+              placeholder={isDictation ? (articleRequired ? "article + mot" : "écris ce que tu entends") : articleRequired ? "article + mot" : "→ français"}
               onChange={(e) => setTyped(e.target.value)}
             />
             {!checked && (
-              <div className="pr-actions">
-                <button type="button" className="xp-btn is-default" onClick={checkTypedAnswer}>
-                  Vérifier (Enter)
-                </button>
-                <button type="button" className="xp-btn is-small" onClick={() => commit("", false, 0)}>
-                  Je ne sais pas
-                </button>
-                <span className="xp-muted" style={{ fontSize: 11 }}>é è ê à ç ù î ô</span>
-              </div>
+              <>
+                <AccentBar inputRef={inputRef} onInsert={setTyped} />
+                <div className="pr-actions">
+                  <button type="button" className="xp-btn is-default" onClick={checkTypedAnswer}>
+                    Vérifier (Enter)
+                  </button>
+                  <button type="button" className="xp-btn is-small" onClick={() => commit("", false, 0)}>
+                    Je ne sais pas
+                  </button>
+                </div>
+              </>
             )}
           </>
         )}
@@ -523,10 +638,22 @@ export function ExerciseRunner({
                 {checked.detail?.exact ? "exact" : ""}
                 {checked.detail?.accentIssue ? "accent : " : ""}
                 {checked.detail?.neDropped ? "ne omis (oral) : " : ""}
+                {!checked.correct && articleIssue(typed, ex.accepted) === "genre" ? <b className="ko">genre ! </b> : null}
+                {!checked.correct && articleIssue(typed, ex.accepted) === "missing" ? <b className="ko">article manquant : </b> : null}
                 {!checked.correct || !checked.detail?.exact ? (
                   <>
-                    <b>{ex.accepted[0]}</b> <Speak language="fr" text={ex.accepted[0] ?? ""} label="►" />
-                    {ex.accepted.length > 1 && <span className="xp-muted"> · aussi : {ex.accepted.slice(1, 3).join(" · ")}</span>}
+                    <b><Fr text={ex.accepted[0] ?? ""} /></b> <Speak language="fr" text={ex.accepted[0] ?? ""} label="►" />
+                    {ex.accepted.length > 1 && (
+                      <span className="xp-muted">
+                        {" "}· aussi :{" "}
+                        {ex.accepted.slice(1, 3).map((a, i) => (
+                          <span key={a}>
+                            {i > 0 && " · "}
+                            <Fr text={a} />
+                          </span>
+                        ))}
+                      </span>
+                    )}
                   </>
                 ) : null}
                 {isDictation && typed && (
@@ -542,8 +669,8 @@ export function ExerciseRunner({
             )}
             {ex.kind === "mc" && (
               <div>
-                {checked.correct ? <b className="ok">✓</b> : <b className="ko">✗ → {ex.options.find((o) => o.id === ex.answer_id)?.text}</b>}
-                {ex.audio_only && <> · {ex.prompt}</>}
+                {checked.correct ? <b className="ok">✓</b> : <b className="ko">✗ → <Fr text={ex.options.find((o) => o.id === ex.answer_id)?.text ?? ""} /></b>}
+                {ex.audio_only && <> · <Fr text={ex.prompt} /></>}
               </div>
             )}
             {ex.kind === "self" && <div>{checked.correct ? <b className="ok">✓</b> : <b className="ko">→ à refaire</b>}</div>}
@@ -571,7 +698,7 @@ export function ExerciseRunner({
                 </button>
               ))}
               <button type="button" className="xp-btn is-default" style={{ marginLeft: "auto" }} onClick={next}>
-                {index + 1 >= exercises.length ? "Terminer" : "Suivant"} (Enter)
+                {index + 1 >= queue.length ? "Terminer" : "Suivant"} (Enter)
               </button>
             </div>
             {explain && (
@@ -646,10 +773,10 @@ export function RunnerSummaryView({
                 const expected = ex.kind === "mc" ? ex.options.find((o) => o.id === ex.answer_id)?.text : ex.accepted[0];
                 return (
                   <tr key={ex.id}>
-                    <td style={{ maxWidth: 320 }}>{ex.prompt || ex.audio?.text}</td>
+                    <td style={{ maxWidth: 320 }}><Fr text={ex.prompt || ex.audio?.text || ""} /></td>
                     <td className="xp-muted">{w.answer && !w.answer.startsWith("self:") ? w.answer : "-"}</td>
                     <td>
-                      <b>{expected}</b> {expected && <Speak language="fr" text={expected} label="►" />}
+                      <b><Fr text={expected ?? ""} /></b> {expected && <Speak language="fr" text={expected} label="►" />}
                     </td>
                   </tr>
                 );

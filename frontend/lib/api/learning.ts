@@ -343,6 +343,70 @@ export function listSessions(limit = 5): Promise<StudySession[]> {
 }
 
 // ---------------------------------------------------------------------------
+// attempts: a practice run in progress (resume after quit / reload / detour)
+// ---------------------------------------------------------------------------
+
+export const gradedItemSchema = z.object({
+  exercise_id: z.string(),
+  answer: z.string(),
+  correct: z.boolean(),
+  score: z.number(),
+  time_ms: z.number(),
+});
+export type GradedItemIn = z.infer<typeof gradedItemSchema>;
+
+export const attemptSchema = z.object({
+  id: z.number(),
+  activity_id: z.string(),
+  title: z.string(),
+  format: z.string(),
+  skill: z.string(),
+  sprint: z.number(),
+  session_id: z.number().nullable(),
+  payload: exerciseSetSchema,
+  index: z.number(),
+  total: z.number(),
+  graded: z.array(gradedItemSchema),
+  started_at: z.string(),
+  updated_at: z.string(),
+  finished_at: z.string().nullable(),
+});
+export type Attempt = z.infer<typeof attemptSchema>;
+
+export function listAttempts(): Promise<Attempt[]> {
+  return apiFetch("/language/learning/attempts", z.array(attemptSchema));
+}
+
+export function getAttempt(id: number): Promise<Attempt> {
+  return apiFetch(`/language/learning/attempts/${id}`, attemptSchema);
+}
+
+export function createAttempt(body: {
+  activity_id: string;
+  title?: string;
+  format?: string;
+  skill?: string;
+  sprint: number;
+  session_id?: number | null;
+  payload: ExerciseSet;
+}): Promise<Attempt> {
+  return apiFetch("/language/learning/attempts", attemptSchema, { method: "POST", body: JSON.stringify(body) });
+}
+
+export function updateAttempt(id: number, body: { index: number; graded: GradedItemIn[]; payload?: ExerciseSet }): Promise<Attempt> {
+  return apiFetch(`/language/learning/attempts/${id}`, attemptSchema, { method: "PUT", body: JSON.stringify(body) });
+}
+
+export function finishAttempt(id: number): Promise<Attempt> {
+  return apiFetch(`/language/learning/attempts/${id}/finish`, attemptSchema, { method: "POST" });
+}
+
+export async function discardAttempt(id: number): Promise<void> {
+  const res = await fetch(`${API_URL}/language/learning/attempts/${id}`, { method: "DELETE", credentials: "include" });
+  if (!res.ok) throw new ApiError(res.status, "Could not discard attempt");
+}
+
+// ---------------------------------------------------------------------------
 // mastery tests
 // ---------------------------------------------------------------------------
 
@@ -388,6 +452,7 @@ export const vocabSchema = z.object({
   id: z.number(),
   curriculum_id: z.string().nullable(),
   french: z.string(),
+  display: z.string(),
   spanish: z.string(),
   english: z.string(),
   part_of_speech: z.string(),

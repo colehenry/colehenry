@@ -10,6 +10,7 @@ from fastapi import Depends, HTTPException, Query
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from app.curriculum.articles import noun_display
 from app.curriculum.pronunciation import PRON_TARGETS
 from app.curriculum.sprints import ALL_ACTIVITIES, SPRINT_BY_NUMBER, SPRINTS
 from app.curriculum.verbs import CORE_VERBS
@@ -19,6 +20,7 @@ from app.models import (
     FlashcardDeck,
     FlashcardReview,
     Language,
+    LearningAttempt,
     LearningInterference,
     LearningResult,
     LearningSession,
@@ -28,6 +30,9 @@ from app.models import (
 )
 from app.routers.language.shared import router
 from app.schemas.learning import (
+    AttemptIn,
+    AttemptOut,
+    AttemptProgressIn,
     CompletionIn,
     EncounterIn,
     ExercisesIn,
@@ -69,7 +74,8 @@ def _sprint(db: Session, requested: int | None) -> int:
 
 def _vocab_out(v: LearningVocab) -> VocabOut:
     return VocabOut(
-        id=v.id, curriculum_id=v.curriculum_id, french=v.french, spanish=v.spanish, english=v.english, part_of_speech=v.part_of_speech,
+        id=v.id, curriculum_id=v.curriculum_id, french=v.french, display=noun_display(v.french, v.gender, v.part_of_speech),
+        spanish=v.spanish, english=v.english, part_of_speech=v.part_of_speech,
         gender=v.gender, ipa=v.ipa, sprint=v.sprint, priority=v.priority, status=v.status, frequency_band=v.frequency_band,
         example_fr=v.example_fr, example_es=v.example_es, pattern=v.pattern, spanish_connection=v.spanish_connection,
         pronunciation_warning=v.pronunciation_warning, cognate_type=v.cognate_type, false_friend=v.false_friend,
@@ -351,6 +357,86 @@ def submit_results(body: ResultsIn, db: Session = Depends(get_db)):
                     session.completed_at = datetime.now(timezone.utc)
         db.commit()
     return {"recorded": len(rows)}
+
+
+# ---------------------------------------------------------------------------
+# attempts: a practice run in progress
+# ---------------------------------------------------------------------------
+
+
+def _attempt_out(a: LearningAttempt) -> AttemptOut:
+    return AttemptOut(
+        id=a.id, activity_id=a.activity_id, title=a.title, format=a.format, skill=a.skill, sprint=a.sprint, session_id=a.session_id,
+        payload=a.payload, index=a.index, total=len((a.payload or {}).get("exercises") or []), graded=list(a.graded or []),
+        started_at=a.started_at, updated_at=a.updated_at, finished_at=a.finished_at,
+    )
+
+
+def _open_attempt(db: Session, attempt_id: int) -> LearningAttempt:
+    row = db.get(LearningAttempt, attempt_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Attempt not found")
+    return row
+
+
+@router.get(f"{PREFIX}/attempts", response_model=list[AttemptOut])
+def list_attempts(db: Session = Depends(get_db)):
+    """Unfinished runs, newest first - what the dashboard offers to resume."""
+    rows = db.execute(
+        select(LearningAttempt).where(LearningAttempt.finished_at.is_(None)).order_by(LearningAttempt.updated_at.desc()).limit(10)
+    ).scalars().all()
+    return [_attempt_out(a) for a in rows]
+
+
+@router.post(f"{PREFIX}/attempts", response_model=AttemptOut, status_code=201)
+def create_attempt(body: AttemptIn, db: Session = Depends(get_db)):
+    """Starting an activity replaces any unfinished run of the same activity."""
+    stale = db.execute(
+        select(LearningAttempt).where(LearningAttempt.finished_at.is_(None), LearningAttempt.activity_id == body.activity_id)
+    ).scalars().all()
+    for row in stale:
+        db.delete(row)
+    attempt = LearningAttempt(
+        activity_id=body.activity_id, title=body.title, format=body.format, skill=body.skill, sprint=body.sprint,
+        session_id=body.session_id, payload=body.payload, index=0, graded=[],
+    )
+    db.add(attempt)
+    db.commit()
+    db.refresh(attempt)
+    return _attempt_out(attempt)
+
+
+@router.get(f"{PREFIX}/attempts/{{attempt_id}}", response_model=AttemptOut)
+def get_attempt(attempt_id: int, db: Session = Depends(get_db)):
+    return _attempt_out(_open_attempt(db, attempt_id))
+
+
+@router.put(f"{PREFIX}/attempts/{{attempt_id}}", response_model=AttemptOut)
+def update_attempt(attempt_id: int, body: AttemptProgressIn, db: Session = Depends(get_db)):
+    attempt = _open_attempt(db, attempt_id)
+    attempt.index = body.index
+    attempt.graded = body.graded
+    if body.payload is not None:
+        attempt.payload = body.payload
+    attempt.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(attempt)
+    return _attempt_out(attempt)
+
+
+@router.post(f"{PREFIX}/attempts/{{attempt_id}}/finish", response_model=AttemptOut)
+def finish_attempt(attempt_id: int, db: Session = Depends(get_db)):
+    attempt = _open_attempt(db, attempt_id)
+    attempt.finished_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(attempt)
+    return _attempt_out(attempt)
+
+
+@router.delete(f"{PREFIX}/attempts/{{attempt_id}}", status_code=204)
+def discard_attempt(attempt_id: int, db: Session = Depends(get_db)):
+    db.delete(_open_attempt(db, attempt_id))
+    db.commit()
 
 
 @router.post(f"{PREFIX}/sessions", response_model=SessionOut)

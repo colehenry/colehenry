@@ -50,6 +50,7 @@ Rules (non-negotiable):
 - ~90% of the French must come from the learner's known/learning vocabulary lists supplied. Never add advanced words to practice one target.
 - One primary difficulty per item. Rotate contexts: daily life, work, friends, tech, travel, media, sports, plans, opinions.
 - Where several natural answers exist, list them all in accepted_answers (with and without est-ce que; nous/on; etc.).
+- A French noun on its own is never shown or accepted bare: always with an article that reveals its gender (le/la, un/une; "un ami" not "l'ami").
 - Output ONLY valid JSON matching the requested schema. No prose, no markdown fences."""
 
 FORMAT_SPECS = {

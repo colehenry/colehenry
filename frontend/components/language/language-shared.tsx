@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { fetchSpeechUrl, type Card, type LanguageCode } from "@/lib/api/language";
+import { nounDisplay, splitArticle, splitForms } from "@/lib/french/articles";
 
 /** Shared helpers for the language tool. */
 
@@ -28,6 +29,31 @@ export function genderLabel(gender: string): string {
   if (gender === "m") return "masculine";
   if (gender === "f") return "feminine";
   return gender;
+}
+
+/**
+ * French text with any leading article coloured by gender (blue masculine,
+ * pink feminine). Handles "un ami / une amie" style alternates. Plain text
+ * when nothing leads with an article.
+ */
+export function Fr({ text, className }: { text: string; className?: string }) {
+  const forms = splitForms(text);
+  const parts = forms.map((form) => splitArticle(form));
+  if (!parts.some((part) => part.gender)) return <span className={className}>{text}</span>;
+  return (
+    <span className={className}>
+      {parts.map((part, i) => (
+        <span key={`${part.article}${part.word}${i}`}>
+          {i > 0 && " / "}
+          {part.article && (
+            <span className={`fr-article ${part.gender ? `is-${part.gender}` : ""}`}>{part.article}</span>
+          )}
+          {part.article && !part.article.endsWith("'") ? " " : ""}
+          {part.word}
+        </span>
+      ))}
+    </span>
+  );
 }
 
 const FR_SUBJECTS: Record<string, string> = {
@@ -78,13 +104,19 @@ export function spokenConjugation(
   return phrase;
 }
 
+/** A French noun card shows its article ("la maison"); other text passes through. */
+export function cardFrench(card: Card, text: string): string {
+  if (!card.gender || card.card_type === "cloze" || /\s/.test(text.trim()) || splitArticle(text).article) return text;
+  return nounDisplay(text.trim(), card.gender, "noun");
+}
+
 /** The text TTS should read for a card (full sentence for cloze, else word). */
 export function audioText(card: Card): string {
   if (card.card_type === "cloze" && card.front.includes("___")) {
     return card.front.replace("___", card.back);
   }
-  if (card.direction === "production") return card.back;
-  return card.front;
+  if (card.direction === "production") return cardFrench(card, card.back);
+  return cardFrench(card, card.front);
 }
 
 /** Like audioText, but conjugation drills speak subject + verb ("je suis"). */

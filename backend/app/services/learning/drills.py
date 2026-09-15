@@ -43,6 +43,7 @@ from app.curriculum.sentences import (
 )
 from app.curriculum.sprints import ALL_GRAMMAR
 from app.curriculum.verbs import CORE_VERBS, CORE_VERBS_BY_INF, PERSONS, CoreVerb, verbs_through_sprint
+from app.curriculum.articles import noun_accepted, noun_display, split_forms, strip_article
 from app.curriculum.vocab import VOCAB, VocabItem
 from app.services.learning.grammar import (
     PRODUCTIVE_SUBJECTS,
@@ -91,10 +92,14 @@ def _base(fmt: str, kind: str, sprint: int, skill: str, dims: dict, **kw) -> dic
     return ex
 
 
-def _mc_options(rng: random.Random, correct: str, distractors: list[str], *, audio: bool = False, n: int = 4) -> tuple[list[dict], str]:
+def _mc_options(rng: random.Random, correct: str, distractors: list[str], *, audio: bool = False, n: int = 4,
+                keep_first: bool = False) -> tuple[list[dict], str]:
+    """`keep_first` pins distractors[0] into the option set (the rest are shuffled in)."""
     pool = [d for d in dict.fromkeys(distractors) if d and d != correct]
+    pinned = pool[:1] if keep_first and pool else []
+    pool = pool[len(pinned):]
     rng.shuffle(pool)
-    texts = [correct, *pool[: n - 1]]
+    texts = [correct, *pinned, *pool[: n - 1 - len(pinned)]]
     rng.shuffle(texts)
     options = []
     answer_id = ""
@@ -140,6 +145,28 @@ class PoolItem:
     @property
     def headword(self) -> str:
         return self.french_forms[0]
+
+    @property
+    def is_noun(self) -> bool:
+        return self.pos == "noun" and bool(self.gender)
+
+    @property
+    def display(self) -> str:
+        """What the learner sees and hears: nouns carry their article."""
+        return noun_display(self.french, self.gender, self.pos)
+
+    @property
+    def display_head(self) -> str:
+        return split_forms(self.display)[0]
+
+    @property
+    def bare_head(self) -> str:
+        return strip_article(self.display_head)[1]
+
+    @property
+    def accepted_forms(self) -> list[str]:
+        """Typed answers that count; nouns must include a gender-bearing article."""
+        return noun_accepted(self.french, self.gender, self.pos) or self.french_forms
 
     @property
     def spanish_short(self) -> str:
@@ -199,7 +226,7 @@ def _distractors(rng: random.Random, item: PoolItem, pool: list[PoolItem], attr:
 
 
 def _vocab_explanation(item: PoolItem) -> str:
-    bits = [f"{item.headword} {item.ipa}".strip(), f"= {item.spanish}"]
+    bits = [f"{item.display} {item.ipa}".strip(), f"= {item.spanish}"]
     if item.english:
         bits.append(f"({item.english})")
     if item.example_fr:
@@ -228,7 +255,7 @@ def fr_to_es(rng: random.Random, pool: list[PoolItem], sprint: int, count: int, 
         options, answer = _mc_options(rng, item.spanish_short, [PoolItem.spanish_short.fget(p) for p in _pool_distractors(rng, item, pool)])
         out.append(_base(
             "fr_to_es", "mc", sprint, "vocabulary", {"vocabulary": 1.0}, instructions="→ español",
-            prompt=item.headword, hint=item.ipa, audio=_fr_audio(item.headword), autoplay=True,
+            prompt=item.display, hint=item.ipa, audio=_fr_audio(item.display_head), autoplay=True,
             options=options, answer_id=answer, explanation=_vocab_explanation(item), refs=_vocab_refs(item),
             target_ids=[item.id], meta={"dim": "recognition", "timed": timed},
         ))
@@ -246,15 +273,12 @@ def _pool_distractors(rng: random.Random, item: PoolItem, pool: list[PoolItem], 
 def es_to_fr(rng: random.Random, pool: list[PoolItem], sprint: int, count: int) -> list[dict]:
     out = []
     for item in _weighted_sample(rng, pool, count, "written_production"):
-        hint = ""
-        if item.pos == "noun" and item.gender:
-            hint = "m." if item.gender == "m" else "f."
-        elif item.pos:
-            hint = item.pos
+        hint = "" if item.is_noun else item.pos
         out.append(_base(
             "es_to_fr", "typed", sprint, "vocabulary", {"vocabulary": 0.8, "writing": 0.2}, instructions="→ français",
-            prompt=item.spanish, hint=hint, accepted=item.french_forms, explanation=_vocab_explanation(item),
-            refs=_vocab_refs(item), target_ids=[item.id], difficulty=2, meta={"dim": "written_production", "speak_after": item.headword},
+            prompt=item.spanish_short if item.is_noun else item.spanish, hint=hint, accepted=item.accepted_forms, explanation=_vocab_explanation(item),
+            refs=_vocab_refs(item), target_ids=[item.id], difficulty=2,
+            meta={"dim": "written_production", "speak_after": item.display_head, "article_required": item.is_noun},
         ))
     return out
 
@@ -265,7 +289,7 @@ def audio_recognition(rng: random.Random, pool: list[PoolItem], sprint: int, cou
         options, answer = _mc_options(rng, item.spanish_short, [p.spanish_short for p in _pool_distractors(rng, item, pool)])
         out.append(_base(
             "audio_recognition", "mc", sprint, "listening", {"listening": 0.6, "vocabulary": 0.4}, instructions="Écoute → significado",
-            prompt=item.headword, audio=_fr_audio(item.headword), audio_only=True, autoplay=True,
+            prompt=item.display, audio=_fr_audio(item.display_head), audio_only=True, autoplay=True,
             options=options, answer_id=answer, explanation=_vocab_explanation(item), refs=_vocab_refs(item),
             target_ids=[item.id], meta={"dim": "audio_recognition", "timed": timed},
         ))
@@ -273,7 +297,11 @@ def audio_recognition(rng: random.Random, pool: list[PoolItem], sprint: int, cou
 
 
 def _blank(sentence: str, forms: list[str]) -> tuple[str, str] | None:
-    """Replace the first whole-word occurrence of any form with ___ (case-insensitive)."""
+    """Replace the first whole-word occurrence of any form with ___ (case-insensitive).
+
+    Forms that start with an article swallow it too, so the blank tests
+    gender: "Je suis à la maison." → "Je suis à ___."
+    """
     for form in sorted(forms, key=len, reverse=True):
         if len(form) < 2:
             continue
@@ -284,30 +312,71 @@ def _blank(sentence: str, forms: list[str]) -> tuple[str, str] | None:
     return None
 
 
+def _cloze_forms(item: PoolItem) -> list[str]:
+    """Article-bearing forms first so the blank prefers them; bare forms as fallback."""
+    if not item.is_noun:
+        return item.french_forms
+    articled = [f"{article} {form}" for form in item.french_forms for article in ("le", "la", "l'", "les", "un", "une", "des")]
+    articled = [f.replace("l' ", "l'") for f in articled]
+    return [*articled, *item.french_forms]
+
+
+def _swap_article(answer: str, gender: str) -> str:
+    """The same noun with the wrong-gender article - the sharpest cloze distractor."""
+    article, word = strip_article(answer)
+    if not article or not word:
+        return ""
+    swapped = {"le": "la", "la": "le", "un": "une", "une": "un"}.get(article)
+    return f"{swapped} {word}" if swapped else ""
+
+
 def cloze(rng: random.Random, pool: list[PoolItem], sprint: int, count: int) -> list[dict]:
-    candidates = [p for p in pool if p.example_fr and _blank(p.example_fr, p.french_forms)]
+    candidates = [p for p in pool if p.example_fr and _blank(p.example_fr, _cloze_forms(p))]
     out = []
     for item in _weighted_sample(rng, candidates, count, "contextual_use"):
-        blanked = _blank(item.example_fr, item.french_forms)
+        blanked = _blank(item.example_fr, _cloze_forms(item))
         if not blanked:
             continue
         sentence, answer_form = blanked
-        distractors = [p.headword for p in _pool_distractors(rng, item, candidates, 8) if p.headword.lower() != answer_form.lower()]
-        options, answer = _mc_options(rng, answer_form, distractors)
+        answer_has_article = bool(strip_article(answer_form)[0])
+        distractors = [
+            (p.display_head if answer_has_article else p.headword)
+            for p in _pool_distractors(rng, item, candidates, 8)
+            if p.headword.lower() != item.headword.lower()
+        ]
+        wrong_gender = _swap_article(answer_form, item.gender) if answer_has_article else ""
+        if wrong_gender:
+            distractors = [wrong_gender, *distractors]
+        options, answer = _mc_options(rng, answer_form, distractors, keep_first=bool(wrong_gender))
         out.append(_base(
             "cloze", "mc", sprint, "vocabulary", {"vocabulary": 0.6, "grammar": 0.4}, instructions="Complète",
             prompt=sentence, prompt_es=item.example_es, options=options, answer_id=answer,
             explanation=_vocab_explanation(item), refs=_vocab_refs(item), target_ids=[item.id],
-            meta={"dim": "contextual_use", "speak_after": item.example_fr},
+            meta={"dim": "contextual_use", "speak_after": item.example_fr, "article_required": answer_has_article},
+        ))
+    return out
+
+
+def listen_and_type(rng: random.Random, pool: list[PoolItem], sprint: int, count: int) -> list[dict]:
+    """Hear the bare word, type it with its article - spelling from sound, gender from memory."""
+    out = []
+    for item in _weighted_sample(rng, pool, count, "audio_recognition"):
+        out.append(_base(
+            "dictation", "typed", sprint, "listening", {"listening": 0.5, "vocabulary": 0.5}, instructions="Écoute → écris",
+            prompt=item.display_head, audio=_fr_audio(item.bare_head), audio_only=True, autoplay=True,
+            accepted=item.accepted_forms, explanation=_vocab_explanation(item), refs=_vocab_refs(item), target_ids=[item.id],
+            meta={"dim": "audio_recognition", "dictation": True, "article_required": item.is_noun, "speak_after": item.display_head},
         ))
     return out
 
 
 def vocabulary_lesson(rng: random.Random, pool: list[PoolItem], sprint: int, count: int = 8) -> list[dict]:
-    """One coherent word batch: recognize, hear, use, then produce.
+    """One coherent word batch, each round adding one demand:
 
-    Production is deliberately last, after every word has appeared in two
-    other modes. The shared runner adds one retry round for missed prompts.
+    meet → recognize (MC) → hear & spell with article (typed) → pick it into a
+    sentence frame (MC, article inside the blank) → produce from Spanish (typed).
+    The intro cards are the only place the article is shown before a test.
+    The shared runner adds one retry round for missed prompts.
     """
     unseen = [item for item in pool if item.attempts == 0]
     batch = _weighted_sample(rng, unseen, count, "recognition")
@@ -320,16 +389,16 @@ def vocabulary_lesson(rng: random.Random, pool: list[PoolItem], sprint: int, cou
     introductions = [
         _base(
             "vocab_intro", "intro", sprint, "vocabulary", {},
-            instructions="Meet the words", prompt=item.headword, prompt_es=item.spanish,
-            hint=item.ipa, audio=_fr_audio(item.headword), autoplay=True,
+            instructions="Meet the words", prompt=item.display, prompt_es=item.spanish,
+            hint=item.ipa, audio=_fr_audio(item.display_head), autoplay=True,
             explanation=_vocab_explanation(item), refs=_vocab_refs(item), target_ids=[item.id],
-            group="vocab-lesson", meta={"lesson_stage": "Meet the words"},
+            group="vocab-lesson", meta={"lesson_stage": "Meet the words", "gender": item.gender if item.is_noun else ""},
         )
         for item in batch
     ]
     rounds = [
         ("1 / 4 · Recognize", fr_to_es(rng, batch, sprint, len(batch))),
-        ("2 / 4 · Listen", audio_recognition(rng, batch, sprint, len(batch))),
+        ("2 / 4 · Listen & write", listen_and_type(rng, batch, sprint, len(batch))),
         ("3 / 4 · Use in context", cloze(rng, batch, sprint, len(batch))),
         ("4 / 4 · Produce", es_to_fr(rng, batch, sprint, len(batch))),
     ]
@@ -352,7 +421,7 @@ def audio_comprehension(rng: random.Random, pool: list[PoolItem], sprint: int, c
         out.append(_base(
             "audio_comprehension", "mc", sprint, "listening", {"listening": 1.0}, instructions="Écoute → ¿qué significa?",
             prompt=item.example_fr, audio=_fr_audio(item.example_fr), audio_only=True, autoplay=True,
-            options=options, answer_id=answer, explanation=f"{item.example_fr} — {item.example_es} · {item.headword} = {item.spanish}",
+            options=options, answer_id=answer, explanation=f"{item.example_fr} — {item.example_es} · {item.display} = {item.spanish}",
             refs=_vocab_refs(item), target_ids=[item.id], difficulty=2, meta={"dim": "audio_recognition"},
         ))
     return out
@@ -365,9 +434,9 @@ def dictation(rng: random.Random, pool: list[PoolItem], sprint: int, count: int,
         for item in _weighted_sample(rng, pool, count, "audio_recognition"):
             out.append(_base(
                 "dictation", "typed", sprint, "listening", {"listening": 0.7, "writing": 0.3}, instructions="Dictée · un mot",
-                prompt=item.headword, audio=_fr_audio(item.headword), audio_only=True, autoplay=True,
-                accepted=item.french_forms, explanation=_vocab_explanation(item), refs=_vocab_refs(item), target_ids=[item.id],
-                meta={"dim": "audio_recognition", "dictation": True},
+                prompt=item.display_head, audio=_fr_audio(item.display_head), audio_only=True, autoplay=True,
+                accepted=item.accepted_forms, explanation=_vocab_explanation(item), refs=_vocab_refs(item), target_ids=[item.id],
+                meta={"dim": "audio_recognition", "dictation": True, "article_required": item.is_noun},
             ))
         return out
     if level == 2:

@@ -14,6 +14,7 @@ class VocabOut(BaseModel):
     id: int
     curriculum_id: str | None
     french: str
+    display: str
     spanish: str
     english: str
     part_of_speech: str
@@ -109,6 +110,39 @@ class ResultsIn(BaseModel):
     results: list[ResultIn] = []
     session_id: int | None = None
     completion: CompletionIn | None = None
+
+
+class AttemptIn(BaseModel):
+    activity_id: str
+    title: str = ""
+    format: str = ""
+    skill: str = "grammar"
+    sprint: int = Field(ge=1, le=4)
+    session_id: int | None = None
+    payload: dict[str, Any]
+
+
+class AttemptProgressIn(BaseModel):
+    index: int = Field(ge=0)
+    graded: list[dict[str, Any]]
+    payload: dict[str, Any] | None = None
+
+
+class AttemptOut(BaseModel):
+    id: int
+    activity_id: str
+    title: str
+    format: str
+    skill: str
+    sprint: int
+    session_id: int | None
+    payload: dict[str, Any]
+    index: int
+    total: int
+    graded: list[Any]
+    started_at: datetime
+    updated_at: datetime
+    finished_at: datetime | None
 
 
 class SessionIn(BaseModel):

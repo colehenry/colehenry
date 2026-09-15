@@ -68,8 +68,10 @@ def get_state(db: Session) -> LearningState:
 
 
 def ema(old: float, attempts: int, score: float) -> float:
+    """First evidence on a dimension sets the level outright: a clean first pass
+    clears KNOWN_THRESHOLD, a shaky one does not. Later evidence blends in."""
     if attempts <= 0:
-        return round(0.6 * score + 0.1 * (1 if score >= 0.7 else 0), 3)
+        return round(0.75 * score + 0.1 * (1 if score >= 0.7 else 0), 3)
     return round(old + EMA_ALPHA * (score - old), 3)
 
 
@@ -93,7 +95,8 @@ def apply_vocab_result(row: LearningVocab, dim: str, score: float, when: datetim
     current = getattr(row, dim, None)
     if current is None:
         return
-    setattr(row, dim, ema(current, row.attempts, score))
+    # `attempts` is shared across dimensions; a dimension still at zero has no evidence of its own.
+    setattr(row, dim, ema(current, 0 if current == 0 else row.attempts, score))
     row.attempts += 1
     row.last_seen_at = when
 

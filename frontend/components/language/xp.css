@@ -34,6 +34,10 @@
   --xp-tooltip-text: #1f1f1b;
   --xp-stripe: #f4f3ec;
 
+  /* French noun gender */
+  --fr-m: #1d5fd1;
+  --fr-f: #d6389b;
+
   /* type */
   --xp-font: Tahoma, Verdana, "Segoe UI", sans-serif;
   --xp-doc-font: Georgia, "Times New Roman", serif;
@@ -41,6 +45,8 @@
 }
 
 .dark [data-section="language"] {
+  --fr-m: #7fb6f0;
+  --fr-f: #f08ccb;
   --xp-desktop: #143633;
   --xp-face: #3a3934;
   --xp-face-hi: #55534a;
@@ -1838,4 +1844,139 @@
 }
 .ref-verb td {
   padding: 0 8px 0 0;
+}
+
+
+/* ---- French gender colouring ---------------------------------------- */
+.fr-article {
+  font-weight: 700;
+}
+.fr-article.is-m {
+  color: var(--fr-m);
+}
+.fr-article.is-f {
+  color: var(--fr-f);
+}
+.fr-gender-key {
+  display: inline-flex;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--xp-text-muted);
+}
+.fr-gender-key i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+.fr-gender-key .is-m i {
+  background: var(--fr-m);
+}
+.fr-gender-key .is-f i {
+  background: var(--fr-f);
+}
+
+/* ---- accent bar under typed inputs ---------------------------------- */
+.pr-accents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.pr-accents button {
+  min-width: 30px;
+  height: 28px;
+  padding: 0 6px;
+  font-family: var(--xp-doc-font);
+  font-size: 16px;
+  line-height: 1;
+  border: 1px solid var(--xp-btn-border);
+  background: linear-gradient(var(--xp-btn-a), var(--xp-btn-b));
+  color: var(--xp-text);
+  cursor: pointer;
+}
+.pr-accents button:hover {
+  border-color: var(--xp-select);
+}
+.pr-accents button:active {
+  background: var(--xp-btn-b);
+}
+
+/* ---- runner breadcrumb ---------------------------------------------- */
+.pr-crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--xp-text-muted);
+}
+.pr-crumbs b {
+  color: var(--xp-text);
+}
+.pr-crumbs .xp-link {
+  font-size: 11px;
+}
+.pr-crumbs .is-sep {
+  opacity: 0.6;
+}
+
+/* ---- resumable attempts on the dashboard ---------------------------- */
+.hub-resume {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 6px 8px;
+  border: 1px solid var(--xp-well-border);
+  background: var(--xp-well);
+}
+.hub-resume .hub-bar {
+  flex: 1 1 120px;
+}
+.hub-act .hub-act-partial {
+  display: inline-block;
+  width: 56px;
+  height: 5px;
+  margin-left: 6px;
+  border: 1px solid var(--xp-well-border);
+  background: var(--xp-well);
+  vertical-align: middle;
+}
+.hub-act .hub-act-partial > i {
+  display: block;
+  height: 100%;
+  background: var(--xp-select);
+}
+
+/* ---- reference drawer over a running lesson ------------------------- */
+.xp-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(0, 0, 0, 0.25);
+  border: 0;
+  padding: 0;
+}
+.xp-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 61;
+  width: min(560px, 92vw);
+  display: flex;
+  flex-direction: column;
+  background: var(--xp-face);
+  border-left: 1px solid var(--xp-btn-border);
+  box-shadow: -6px 0 18px rgba(0, 0, 0, 0.25);
+}
+.xp-drawer .xp-titlebar {
+  flex: 0 0 auto;
+}
+.xp-drawer-body {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 8px;
 }

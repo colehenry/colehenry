@@ -19,7 +19,8 @@ import {
   type WikiResult,
 } from "@/lib/api/language";
 import { displayConjugation } from "@/lib/conjugation";
-import { genderLabel, Speak, spokenConjugation } from "./language-shared";
+import { nounDisplay } from "@/lib/french/articles";
+import { Fr, genderLabel, Speak, spokenConjugation } from "./language-shared";
 import { Conjugation } from "./wiki-conjugation";
 import { Pronunciation } from "./wiki-pronunciation";
 import { ES_TENSES, TENSES, personSlotLabel } from "./wiki-tenses";
@@ -357,7 +358,7 @@ function WikiWordPage({
           <span>
             {genderLabel(result.gender)}{" "}
             <span className="xp-muted">
-              ({result.gender === "m" ? "le" : "la"} {result.word})
+              (<Fr text={nounDisplay(result.word, result.gender, "noun")} />)
             </span>
           </span>
         )}

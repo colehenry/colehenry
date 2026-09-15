@@ -29,6 +29,7 @@ from app.models.language import (
     WikiEntry,
 )
 from app.models.learning import (
+    LearningAttempt,
     LearningGenerated,
     LearningInterference,
     LearningResult,
@@ -74,6 +75,7 @@ __all__ = [
     "LanguageLexeme",
     "LanguageText",
     "LanguageTextAnnotation",
+    "LearningAttempt",
     "LearningGenerated",
     "LearningInterference",
     "LearningResult",

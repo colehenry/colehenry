@@ -2,6 +2,7 @@
 
 import random
 
+from app.curriculum.articles import noun_accepted, noun_display, wrong_article
 from app.curriculum.pronunciation import PRON_TARGETS
 from app.curriculum.sentences import FRAMES, FRAMES_BY_ID, REPAIRS
 from app.curriculum.sprints import ALL_ACTIVITIES, ALL_GRAMMAR, SPRINTS
@@ -11,7 +12,8 @@ from app.services.learning import drills
 from app.services.learning.context import allowed_vocabulary, unknown_ratio
 from app.services.learning.grammar import SentenceSpec, accepted_fr, render_es, render_fr, verb_info
 from app.services.learning.llm_learning import _params_hash
-from app.services.learning.text import check_typed, dictation_score, drop_ne, normalize
+from app.services.learning.mastery import KNOWN_THRESHOLD, PRODUCTIVE_THRESHOLD, ema
+from app.services.learning.text import article_issue, check_typed, dictation_score, drop_ne, normalize
 
 
 def spec(fid, **kw):
@@ -211,6 +213,74 @@ def test_vocabulary_lesson_delays_production_and_keeps_one_word_batch():
     targets = {target for exercise in lesson for target in exercise["target_ids"]}
     assert len(targets) == 8
     assert all(exercise["meta"]["retry_missed"] for exercise in lesson[8:])
+
+
+def test_vocabulary_lesson_rounds_alternate_mc_and_typed():
+    rng = random.Random(5)
+    pool = drills.pool_from_curriculum(2, statuses=("core",), only_sprint=True)
+    lesson = drills.vocabulary_lesson(rng, pool, 2, 8)
+    rounds = [exercise for exercise in lesson if exercise["kind"] != "intro"]
+    by_stage: dict[str, set[str]] = {}
+    for exercise in rounds:
+        by_stage.setdefault(exercise["meta"]["lesson_stage"], set()).add(exercise["kind"])
+    assert by_stage == {
+        "1 / 4 · Recognize": {"mc"},
+        "2 / 4 · Listen & write": {"typed"},
+        "3 / 4 · Use in context": {"mc"},
+        "4 / 4 · Produce": {"typed"},
+    }
+    listen = [exercise for exercise in rounds if exercise["meta"]["lesson_stage"].startswith("2")]
+    for exercise in listen:
+        # the audio is the bare word; the article must come from memory
+        assert not any(exercise["audio"]["text"].startswith(f"{article} ") for article in ("le", "la", "un", "une", "les"))
+        if exercise["meta"]["article_required"]:
+            assert all(a.split()[0] in ("le", "la", "un", "une", "les", "des", "l'eau", "l'argent") for a in exercise["accepted"])
+
+
+def test_nouns_always_carry_a_gendered_article():
+    assert noun_display("maison", "f", "noun") == "la maison"
+    assert noun_display("travail", "m", "noun") == "le travail"
+    assert noun_display("heure", "f", "noun") == "une heure"
+    assert noun_display("homme", "m", "noun") == "un homme"
+    assert noun_display("ami / amie", "m", "noun") == "un ami / une amie"
+    assert noun_display("gens", "m", "noun") == "les gens"
+    assert noun_display("dimanche / samedi", "m", "noun") == "le dimanche / le samedi"
+    assert noun_display("bonjour", "", "interj") == "bonjour"
+    assert noun_accepted("maison", "f", "noun") == ["la maison", "une maison"]
+    assert noun_accepted("faim", "f", "noun") == ["la faim"]
+    for item in VOCAB:
+        if item.part_of_speech == "noun":
+            assert item.gender in ("m", "f"), item.id
+            assert noun_display(item.french, item.gender, item.part_of_speech) != item.french, item.id
+
+
+def test_article_grading_flags_missing_and_wrong_gender():
+    assert wrong_article("la maison", "maison") == "missing"
+    assert wrong_article("la maison", "le maison") == "genre"
+    assert wrong_article("la maison", "une maison") == ""
+    assert wrong_article("la maison", "la voiture") == ""
+    assert article_issue("Le Maison", ["la maison", "une maison"]) == "genre"
+    assert not check_typed("maison", ["la maison", "une maison"])["correct"]
+    assert not check_typed("le maison", ["la maison", "une maison"])["correct"]
+    assert check_typed("une maison", ["la maison", "une maison"])["correct"]
+
+
+def test_cloze_blank_swallows_article_and_offers_wrong_gender():
+    rng = random.Random(2)
+    pool = [item for item in drills.pool_from_curriculum(1, only_sprint=True) if item.id == "fr_maison"]
+    [exercise] = drills.cloze(rng, pool, 1, 1)
+    assert exercise["prompt"] == "Je suis à ___."
+    texts = {option["text"] for option in exercise["options"]}
+    assert "la maison" in texts
+    assert "le maison" in texts
+    assert exercise["meta"]["article_required"] is True
+
+
+def test_first_evidence_sets_known_and_productive():
+    assert ema(0.0, 0, 1.0) >= KNOWN_THRESHOLD
+    assert ema(0.0, 0, 1.0) >= PRODUCTIVE_THRESHOLD
+    assert ema(0.0, 0, 0.5) < KNOWN_THRESHOLD
+    assert ema(0.7, 3, 1.0) > 0.7
 
 
 def test_generated_drill_cache_separates_selected_sentences():
