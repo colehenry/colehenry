@@ -179,7 +179,7 @@ function RowGroup({
           <Speak language="fr" text={r.display.split(" / ")[0]} label="►" />
         </td>
         <td style={{ fontWeight: 700 }}>
-          <Fr text={r.display} />
+          <Fr text={r.display} say />
           {r.false_friend && <span title="faux ami"> ⚠</span>}
         </td>
         <td>{r.spanish}</td>

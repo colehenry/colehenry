@@ -9,9 +9,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 
 import { explainFrench, gradeSentence, type Exercise, type ExplainMode, type Grade, type ResultIn } from "@/lib/api/learning";
+import { accentFor, missingAccents } from "@/lib/french/accents";
 import { FRENCH_ACCENTS, articleIssue } from "@/lib/french/articles";
-import { SELF_SCORES, checkTyped, dictationScore, wordDiff, type TypedResult } from "@/lib/french/grading";
+import { SELF_SCORES, checkTyped, dictationScore, normalize, wordDiff, type TypedResult } from "@/lib/french/grading";
 import { Fr, Speak, speakText } from "./language-shared";
+import { RefSectionInline } from "./reference-view";
 
 export type GradedItem = {
   exercise: Exercise;
@@ -37,6 +39,11 @@ export type RunnerProgress = {
   graded: GradedItem[];
 };
 
+type Conjugation = { persons: string[]; fr: string[]; es: string[] };
+function isConjugation(value: unknown): value is Conjugation {
+  return !!value && typeof value === "object" && Array.isArray((value as Conjugation).persons) && Array.isArray((value as Conjugation).fr);
+}
+
 /** Retry copies of the missed items that asked for one (never retries of retries). */
 function missedRetries(all: GradedItem[]): Exercise[] {
   return all
@@ -49,8 +56,16 @@ function missedRetries(all: GradedItem[]): Exercise[] {
     }));
 }
 
-/** Inserts an accented letter at the caret and hands focus back to the input. */
-function AccentBar({ inputRef, onInsert }: { inputRef: React.RefObject<HTMLInputElement | null>; onInsert: (next: string) => void }) {
+/** Inserts an accented letter at the caret and hands focus back to the input; [?] names every mark. */
+function AccentBar({
+  inputRef,
+  onInsert,
+  onHelp,
+}: {
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  onInsert: (next: string) => void;
+  onHelp?: () => void;
+}) {
   return (
     <div className="pr-accents" aria-label="Accents">
       {FRENCH_ACCENTS.map((accent) => (
@@ -58,6 +73,7 @@ function AccentBar({ inputRef, onInsert }: { inputRef: React.RefObject<HTMLInput
           key={accent}
           type="button"
           tabIndex={-1}
+          title={accentFor(accent) ? `${accentFor(accent)!.name} · ${accentFor(accent)!.sound}` : undefined}
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => {
             const input = inputRef.current;
@@ -75,6 +91,11 @@ function AccentBar({ inputRef, onInsert }: { inputRef: React.RefObject<HTMLInput
           {accent}
         </button>
       ))}
+      {onHelp && (
+        <button type="button" tabIndex={-1} title="What each accent is called" onMouseDown={(event) => event.preventDefault()} onClick={onHelp}>
+          ?
+        </button>
+      )}
     </div>
   );
 }
@@ -252,6 +273,11 @@ export function ExerciseRunner({
     mutationFn: (args: { text: string; mode: ExplainMode; context?: string }) => explainFrench(args),
   });
   const [verdict, setVerdict] = useState<Grade | null>(null);
+  // a [ref] clicked in the feedback unfolds that one section below it
+  const [inlineRef, setInlineRef] = useState<string | null>(null);
+  // a missed typed answer must be recopied before moving on
+  const [retype, setRetype] = useState("");
+  const retypeRef = useRef<HTMLInputElement>(null);
   // Free writing: the model grades; without one, fall back to the sample + self-judgement.
   const gradeMutation = useMutation({
     mutationFn: (args: { sentence: string; target: string; sprint: number }) => gradeSentence(args),
@@ -268,6 +294,8 @@ export function ExerciseRunner({
       setRevealed(false);
       setExplain(null);
       setVerdict(null);
+      setInlineRef(null);
+      setRetype("");
       explainMutation.reset();
       gradeMutation.reset();
       if (ex.audio && ex.autoplay) void speakText(ex.audio.language, ex.audio.text);
@@ -410,6 +438,19 @@ export function ExerciseRunner({
     [ex, checked],
   );
 
+  // Retype-to-match: the form the learner should have produced, and whether it has been copied yet.
+  const retypeTarget =
+    ex?.kind === "typed" && checked && checked.score >= 0 && !checked.correct
+      ? (verdict?.corrected?.trim() || checked.detail?.closest || ex.accepted[0] || "")
+      : "";
+  const retypeDone = !retypeTarget || normalize(retype, true) === normalize(retypeTarget, true);
+  const retypeExact = !!retypeTarget && normalize(retype) === normalize(retypeTarget);
+  const canAdvance = !!checked && (checked.score >= 0 || ex?.kind !== "typed") && retypeDone;
+
+  useEffect(() => {
+    if (retypeTarget) window.setTimeout(() => retypeRef.current?.focus(), 30);
+  }, [retypeTarget]);
+
   // keyboard: 1-4 options / ratings, Enter check or next, P play
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -422,7 +463,7 @@ export function ExerciseRunner({
           nextIntro();
         } else if (checked && (checked.score >= 0 || ex.kind !== "typed")) {
           e.preventDefault();
-          next();
+          if (canAdvance) next();
         } else if (ex.kind === "typed" && !checked) {
           e.preventDefault();
           checkTypedAnswer();
@@ -447,9 +488,10 @@ export function ExerciseRunner({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [ex, checked, next, nextIntro, checkTypedAnswer, pickOption, rateSelf, revealed]);
+  }, [ex, checked, next, nextIntro, checkTypedAnswer, pickOption, rateSelf, revealed, canAdvance]);
 
   const progressPct = useMemo(() => (queue.length ? (index / queue.length) * 100 : 0), [index, queue.length]);
+
 
   if (!ex || done) {
     return null;
@@ -511,13 +553,37 @@ export function ExerciseRunner({
         )}
         {showPromptText && ex.kind !== "self" && (
           <div className={`pr-prompt ${ex.prompt.length > 60 ? "is-small" : ""}`} style={{ whiteSpace: "pre-wrap" }}>
-            {ex.audio?.language === "fr" || ex.kind === "intro" || ex.format === "write_sentence" ? <Fr text={ex.prompt} /> : ex.prompt}
+            {ex.audio?.language === "fr" || ex.kind === "intro" || ex.format === "write_sentence" || ex.format === "cloze" ? <Fr text={ex.prompt} say /> : ex.prompt}
           </div>
         )}
         {ex.prompt_es && showPromptText && ex.kind !== "self" && ex.format !== "es_to_fr" && (
           <div className="pr-prompt-es">{ex.prompt_es}</div>
         )}
 
+        {ex.kind === "intro" && isConjugation(ex.meta?.conjugation) && (
+          <table className="xp-listview pr-conj">
+            <tbody>
+              {ex.meta.conjugation.persons.map((person, i) => (
+                <tr key={person}>
+                  <td className="xp-muted">{person}</td>
+                  <td>
+                    <b><Fr text={(ex.meta.conjugation as Conjugation).fr[i]} say /></b>
+                  </td>
+                  <td className="xp-muted">{(ex.meta.conjugation as Conjugation).es[i]}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {ex.kind === "intro" && Array.isArray(ex.meta?.examples) && (ex.meta.examples as { fr: string; es: string }[]).length > 0 && (
+          <div className="mb-2" style={{ fontSize: 13 }}>
+            {(ex.meta.examples as { fr: string; es: string }[]).map((e) => (
+              <div key={e.fr}>
+                <Fr text={e.fr} say /> <span className="xp-muted">- {e.es}</span>
+              </div>
+            ))}
+          </div>
+        )}
         {ex.kind === "intro" && (
           <div className="pr-feedback">
             {typeof ex.meta?.gender === "string" && ex.meta.gender ? (
@@ -549,7 +615,7 @@ export function ExerciseRunner({
                   onClick={() => pickOption(o.id)}
                 >
                   <kbd>{i + 1}</kbd>
-                  <span>{o.audio?.language === "fr" || ex.format === "cloze" ? <Fr text={o.text} /> : o.text}</span>
+                  <span>{o.audio?.language === "fr" || ex.format === "cloze" ? <Fr text={o.text} say={!!checked} /> : o.text}</span>
                   {checked && o.audio && <Speak language={o.audio.language} text={o.audio.text} label="►" />}
                 </button>
               );
@@ -574,7 +640,7 @@ export function ExerciseRunner({
             />
             {!checked && (
               <>
-                <AccentBar inputRef={inputRef} onInsert={setTyped} />
+                <AccentBar inputRef={inputRef} onInsert={setTyped} onHelp={() => setInlineRef((current) => (current === "spelling#accents" ? null : "spelling#accents"))} />
                 <div className="pr-actions">
                   <button type="button" className="xp-btn is-default" disabled={gradeMutation.isPending} onClick={checkTypedAnswer}>
                     {gradeMutation.isPending ? "✦ …" : "Vérifier (Enter)"}
@@ -599,7 +665,7 @@ export function ExerciseRunner({
             )}
             {(!ex.audio_only || revealed) && (
               <div className="pr-prompt is-small" style={{ whiteSpace: "pre-wrap" }}>
-                {ex.prompt}
+                <Fr text={ex.prompt} say />
               </div>
             )}
             {ex.prompt_es && revealed && <div className="pr-prompt-es">{ex.prompt_es}</div>}
@@ -637,7 +703,7 @@ export function ExerciseRunner({
               <ul className="pr-steps" style={{ fontSize: 13 }}>
                 {ex.accepted.slice(0, 4).map((a) => (
                   <li key={a}>
-                    {a} <Speak language="fr" text={a} label="►" />
+                    <Fr text={a} say /> <Speak language="fr" text={a} label="►" />
                   </li>
                 ))}
               </ul>
@@ -659,7 +725,7 @@ export function ExerciseRunner({
                 {checked.correct ? <b className="ok">✓</b> : <b className="ko">✗</b>} {Math.round(verdict.score * 100)}%
                 {verdict.corrected && verdict.corrected.trim() !== typed.trim() && (
                   <div className="mt-1">
-                    <b><Fr text={verdict.corrected} /></b> <Speak language="fr" text={verdict.corrected} label="►" />
+                    <b><Fr text={verdict.corrected} say /></b> <Speak language="fr" text={verdict.corrected} label="►" />
                   </div>
                 )}
                 {verdict.issues.length > 0 && (
@@ -680,20 +746,22 @@ export function ExerciseRunner({
               <div>
                 {checked.correct ? <b className="ok">✓</b> : <b className="ko">✗</b>}{" "}
                 {checked.detail?.exact ? "exact" : ""}
-                {checked.detail?.accentIssue ? "accent : " : ""}
+                {checked.detail?.accentIssue
+                  ? `accent : ${missingAccents(checked.detail.closest || ex.accepted[0] || "", typed).map((m) => `${m.letter} (${m.info.name}, ${m.info.sound})`).join(" · ") || ""} `
+                  : ""}
                 {checked.detail?.neDropped ? "ne omis (oral) : " : ""}
                 {!checked.correct && articleIssue(typed, ex.accepted) === "genre" ? <b className="ko">genre ! </b> : null}
                 {!checked.correct && articleIssue(typed, ex.accepted) === "missing" ? <b className="ko">article manquant : </b> : null}
                 {!checked.correct || !checked.detail?.exact ? (
                   <>
-                    <b><Fr text={ex.accepted[0] ?? ""} /></b> <Speak language="fr" text={ex.accepted[0] ?? ""} label="►" />
+                    <b><Fr text={ex.accepted[0] ?? ""} say /></b> <Speak language="fr" text={ex.accepted[0] ?? ""} label="►" />
                     {ex.accepted.length > 1 && (
                       <span className="xp-muted">
                         {" "}· aussi :{" "}
                         {ex.accepted.slice(1, 3).map((a, i) => (
                           <span key={a}>
                             {i > 0 && " · "}
-                            <Fr text={a} />
+                            <Fr text={a} say />
                           </span>
                         ))}
                       </span>
@@ -713,16 +781,48 @@ export function ExerciseRunner({
             )}
             {ex.kind === "mc" && (
               <div>
-                {checked.correct ? <b className="ok">✓</b> : <b className="ko">✗ → <Fr text={ex.options.find((o) => o.id === ex.answer_id)?.text ?? ""} /></b>}
-                {ex.audio_only && <> · <Fr text={ex.prompt} /></>}
+                {checked.correct ? <b className="ok">✓</b> : <b className="ko">✗ → <Fr text={ex.options.find((o) => o.id === ex.answer_id)?.text ?? ""} say /></b>}
+                {ex.audio_only && <> · <Fr text={ex.prompt} say /></>}
               </div>
             )}
             {ex.kind === "self" && <div>{checked.correct ? <b className="ok">✓</b> : <b className="ko">→ à refaire</b>}</div>}
             {ex.explanation && <div className="mt-1">{ex.explanation}</div>}
             {ex.prompt_es && ex.format === "es_to_fr" ? null : ex.prompt_es && ex.audio_only ? <div className="xp-muted">{ex.prompt_es}</div> : null}
+            {retypeTarget && (
+              <div className="pr-retype">
+                <label className="xp-label mb-0" htmlFor={`retype-${ex.id}`}>
+                  Recopie : <Fr text={retypeTarget} say />
+                </label>
+                <input
+                  id={`retype-${ex.id}`}
+                  ref={retypeRef}
+                  className={`xp-input pr-input ${retypeDone ? "is-ok" : ""}`}
+                  value={retype}
+                  disabled={retypeDone}
+                  autoComplete="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
+                  lang="fr"
+                  placeholder={retypeTarget}
+                  onChange={(e) => setRetype(e.target.value)}
+                />
+                {!retypeDone && <AccentBar inputRef={retypeRef} onInsert={setRetype} />}
+                {retypeDone && !retypeExact && (
+                  <span className="xp-muted" style={{ fontSize: 11 }}>
+                    accent : {missingAccents(retypeTarget, retype).map((m) => `${m.letter} (${m.info.name})`).join(" · ")}
+                  </span>
+                )}
+                {retypeDone && retypeExact && <b className="ok">✓</b>}
+              </div>
+            )}
             <div className="pr-actions">
               {ex.refs.map((r) => (
-                <button key={r.ref} type="button" className="xp-link" onClick={() => onOpenRef?.(r.ref)}>
+                <button
+                  key={r.ref}
+                  type="button"
+                  className={`xp-link ${inlineRef === r.ref ? "is-active" : ""}`}
+                  onClick={() => setInlineRef((current) => (current === r.ref ? null : r.ref))}
+                >
                   [{r.label}]
                 </button>
               ))}
@@ -741,10 +841,11 @@ export function ExerciseRunner({
                   [{mode === "explain" ? "explique" : mode === "compare_es" ? "vs español" : "prononciation"}]
                 </button>
               ))}
-              <button type="button" className="xp-btn is-default" style={{ marginLeft: "auto" }} onClick={next}>
+              <button type="button" className="xp-btn is-default" style={{ marginLeft: "auto" }} disabled={!canAdvance} onClick={next}>
                 {index + 1 >= queue.length ? "Terminer" : "Suivant"} (Enter)
               </button>
             </div>
+            {inlineRef && <RefSectionInline target={inlineRef} onOpenFull={() => onOpenRef?.(inlineRef)} />}
             {explain && (
               <div className="mt-2" style={{ borderTop: "1px dotted var(--xp-face-lo)", paddingTop: 6 }}>
                 {explainMutation.isPending && <span className="xp-muted">✦ …</span>}
@@ -754,11 +855,11 @@ export function ExerciseRunner({
                     <div>{explainMutation.data.explanation}</div>
                     {explainMutation.data.examples.map((e) => (
                       <div key={e.fr} className="mt-1">
-                        <Speak language="fr" text={e.fr} label="►" /> <b>{e.fr}</b> <span className="xp-muted">- {e.es}</span>
+                        <Speak language="fr" text={e.fr} label="►" /> <b><Fr text={e.fr} say /></b> <span className="xp-muted">- {e.es}</span>
                       </div>
                     ))}
                     {explainMutation.data.refs.map((r) => (
-                      <button key={r.ref} type="button" className="xp-link mr-2" onClick={() => onOpenRef?.(r.ref)}>
+                      <button key={r.ref} type="button" className="xp-link mr-2" onClick={() => setInlineRef(r.ref)}>
                         [{r.label}]
                       </button>
                     ))}
@@ -817,10 +918,10 @@ export function RunnerSummaryView({
                 const expected = ex.kind === "mc" ? ex.options.find((o) => o.id === ex.answer_id)?.text : ex.accepted[0];
                 return (
                   <tr key={ex.id}>
-                    <td style={{ maxWidth: 320 }}><Fr text={ex.prompt || ex.audio?.text || ""} /></td>
+                    <td style={{ maxWidth: 320 }}><Fr text={ex.prompt || ex.audio?.text || ""} say={ex.audio?.language !== "es" && ex.format !== "es_to_fr"} /></td>
                     <td className="xp-muted">{w.answer && !w.answer.startsWith("self:") ? w.answer : "-"}</td>
                     <td>
-                      <b><Fr text={expected ?? ""} /></b> {expected && <Speak language="fr" text={expected} label="►" />}
+                      <b><Fr text={expected ?? ""} say /></b> {expected && <Speak language="fr" text={expected} label="►" />}
                     </td>
                   </tr>
                 );

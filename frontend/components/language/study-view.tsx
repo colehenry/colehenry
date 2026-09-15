@@ -285,7 +285,7 @@ export function StudyView({
             ) : (
               <>
                 <p style={{ fontSize: "30px", lineHeight: 1.3 }}>
-                  {cardLanguage === "fr" && card.direction !== "production" ? <Fr text={cardFrench(card, card.front)} /> : card.front}
+                  {cardLanguage === "fr" && card.direction !== "production" ? <Fr text={cardFrench(card, card.front)} say /> : card.front}
                 </p>
                 {/* A production card's audio is the answer. */}
                 {(card.direction !== "production" || revealed) && (
@@ -308,7 +308,7 @@ export function StudyView({
                 style={{ borderColor: "var(--xp-well-border)" }}
               >
                 <p style={{ fontSize: "20px" }}>
-                  {cardLanguage === "fr" && card.direction === "production" ? <Fr text={cardFrench(card, card.back)} /> : card.back}
+                  {cardLanguage === "fr" && card.direction === "production" ? <Fr text={cardFrench(card, card.back)} say /> : card.back}
                   {card.gender && (
                     <span className="xp-muted" style={{ fontSize: "13px" }}>
                       {" "}

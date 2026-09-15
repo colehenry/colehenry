@@ -56,11 +56,12 @@ class Activity:
     params: dict = field(default_factory=dict)
     resource: str = ""  # Resource id for external kind
     dims: dict = field(default_factory=dict)  # mastery effect weights
+    requires: str = ""  # activity to finish first (a gate for the recommender, a hint in the bank - not a lock)
 
     def as_dict(self) -> dict:
         return {"id": self.id, "name": self.name, "skill": self.skill, "minutes": self.minutes, "kind": self.kind,
                 "format": self.format, "target": self.target, "params": self.params, "resource": self.resource,
-                "dims": self.dims}
+                "dims": self.dims, "requires": self.requires}
 
 
 @dataclass(frozen=True)
@@ -216,8 +217,10 @@ S1_ACTIVITIES = (
              params={"count": 10}, dims={"vocabulary": 0.8, "writing": 0.2}),
     Activity("s1_audio", "Audio recognition", "listening", 5, "drill", format="audio_recognition", target="hear → meaning",
              params={"count": 10}, dims={"listening": 0.6, "vocabulary": 0.4}),
+    Activity("s1_verb_intro", "Meet être · avoir · aller · faire", "verbs", 10, "drill", format="verb_intro", target="tables · recognise · fill",
+             params={"count": 4}, dims={"verbs": 1}),
     Activity("s1_verbs", "Verb drill · être/avoir/aller/faire", "verbs", 8, "drill", format="verb_drill", target="je · tu · on · vous",
-             params={"count": 12}, dims={"verbs": 1}),
+             params={"count": 12}, dims={"verbs": 1}, requires="s1_verb_intro"),
     Activity("s1_transform", "Sentence transformations", "grammar", 8, "drill", format="sentence_transform",
              target="negation · question · person", params={"count": 8}, dims={"grammar": 0.6, "verbs": 0.4}),
     Activity("s1_cloze", "Cloze", "vocabulary", 5, "drill", format="cloze", target="glue words", params={"count": 10},
@@ -302,10 +305,12 @@ S2_ACTIVITIES = (
              target="modal + infinitif", params={"count": 2, "sprint": 2}, dims={"grammar": 0.5, "verbs": 0.3, "writing": 0.2}),
     Activity("s2_futur", "Futur proche", "grammar", 5, "drill", format="sentence_transform", target="aller + infinitif",
              params={"count": 8, "sprint": 2, "transformations": ["tense_futur_proche"]}, dims={"grammar": 1}),
+    Activity("s2_verb_intro", "Meet the S2 verbs", "verbs", 10, "drill", format="verb_intro", target="4 weakest of 8 · tables · fill",
+             params={"count": 4}, dims={"verbs": 1}),
     Activity("s2_verbs", "Verb drill · modals + -er", "verbs", 8, "drill", format="verb_drill", target="8 new verbs",
-             params={"count": 14, "sprint": 2}, dims={"verbs": 1}),
+             params={"count": 14, "sprint": 2}, dims={"verbs": 1}, requires="s2_verb_intro"),
     Activity("s2_er", "Regular -er", "verbs", 5, "drill", format="verb_drill", target="parler · penser · aimer",
-             params={"count": 10, "sprint": 2, "group": "er"}, dims={"verbs": 1}),
+             params={"count": 10, "sprint": 2, "group": "er"}, dims={"verbs": 1}, requires="s2_verb_intro"),
     Activity("s2_vocab_lesson", "Learn 8 core words", "vocabulary", 15, "drill", format="vocab_lesson", target="recognize · listen · context · produce",
              params={"count": 8, "only_sprint_vocab": True}, dims={"vocabulary": 1}),
     Activity("s2_fr_es", "French → Spanish", "vocabulary", 5, "drill", format="fr_to_es", target="Sprint 2 core",
@@ -397,9 +402,11 @@ S3_ACTIVITIES = (
     Activity("s3_pc", "Passé composé transforms", "grammar", 8, "drill", format="sentence_transform", target="présent → passé composé",
              params={"count": 10, "sprint": 3, "transformations": ["tense_passe_compose"]}, dims={"grammar": 0.6, "verbs": 0.4}),
     Activity("s3_participles", "Participles · core verbs", "verbs", 5, "drill", format="verb_drill", target="fait · vu · pris",
-             params={"count": 12, "sprint": 3, "tense": "passe_compose"}, dims={"verbs": 1}),
+             params={"count": 12, "sprint": 3, "tense": "passe_compose"}, dims={"verbs": 1}, requires="s3_verb_intro"),
+    Activity("s3_verb_intro", "Meet the S3 verbs", "verbs", 10, "drill", format="verb_intro", target="4 weakest of 10 · tables · fill",
+             params={"count": 4}, dims={"verbs": 1}),
     Activity("s3_verbs", "Verb drill · 10 new verbs", "verbs", 8, "drill", format="verb_drill", target="venir · prendre · voir …",
-             params={"count": 14, "sprint": 3}, dims={"verbs": 1}),
+             params={"count": 14, "sprint": 3}, dims={"verbs": 1}, requires="s3_verb_intro"),
     Activity("s3_venir_de", "venir de + infinitif", "grammar", 5, "drill", format="translation_ladder", target="acabo de …",
              params={"count": 2, "sprint": 3, "family": "venir_de"}, dims={"grammar": 1}),
     Activity("s3_pronouns", "Object pronouns", "grammar", 5, "drill", format="sentence_transform", target="le / la / les",
@@ -492,9 +499,11 @@ S4_ACTIVITIES = (
     Activity("s4_ladder", "Translation ladder · mixed", "grammar", 8, "drill", format="translation_ladder", target="3 tenses",
              params={"count": 3, "sprint": 4}, dims={"grammar": 0.5, "verbs": 0.3, "writing": 0.2}),
     Activity("s4_verbs", "Verb drill · all 32", "verbs", 8, "drill", format="verb_drill", target="mixed persons & tenses",
-             params={"count": 16, "sprint": 4, "mixed": True}, dims={"verbs": 1}),
+             params={"count": 16, "sprint": 4, "mixed": True}, dims={"verbs": 1}, requires="s4_verb_intro"),
+    Activity("s4_verb_intro", "Meet the S4 verbs", "verbs", 10, "drill", format="verb_intro", target="4 weakest of 10 · tables · fill",
+             params={"count": 4}, dims={"verbs": 1}),
     Activity("s4_new_verbs", "Verb drill · S4 verbs", "verbs", 5, "drill", format="verb_drill", target="vivre · partir · finir …",
-             params={"count": 12, "sprint": 4, "only_sprint": True}, dims={"verbs": 1}),
+             params={"count": 12, "sprint": 4, "only_sprint": True}, dims={"verbs": 1}, requires="s4_verb_intro"),
     Activity("s4_vocab_lesson", "Learn 8 core words", "vocabulary", 15, "drill", format="vocab_lesson", target="recognize · listen · context · produce",
              params={"count": 8, "only_sprint_vocab": True}, dims={"vocabulary": 1}),
     Activity("s4_speed", "Speed recognition", "vocabulary", 5, "drill", format="fr_to_es", target="all core, timed",

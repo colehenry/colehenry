@@ -146,7 +146,7 @@ def test_builders_produce_valid_shapes():
     for batch in batches:
         assert batch, "empty batch"
         for ex in batch:
-            assert ex["kind"] in ("mc", "typed", "self")
+            assert ex["kind"] in ("mc", "typed", "self", "intro")
             assert ex["prompt"] or ex["audio"]
             if ex["kind"] == "mc":
                 ids = [o["id"] for o in ex["options"]]
@@ -154,6 +154,37 @@ def test_builders_produce_valid_shapes():
             if ex["kind"] == "typed":
                 assert ex["accepted"] and all(a.strip() for a in ex["accepted"])
             assert ex["target_ids"]
+
+
+def test_verb_intro_teaches_before_testing_and_gates_the_drill():
+    rng = random.Random(4)
+    lesson = drills.verb_intro(rng, 1, 4)
+    intros = [e for e in lesson if e["kind"] == "intro"]
+    assert [e["prompt"] for e in intros] == ["être", "avoir", "aller", "faire"]
+    table = intros[0]["meta"]["conjugation"]
+    assert table["fr"][0] == "je suis" and table["es"][0] == "yo soy" and len(table["persons"]) == 6
+    kinds = [e["kind"] for e in lesson]
+    assert kinds[:4] == ["intro"] * 4 and "mc" in kinds and "typed" in kinds
+    assert kinds.index("typed") > max(i for i, k in enumerate(kinds) if k == "mc")  # recognise before produce
+    typed = [e for e in lesson if e["kind"] == "typed"]
+    assert all(e["accepted"] and "___" in e["prompt"] for e in typed)
+    for s in SPRINTS:
+        intro = ALL_ACTIVITIES[f"s{s.number}_verb_intro"]
+        drills_gated = [a for a in s.activities if a.format == "verb_drill"]
+        assert drills_gated and all(a.requires == intro.id for a in drills_gated), s.number
+
+
+def test_sound_drills_open_with_glossed_warmup():
+    rng = random.Random(3)
+    ex = drills.pronunciation_for(rng, "y_vs_u", 1, 6)
+    warm = [e for e in ex if e["kind"] == "intro"]
+    quiz = [e for e in ex if e["kind"] == "mc"]
+    assert len(warm) == drills.WARMUP_ITEMS and len(quiz) == 6
+    assert all(e["meta"]["warmup"] and " / " in e["audio"]["text"] for e in warm)
+    assert all("=" in e["explanation"] for e in warm + quiz)  # every word carries its meaning
+    assert all(o["audio"] for e in quiz for o in e["options"])
+    # held-back test banks stay unglossed-by-warmup: no intros in unseen mode
+    assert all(e["kind"] == "mc" for e in drills.pronunciation_for(rng, "y_vs_u", 1, 4, unseen=True))
 
 
 def test_transform_targets_mark_grammar_and_verbs():

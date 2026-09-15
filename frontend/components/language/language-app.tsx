@@ -95,7 +95,7 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
   const [wikiExpanded, setWikiExpanded] = useState(true);
   const [wikiQuery, setWikiQuery] = useState<WikiQuery | null>(null);
   const [studyInit, setStudyInit] = useState<StudyInit>({ key: 0 });
-  // A running lesson keeps its place: references open in a drawer over it instead of navigating away.
+  // A running lesson keeps its place: full sheets open in a dialog over it instead of navigating away.
   const [runningActivity, setRunningActivity] = useState<string | null>(null);
   const [drawerRef, setDrawerRef] = useState<string | null>(null);
   const onRunningChange = useCallback((id: string | null) => setRunningActivity(id), []);
@@ -225,7 +225,7 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
     setRefTarget(ref);
     goWiki("references");
   };
-  // From inside a running lesson: same sheet, but as a drawer so the lesson stays mounted.
+  // From inside a running lesson: same sheet, but as a dialog so the lesson stays mounted.
   const goRefFromPractice = (ref: string) => {
     if (section === "practice" && runningActivity) {
       setDrawerRef(ref);
@@ -785,19 +785,17 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
 
       {drawerRef && !readOnly && (
         <>
-          <button type="button" aria-label="Close reference" className="xp-drawer-backdrop cursor-default" onClick={() => setDrawerRef(null)} />
-          <aside className="xp-drawer" role="dialog" aria-label="Reference">
+          <button type="button" aria-label="Back to lesson" className="xp-dialog-backdrop cursor-default" onClick={() => setDrawerRef(null)} />
+          <div className="xp-dialog is-wide" role="dialog" aria-label="Reference">
             <div className="xp-titlebar">
               <span className="xp-title-text">Reference</span>
-              <button type="button" className="xp-link" style={{ color: "var(--xp-title-text)" }} onClick={() => { const ref = drawerRef; setDrawerRef(null); goRef(ref); }}>
-                [open in wiki]
-              </button>
               <button type="button" className="xp-caption-btn is-close" aria-label="Back to lesson" onClick={() => setDrawerRef(null)}>
                 ×
               </button>
             </div>
-            <div className="xp-drawer-body">
+            <div className="xp-dialog-body">
               <ReferenceView
+                embedded
                 target={drawerRef}
                 onOpenVerb={(inf) => { setDrawerRef(null); goConjugation(inf); }}
                 onPractice={(format, targets) => {
@@ -807,11 +805,14 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
               />
             </div>
             <div className="xp-dialog-buttons">
+              <button type="button" className="xp-link" onClick={() => { const ref = drawerRef; setDrawerRef(null); goRef(ref); }}>
+                [open in wiki]
+              </button>
               <button type="button" className="xp-btn is-default" onClick={() => setDrawerRef(null)}>
                 ← Back to lesson
               </button>
             </div>
-          </aside>
+          </div>
         </>
       )}
 

@@ -36,12 +36,25 @@ export function genderLabel(gender: string): string {
  * pink feminine). Handles "un ami / une amie" style alternates. Plain text
  * when nothing leads with an article.
  */
-export function Fr({ text, className }: { text: string; className?: string }) {
+export function Fr({ text, className, say = false }: { text: string; className?: string; say?: boolean }) {
   const forms = splitForms(text);
   const parts = forms.map((form) => splitArticle(form));
-  if (!parts.some((part) => part.gender)) return <span className={className}>{text}</span>;
+  // `say`: the text itself is the play button - every alternate ("un ami / une amie") is spoken in turn
+  const sayProps = say
+    ? {
+        role: "button" as const,
+        tabIndex: -1,
+        title: "► écouter",
+        onClick: (event: React.MouseEvent) => {
+          event.stopPropagation();
+          void speakText("fr", text);
+        },
+      }
+    : {};
+  const cls = [className, say ? "fr-say" : ""].filter(Boolean).join(" ") || undefined;
+  if (!parts.some((part) => part.gender)) return <span className={cls} {...sayProps}>{text}</span>;
   return (
-    <span className={className}>
+    <span className={cls} {...sayProps}>
       {parts.map((part, i) => (
         <span key={`${part.article}${part.word}${i}`}>
           {i > 0 && " / "}
@@ -128,18 +141,28 @@ export function cardSpeechText(card: Card): string {
   return audioText(card);
 }
 
-export function playAudio(url: string) {
-  if (!url) return;
-  void new Audio(url).play().catch(() => {});
+/** Plays a clip; resolves when it ends (or fails) so clips can be chained. */
+export function playAudio(url: string): Promise<void> {
+  if (!url) return Promise.resolve();
+  return new Promise((resolve) => {
+    const audio = new Audio(url);
+    audio.onended = () => resolve();
+    audio.onerror = () => resolve();
+    audio.play().catch(() => resolve());
+  });
 }
 
-function browserSpeak(language: LanguageCode, text: string) {
-  if (typeof window === "undefined" || !window.speechSynthesis) return;
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = language === "fr" ? "fr-FR" : "es-ES";
-  utterance.rate = 0.9;
-  window.speechSynthesis.cancel();
-  window.speechSynthesis.speak(utterance);
+function browserSpeak(language: LanguageCode, text: string): Promise<void> {
+  if (typeof window === "undefined" || !window.speechSynthesis) return Promise.resolve();
+  return new Promise((resolve) => {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = language === "fr" ? "fr-FR" : "es-ES";
+    utterance.rate = 0.9;
+    utterance.onend = () => resolve();
+    utterance.onerror = () => resolve();
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  });
 }
 
 // One URL per (language, text) per page load; "" = server TTS unavailable.
@@ -158,7 +181,16 @@ export async function speakText(
   text = text.trim();
   if (!text) return;
   if (knownUrl) {
-    playAudio(knownUrl);
+    await playAudio(knownUrl);
+    return;
+  }
+  // "un ami / une amie" - alternates are spoken one after the other
+  const forms = splitForms(text);
+  if (forms.length > 1) {
+    for (const form of forms) {
+      await speakText(language, form);
+      await new Promise((resolve) => window.setTimeout(resolve, 250));
+    }
     return;
   }
   const key = `${language}:${text}`;
@@ -169,9 +201,9 @@ export async function speakText(
   }
   const url = await pending;
   if (url) {
-    playAudio(url);
+    await playAudio(url);
   } else {
-    browserSpeak(language, text);
+    await browserSpeak(language, text);
   }
 }
 

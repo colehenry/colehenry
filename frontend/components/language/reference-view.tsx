@@ -26,14 +26,40 @@ function joinSubject(p: string, form: string): string {
   return `${subj} ${form}`;
 }
 
+/**
+ * One section, standalone - what a lesson shows under its feedback when the
+ * learner clicks a [ref]. Dynamic sheets (verb atlas, interference log) only
+ * offer the full view.
+ */
+export function RefSectionInline({ target, onOpenFull }: { target: string; onOpenFull: () => void }) {
+  const { sheet: sheetId, section: sectionId } = parseRef(target);
+  const sheet = SHEET_BY_ID[sheetId];
+  const section = sheet?.sections.find((s) => s.id === sectionId) ?? sheet?.sections[0];
+  return (
+    <div className="ref-inline">
+      {sheet && section ? (
+        <SectionBlock sheetId={sheet.id} section={section} highlight={false} />
+      ) : (
+        <p className="xp-muted">{sheet ? sheet.title : target}</p>
+      )}
+      <button type="button" className="xp-link" onClick={onOpenFull}>
+        [open full sheet{sheet ? ` · ${sheet.title}` : ""}]
+      </button>
+    </div>
+  );
+}
+
 export function ReferenceView({
   target,
   onOpenVerb,
   onPractice,
+  embedded = false,
 }: {
   target: string | null; // "sheet#section"
   onOpenVerb: (infinitive: string) => void;
   onPractice: (format: string, targets: string[]) => void;
+  /** Dialog mode: sheet picker as a dropdown instead of the side list. */
+  embedded?: boolean;
 }) {
   const initial = target ? parseRef(target) : { sheet: "pronunciation", section: "" };
   const [sheetId, setSheetId] = useState(initial.sheet in SHEET_BY_ID ? initial.sheet : "pronunciation");
@@ -72,8 +98,47 @@ export function ReferenceView({
     return out;
   }, [query]);
 
+  const sectionIndex = sheet.sections.findIndex((s) => s.id === section);
+  const step = (delta: number) => {
+    const next = sheet.sections[(sectionIndex < 0 ? 0 : sectionIndex) + delta];
+    if (next) setSection(next.id);
+  };
+
   return (
-    <div className="ref-layout">
+    <div className={embedded ? "ref-embedded" : "ref-layout"}>
+      {embedded ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            className="xp-select"
+            aria-label="Sheet"
+            value={sheetId}
+            onChange={(e) => {
+              setSheetId(e.target.value);
+              setSection("");
+              setQ("");
+            }}
+          >
+            {REFERENCE_SHEETS.map((s, i) => (
+              <option key={s.id} value={s.id}>
+                {String(i + 1).padStart(2, "0")} {s.title}
+              </option>
+            ))}
+          </select>
+          {sheet.sections.length > 0 && (
+            <select className="xp-select" aria-label="Section" value={section} onChange={(e) => setSection(e.target.value)}>
+              <option value="">all sections</option>
+              {sheet.sections.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.title}
+                </option>
+              ))}
+            </select>
+          )}
+          <button type="button" className="xp-btn is-small" disabled={sectionIndex <= 0} onClick={() => step(-1)}>‹</button>
+          <button type="button" className="xp-btn is-small" disabled={sectionIndex < 0 || sectionIndex >= sheet.sections.length - 1} onClick={() => step(1)}>›</button>
+          <input className="xp-input" style={{ width: 160, marginLeft: "auto" }} placeholder="search all sheets" value={q} onChange={(e) => setQ(e.target.value)} />
+        </div>
+      ) : (
       <div className="xp-well ref-list" style={{ padding: 4, alignSelf: "start" }}>
         <input className="xp-input mb-1" placeholder="search all sheets" value={q} onChange={(e) => setQ(e.target.value)} />
         {REFERENCE_SHEETS.map((s, i) => (
@@ -94,6 +159,7 @@ export function ReferenceView({
           </button>
         ))}
       </div>
+      )}
 
       <div className="flex min-w-0 flex-col gap-3">
         {query ? (
@@ -111,7 +177,7 @@ export function ReferenceView({
             <div className="hub-header">
               <h2>{sheet.title}</h2>
               <span className="xp-muted">{sheet.blurb}</span>
-              {sheet.sections.length > 0 && (
+              {sheet.sections.length > 0 && !embedded && (
                 <span className="ml-auto flex flex-wrap gap-1">
                   {sheet.sections.map((s) => (
                     <button key={s.id} type="button" className={`hub-chip ${s.id === section ? "is-active" : ""}`} onClick={() => setSection(s.id)}>

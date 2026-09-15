@@ -301,6 +301,9 @@ def build_exercises(db: Session, body: ExercisesIn) -> dict:
         ex = drills.sentence_transform(rng, sprint, count, transformations=params.get("transformations"), timed=bool(params.get("timed")))
     elif fmt == "translation_ladder":
         ex = drills.translation_ladder(rng, sprint, count, family=params.get("family"))
+    elif fmt == "verb_intro":
+        ex = drills.verb_intro(rng, sprint, int(params.get("count") or body.count or 4), verbs=params.get("verbs") or body.targets or None,
+                               only_sprint=params.get("only_sprint", True), verb_mastery=verb_mastery_map(db))
     elif fmt == "verb_drill":
         ex = drills.verb_drill(rng, sprint, count, tense=params.get("tense"), group=params.get("group"), only_sprint=bool(params.get("only_sprint")),
                                mixed=bool(params.get("mixed")), verbs=params.get("verbs") or body.targets or None, verb_mastery=verb_mastery_map(db))
@@ -308,7 +311,7 @@ def build_exercises(db: Session, body: ExercisesIn) -> dict:
         target = params.get("target") or (body.targets[0] if body.targets else None)
         if not target:
             raise HTTPException(status_code=400, detail="pronunciation target required")
-        ex = drills.pronunciation_for(rng, target, sprint, count, unseen=bool(params.get("unseen")), extra=params.get("extra"))
+        ex = drills.pronunciation_for(rng, target, sprint, count, unseen=bool(params.get("unseen")), extra=params.get("extra"), pool=pool)
     elif fmt == "timed_fluency":
         ex = drills.timed_fluency(rng, sprint, count, timed=bool(params.get("timed")), pool=pool)
     elif fmt == "self_task":

@@ -509,9 +509,9 @@ export function DecksView({
               {cards.data?.map((card) => (
                 <tr key={card.id}>
                   <td style={{ fontWeight: 700 }}>
-                    {card.direction === "production" ? card.front : <Fr text={cardFrench(card, card.front)} />}
+                    {card.direction === "production" ? card.front : <Fr text={cardFrench(card, card.front)} say />}
                   </td>
-                  <td>{card.direction === "production" ? <Fr text={cardFrench(card, card.back)} /> : card.back}</td>
+                  <td>{card.direction === "production" ? <Fr text={cardFrench(card, card.back)} say /> : card.back}</td>
                   <td className="xp-muted">{card.state}</td>
                   <td>
                     {card.gender && (

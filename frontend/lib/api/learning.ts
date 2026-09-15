@@ -54,6 +54,7 @@ export const activitySchema = z.object({
   params: z.record(z.string(), z.unknown()),
   resource: z.string(),
   dims: z.record(z.string(), z.number()),
+  requires: z.string().optional(),
 });
 export type Activity = z.infer<typeof activitySchema>;
 

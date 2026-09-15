@@ -1877,6 +1877,14 @@
   background: var(--fr-f);
 }
 
+.fr-say {
+  cursor: pointer;
+  border-bottom: 1px dotted transparent;
+}
+.fr-say:hover {
+  border-bottom-color: var(--xp-link);
+}
+
 /* ---- accent bar under typed inputs ---------------------------------- */
 .pr-accents {
   display: flex;
@@ -1895,6 +1903,23 @@
   background: linear-gradient(var(--xp-btn-a), var(--xp-btn-b));
   color: var(--xp-text);
   cursor: pointer;
+}
+.pr-retype {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dotted var(--xp-face-lo);
+}
+.pr-retype .pr-input {
+  margin-top: 0;
+  flex: 1 1 220px;
+  font-size: 16px;
+}
+.pr-retype .pr-input.is-ok {
+  border-color: #2e7b76;
 }
 .pr-accents button:hover {
   border-color: var(--xp-select);
@@ -1950,33 +1975,44 @@
   background: var(--xp-select);
 }
 
-/* ---- reference drawer over a running lesson ------------------------- */
-.xp-drawer-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  background: rgba(0, 0, 0, 0.25);
-  border: 0;
-  padding: 0;
-}
-.xp-drawer {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 61;
-  width: min(560px, 92vw);
+
+.ref-embedded {
   display: flex;
   flex-direction: column;
-  background: var(--xp-face);
-  border-left: 1px solid var(--xp-btn-border);
-  box-shadow: -6px 0 18px rgba(0, 0, 0, 0.25);
+  gap: 10px;
 }
-.xp-drawer .xp-titlebar {
-  flex: 0 0 auto;
+.ref-inline {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--xp-face-lo);
+  background: var(--xp-well);
+  font-size: 12px;
 }
-.xp-drawer-body {
-  flex: 1 1 auto;
+.ref-inline .ref-section h3 {
+  font-size: 13px;
+  margin-top: 0;
+}
+.xp-dialog.is-wide {
+  width: min(760px, 94vw);
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+}
+.xp-dialog.is-wide .xp-dialog-body {
   overflow: auto;
-  padding: 8px;
+  flex: 1 1 auto;
+}
+
+.pr-conj {
+  margin-bottom: 10px;
+  font-size: 15px;
+}
+.pr-conj td {
+  padding: 3px 10px 3px 0;
+}
+.hub-chip.is-hint {
+  margin-left: 6px;
+  font-size: 10px;
+  padding: 0 6px;
+  opacity: 0.8;
 }

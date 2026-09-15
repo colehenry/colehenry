@@ -66,6 +66,7 @@ const FORMATS: { id: string; label: string; llm?: boolean; needsTarget?: string 
   { id: "audio_comprehension", label: "Audio comprehension" },
   { id: "cloze", label: "Cloze", llm: true },
   { id: "context_choice", label: "Vocabulary in context (AI)", llm: true },
+  { id: "verb_intro", label: "Meet the verbs (tables → recognise → fill)" },
   { id: "verb_drill", label: "Verb drill" },
   { id: "dictation", label: "Dictation" },
   { id: "pronunciation_ab", label: "Sound discrimination", needsTarget: "pron" },
@@ -344,7 +345,7 @@ export function PracticeView({
           onProgress={onProgress}
           resume={resume}
           autoAdvanceMs={effectiveSet.exercises[0]?.meta?.timed ? 600 : 0}
-          retryMissed={effectiveSet.format === "vocab_lesson"}
+          retryMissed={effectiveSet.format === "vocab_lesson" || effectiveSet.format === "verb_intro"}
         />
       );
     }
@@ -514,7 +515,7 @@ export function PracticeView({
         onProgress={onProgress}
         resume={resume}
         autoAdvanceMs={effectiveSet.exercises[0]?.meta?.timed ? 600 : 0}
-        retryMissed={effectiveSet.format === "vocab_lesson"}
+        retryMissed={effectiveSet.format === "vocab_lesson" || effectiveSet.format === "verb_intro"}
       />
     );
   }

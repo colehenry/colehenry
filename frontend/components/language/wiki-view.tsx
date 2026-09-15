@@ -358,7 +358,7 @@ function WikiWordPage({
           <span>
             {genderLabel(result.gender)}{" "}
             <span className="xp-muted">
-              (<Fr text={nounDisplay(result.word, result.gender, "noun")} />)
+              (<Fr text={nounDisplay(result.word, result.gender, "noun")} say />)
             </span>
           </span>
         )}

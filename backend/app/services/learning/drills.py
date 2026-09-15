@@ -27,7 +27,7 @@ import uuid
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 
-from app.curriculum.pronunciation import PRON_BY_ID, PronTarget
+from app.curriculum.pronunciation import PRON_BY_ID, PronTarget, glossed
 from app.curriculum.sentences import (
     COGNATE_PARAGRAPH,
     DIALOGUES,
@@ -265,7 +265,7 @@ def fr_to_es(rng: random.Random, pool: list[PoolItem], sprint: int, count: int, 
         options, answer = _mc_options(rng, item.spanish_short, [PoolItem.spanish_short.fget(p) for p in _pool_distractors(rng, item, pool)])
         out.append(_base(
             "fr_to_es", "mc", sprint, "vocabulary", {"vocabulary": 1.0}, instructions="→ español",
-            prompt=item.display, hint=item.ipa, audio=_fr_audio(item.display_head), autoplay=True,
+            prompt=item.display, hint=item.ipa, audio=_fr_audio(item.display), autoplay=True,
             options=options, answer_id=answer, explanation=_vocab_explanation(item), refs=_vocab_refs(item),
             target_ids=[item.id], meta={"dim": "recognition", "timed": timed},
         ))
@@ -401,7 +401,7 @@ def vocabulary_lesson(rng: random.Random, pool: list[PoolItem], sprint: int, cou
         _base(
             "vocab_intro", "intro", sprint, "vocabulary", {},
             instructions="Meet the words", prompt=item.display, prompt_es=item.spanish,
-            hint=item.ipa, audio=_fr_audio(item.display_head), autoplay=True,
+            hint=item.ipa, audio=_fr_audio(item.display), autoplay=True,
             explanation=_vocab_explanation(item), refs=_vocab_refs(item), target_ids=[item.id],
             group="vocab-lesson", meta={"lesson_stage": "Meet the words", "gender": item.gender if item.is_noun else ""},
         )
@@ -705,6 +705,77 @@ def translation_ladder(rng: random.Random, sprint: int, count: int, *, family: s
 
 PERSON_WEIGHTS = {"1s": 3, "2s": 3, "on": 3, "2p": 2, "3s": 1.5, "3sf": 1.5, "1p": 1, "3p": 1.5}
 
+FR_SUBJECT = {"1s": "je", "2s": "tu", "3s": "il", "1p": "nous", "2p": "vous", "3p": "ils"}
+FR_SUBJECT_LABEL = {"1s": "je", "2s": "tu", "3s": "il / elle / on", "1p": "nous", "2p": "vous", "3p": "ils / elles"}
+ES_SUBJECT = {"1s": "yo", "2s": "tú", "3s": "él / ella", "1p": "nosotros", "2p": "vosotros", "3p": "ellos"}
+INTRO_PERSON_WEIGHTS = {"1s": 3, "2s": 3, "3s": 2, "1p": 1, "2p": 2, "3p": 2}
+
+
+def _fr_conjugated(person: str, form: str) -> str:
+    subject = FR_SUBJECT[person]
+    if subject == "je" and re.match(r"^[aeiouyàâäéèêëîïôöùûüh]", form, re.IGNORECASE):
+        return f"j'{form}"
+    return f"{subject} {form}"
+
+
+def verb_intro(rng: random.Random, sprint: int, count: int = 4, *, verbs: list[str] | None = None, only_sprint: bool = True,
+               verb_mastery: dict[str, float] | None = None) -> list[dict]:
+    """Meet the verbs before drilling them: the full present table per verb,
+    then recognise the form from its Spanish, then fill two cells from memory.
+    Weakest verbs first; `count` verbs per run."""
+    if verbs:
+        cv = [CORE_VERBS_BY_INF[v] for v in verbs if v in CORE_VERBS_BY_INF]
+    else:
+        cv = [v for v in CORE_VERBS if v.sprint == sprint] if only_sprint else verbs_through_sprint(sprint)
+    mastery = verb_mastery or {}
+    cv = sorted(cv, key=lambda v: mastery.get(v.infinitive, 0.0))[:count]
+    if not cv:
+        return []
+    out: list[dict] = []
+    for v in cv:
+        table = {
+            "persons": [FR_SUBJECT_LABEL[p] for p in PERSONS],
+            "fr": [_fr_conjugated(p, v.form(p)) for p in PERSONS],
+            "es": [f"{ES_SUBJECT[p]} {v.es_form(p)}" for p in PERSONS],
+        }
+        notes = " · ".join(bit for bit in (v.pronunciation, v.notes) if bit)
+        out.append(_base(
+            "verb_intro", "intro", sprint, "verbs", {}, instructions="Meet the verb", prompt=v.infinitive, prompt_es=v.spanish,
+            hint=v.ipa, audio=_fr_audio(v.infinitive), autoplay=True, explanation=notes,
+            refs=[ref_link(f"core-verbs#{v.infinitive}")], target_ids=[f"verb:{v.infinitive}"], group="verb-intro",
+            meta={"lesson_stage": "Meet the verbs", "conjugation": table, "examples": [{"fr": fr, "es": es} for fr, es in v.examples[:2]]},
+        ))
+    persons = list(INTRO_PERSON_WEIGHTS)
+    weights = [INTRO_PERSON_WEIGHTS[p] for p in persons]
+    # recognise: Spanish form → the French one, among this verb's other persons and another verb's same person
+    for v in cv:
+        for person in rng.sample(persons, 2):
+            correct = _fr_conjugated(person, v.form(person))
+            others = [_fr_conjugated(p, v.form(p)) for p in PERSONS if p != person]
+            rng.shuffle(others)
+            cross = [_fr_conjugated(person, o.form(person)) for o in cv if o is not v]
+            distractors = [*others[:2], *(rng.sample(cross, 1) if cross else others[2:3])]
+            options, answer = _mc_options(rng, correct, distractors)
+            out.append(_base(
+                "verb_intro", "mc", sprint, "verbs", {"verbs": 1.0}, instructions="1 / 2 · Reconnaître",
+                prompt=f"{ES_SUBJECT[person]} {v.es_form(person)}", hint=v.infinitive, options=options, answer_id=answer,
+                explanation=f"{v.infinitive} = {v.spanish} · {correct} — {notes}"[:300], refs=[ref_link(f"core-verbs#{v.infinitive}")],
+                target_ids=[f"verb:{v.infinitive}"], group="verb-intro",
+                meta={"lesson_stage": "1 / 2 · Reconnaître", "speak_after": correct, "retry_missed": True},
+            ))
+    # produce: the cell from memory
+    for v in cv:
+        for person in rng.choices(persons, weights=weights, k=2):
+            form = v.form(person)
+            out.append(_base(
+                "verb_intro", "typed", sprint, "verbs", {"verbs": 1.0}, instructions="2 / 2 · Compléter",
+                prompt=f"{FR_SUBJECT[person]} ___ ({v.infinitive})",
+                prompt_es=f"{ES_SUBJECT[person]} {v.es_form(person)}", accepted=[form], explanation=f"{_fr_conjugated(person, form)} — {notes}"[:300],
+                refs=[ref_link(f"core-verbs#{v.infinitive}")], target_ids=[f"verb:{v.infinitive}"], group="verb-intro", difficulty=2,
+                meta={"lesson_stage": "2 / 2 · Compléter", "speak_after": _fr_conjugated(person, form), "retry_missed": True},
+            ))
+    return out
+
 
 def verb_drill(rng: random.Random, sprint: int, count: int, *, tense: str | None = None, group: str | None = None,
                only_sprint: bool = False, mixed: bool = False, verbs: list[str] | None = None,
@@ -791,37 +862,72 @@ def verb_drill(rng: random.Random, sprint: int, count: int, *, tense: str | None
 # ---------------------------------------------------------------------------
 
 
-def pronunciation_ab(rng: random.Random, target: PronTarget, sprint: int, count: int, *, unseen: bool = False) -> list[dict]:
+WARMUP_ITEMS = 4
+
+
+def _pair_warmup(rng: random.Random, target: PronTarget, sprint: int, groups: list[tuple[str, ...]], fmt: str) -> list[dict]:
+    """Listen-and-compare cards before the quiz: every word played in turn with
+    its meaning, nothing to answer. The learner meets the words, then gets tested."""
+    out = []
+    for group in groups[:WARMUP_ITEMS]:
+        out.append(_base(
+            fmt, "intro", sprint, "pronunciation", {}, instructions=f"{target.label} · écoute et compare",
+            prompt=" / ".join(group), audio=_fr_audio(" / ".join(group)), autoplay=True,
+            explanation=" · ".join(f"{glossed(w)} {s}".strip() for w, s in zip(group, target.sounds or [""] * len(group))) + f" — {target.note}",
+            refs=[ref_link(target.ref)], target_ids=[f"pron:{target.id}"], meta={"warmup": True, "compare": list(group)},
+        ))
+    return out
+
+
+def _prefer_known(rng: random.Random, groups: list[tuple[str, ...]], pool: list[PoolItem] | None) -> list[tuple[str, ...]]:
+    """Pairs made of words the learner already has come first (weighted, not exclusive)."""
+    if not pool:
+        rng.shuffle(groups)
+        return groups
+    known = {form.lower() for item in pool for form in item.french_forms}
+    weights = [1.0 + 2.0 * sum(w.lower() in known for w in group) for group in groups]
+    ordered: list[tuple[str, ...]] = []
+    remaining = list(groups)
+    while remaining:
+        pick = rng.choices(range(len(remaining)), weights=[weights[groups.index(g)] for g in remaining], k=1)[0]
+        ordered.append(remaining.pop(pick))
+    return ordered
+
+
+def pronunciation_ab(rng: random.Random, target: PronTarget, sprint: int, count: int, *, unseen: bool = False,
+                     pool: list[PoolItem] | None = None, warmup: bool = True) -> list[dict]:
     pairs = list(target.unseen_pairs if unseen else target.pairs)
     if unseen and rng.random() < 0.3 and target.pairs:
         pairs += rng.sample(list(target.pairs), min(2, len(target.pairs)))
-    out = []
+    pairs = _prefer_known(rng, pairs, pool)
+    out = _pair_warmup(rng, target, sprint, pairs, "pronunciation_ab") if warmup and not unseen else []
     for i in range(count):
         a, b = pairs[i % len(pairs)] if i < len(pairs) else rng.choice(pairs)
         played = rng.choice([a, b])
-        options = [{"id": "a", "text": a, "audio": None}, {"id": "b", "text": b, "audio": None}]
+        options = [{"id": "a", "text": a, "audio": _fr_audio(a)}, {"id": "b", "text": b, "audio": _fr_audio(b)}]
         out.append(_base(
             "pronunciation_ab", "mc", sprint, "pronunciation", {"pronunciation": 1.0}, instructions=f"{target.label} · ¿cuál oyes?",
             prompt=played, audio=_fr_audio(played), audio_only=True, autoplay=True, options=options,
             answer_id="a" if played == a else "b",
-            explanation=f"{a} {target.sounds[0] if target.sounds else ''} · {b} {target.sounds[1] if len(target.sounds) > 1 else ''} — {target.note}",
+            explanation=f"{glossed(a)} {target.sounds[0] if target.sounds else ''} · {glossed(b)} {target.sounds[1] if len(target.sounds) > 1 else ''} — {target.note}",
             refs=[ref_link(target.ref)], target_ids=[f"pron:{target.id}"], meta={"unseen": unseen, "compare": [a, b]},
         ))
     return out
 
 
-def pronunciation_3way(rng: random.Random, target: PronTarget, sprint: int, count: int, *, unseen: bool = False) -> list[dict]:
-    triads = list(target.unseen_triads if unseen else target.triads)
-    out = []
+def pronunciation_3way(rng: random.Random, target: PronTarget, sprint: int, count: int, *, unseen: bool = False,
+                       pool: list[PoolItem] | None = None, warmup: bool = True) -> list[dict]:
+    triads = _prefer_known(rng, list(target.unseen_triads if unseen else target.triads), pool)
+    out = _pair_warmup(rng, target, sprint, triads, "pronunciation_odd") if warmup and not unseen else []
     for i in range(count):
         triad = triads[i % len(triads)] if i < len(triads) else rng.choice(triads)
         played = rng.choice(triad)
-        options = [{"id": "abc"[j], "text": w, "audio": None} for j, w in enumerate(triad)]
+        options = [{"id": "abc"[j], "text": w, "audio": _fr_audio(w)} for j, w in enumerate(triad)]
         out.append(_base(
             "pronunciation_odd", "mc", sprint, "pronunciation", {"pronunciation": 1.0}, instructions=f"{target.label} · ¿cuál oyes?",
             prompt=played, audio=_fr_audio(played), audio_only=True, autoplay=True, options=options,
             answer_id="abc"[triad.index(played)],
-            explanation=" · ".join(f"{w} {s}" for w, s in zip(triad, target.sounds)) + f" — {target.note}",
+            explanation=" · ".join(f"{glossed(w)} {s}" for w, s in zip(triad, target.sounds)) + f" — {target.note}",
             refs=[ref_link(target.ref)], target_ids=[f"pron:{target.id}"], meta={"unseen": unseen, "compare": list(triad)},
         ))
     return out
@@ -857,7 +963,7 @@ def liaison(rng: random.Random, target: PronTarget, sprint: int, count: int, *, 
             out.append(_base(
                 "liaison", "mc", sprint, "listening", {"listening": 1.0}, instructions="À l'oral → à l'écrit",
                 prompt=spoken, audio=_fr_audio(spoken), audio_only=True, autoplay=True, options=options, answer_id=answer,
-                explanation=f"« {spoken} » = {careful} — {target.note}", refs=[ref_link(target.ref)],
+                explanation=f"« {spoken} » = {careful} ({glossed(careful).split(' = ')[-1]}) — {target.note}", refs=[ref_link(target.ref)],
                 target_ids=[f"pron:{target.id}"], meta={"unseen": unseen},
             ))
         return out
@@ -866,7 +972,7 @@ def liaison(rng: random.Random, target: PronTarget, sprint: int, count: int, *, 
         out.append(_base(
             "liaison", "mc", sprint, "pronunciation", {"pronunciation": 0.6, "listening": 0.4}, instructions="Liaison ?",
             prompt=phrase, audio=_fr_audio(phrase), autoplay=True, options=options, answer_id="a" if label == "liaison" else "b",
-            explanation=f"{phrase}: {label} — {target.note}", refs=[ref_link(target.ref)], target_ids=[f"pron:{target.id}"],
+            explanation=f"{glossed(phrase)}: {label} — {target.note}", refs=[ref_link(target.ref)], target_ids=[f"pron:{target.id}"],
             meta={"unseen": unseen, "speak_after": phrase},
         ))
     return out
@@ -886,12 +992,13 @@ def read_aloud(rng: random.Random, target: PronTarget, sprint: int, count: int, 
     return out
 
 
-def pronunciation_for(rng: random.Random, target_id: str, sprint: int, count: int, *, unseen: bool = False, extra: list[str] | None = None) -> list[dict]:
+def pronunciation_for(rng: random.Random, target_id: str, sprint: int, count: int, *, unseen: bool = False, extra: list[str] | None = None,
+                      pool: list[PoolItem] | None = None) -> list[dict]:
     target = PRON_BY_ID[target_id]
     if target.kind == "ab":
-        return pronunciation_ab(rng, target, sprint, count, unseen=unseen)
+        return pronunciation_ab(rng, target, sprint, count, unseen=unseen, pool=pool)
     if target.kind == "odd":
-        return pronunciation_3way(rng, target, sprint, count, unseen=unseen)
+        return pronunciation_3way(rng, target, sprint, count, unseen=unseen, pool=pool)
     if target.kind == "grapheme":
         return grapheme(rng, target, sprint, count, unseen=unseen, extra=extra)
     if target.kind == "liaison":

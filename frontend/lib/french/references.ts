@@ -224,6 +224,19 @@ export const REFERENCE_SHEETS: RefSheet[] = [
         ],
       },
       {
+        id: "accents", title: "Accents - names and jobs", note: "An accent is part of the spelling: été ≠ ete. Only é/è/ê change the sound; the rest tell words apart or mark a lost letter.",
+        columns: ["Mark", "Name", "On", "Sound", "Job", "Hear"], speak: 5,
+        rows: [
+          ["´", "accent aigu", "é", "/e/", "closed e (Spanish 'café')", "été · café · parlé"],
+          ["`", "accent grave", "è · à · ù", "è = /ɛ/", "open e; on a/u only distinguishes words (a/à, ou/où)", "mère · très · où"],
+          ["^", "accent circonflexe", "â ê î ô û", "ê /ɛ/ · ô /o/", "a lost s: forêt ← forest, hôpital ← hospital", "être · fête · hôtel"],
+          ["¨", "tréma", "ë · ï · ü", "split", "read the vowels apart: na-ïf", "naïf · Noël · maïs"],
+          ["¸", "cédille", "ç", "/s/", "soft c before a / o / u", "ça · français · garçon"],
+          ["œ", "e dans l'o", "œ", "/ø/ /œ/", "one letter, sounds like eu", "œuf · sœur · cœur"],
+          ["'", "apostrophe (élision)", "l' j' n' qu'", "-", "vowel dropped before a vowel: le ami → l'ami", "l'eau · j'ai"],
+        ],
+      },
+      {
         id: "endings", title: "Endings", columns: ["Ending", "Sound", "Hear"], speak: 2,
         rows: [
           ["-tion", "/sjɔ̃/", "question · situation"],
