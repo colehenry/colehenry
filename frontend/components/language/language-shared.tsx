@@ -126,7 +126,8 @@ const FR_SUBJECTS: Record<string, string> = {
 
 /** "je" + "aime" → "j'aime"; "il/elle" → "il" for speech. */
 export function joinSubject(person: string, form: string): string {
-  const subject = person.startsWith("ils") ? "ils" : person.startsWith("il") ? "il" : person;
+  const personLabel = FR_SUBJECTS[person] ?? person;
+  const subject = personLabel.startsWith("ils") ? "ils" : personLabel.startsWith("il") ? "il" : personLabel;
   if (subject === "je" && /^[aeiouyàâäéèêëîïôöùûüh]/i.test(form)) {
     return `j'${form}`;
   }

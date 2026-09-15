@@ -1,16 +1,6 @@
 "use client";
 
-/**
- * Renders one tutor reply: markdown plus the inline tags from the output
- * contract (context/tutor_plan.md):
- *   [[fr:…]] / [[fr-slow:…]]  French with a play button (slow = 0.7× TTS)
- *   [[ref:sheet#section]]     link into the reference library
- *   [[activity:id]]           link into practice
- *   [[vocab:mot]]             curriculum word chip
- *   [[new:mot]]               word outside the learner's set
- * Tags are rewritten to `tutor://kind/…` links before markdown so they stream
- * naturally and survive bold/lists; the link renderer does the rest.
- */
+/** Renders tutor Markdown, its inline application tags, and known verbs. */
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -76,7 +66,7 @@ function prettyRef(id: string) {
 
 /** `[[kind:id|label]]` → `[label](tutor://kind/<encoded id>)`. */
 export function tagsToLinks(markdown: string): string {
-  return markdown.replace(TAG_RE, (_m, kind: string, id: string, label?: string) => {
+  return markdown.replace(TAG_RE, (_match, kind: string, id: string, label?: string) => {
     const text = (label && label.trim()) || (kind === "ref" ? prettyRef(id.trim()) : id.trim());
     const safe = text.replace(/[[\]]/g, "");
     return `[${safe}](tutor://${kind}/${encodeURIComponent(id.trim())})`;
@@ -90,7 +80,7 @@ function FrSpan({ text, slow, children }: { text: string; slow: boolean; childre
       role="button"
       tabIndex={-1}
       className={`tutor-fr ${slow ? "is-slow" : ""} ${busy ? "is-busy" : ""}`}
-      title={slow ? "► écouter lentement" : "► écouter"}
+      aria-label={slow ? `Écouter lentement ${text}` : `Écouter ${text}`}
       onClick={async (event) => {
         event.stopPropagation();
         if (busy) return;
@@ -127,45 +117,25 @@ function TagLink({ href, children }: { href?: string; children?: React.ReactNode
   switch (kind) {
     case "fr":
     case "fr-slow":
-      return (
-        <FrSpan text={id} slow={kind === "fr-slow"}>
-          {children}
-        </FrSpan>
-      );
+      return <FrSpan text={id} slow={kind === "fr-slow"}>{children}</FrSpan>;
     case "verb":
-      return (
-        <FrSpan text={id} slow={false}>
-          {children}
-        </FrSpan>
-      );
+      return <FrSpan text={id} slow={false}>{children}</FrSpan>;
     case "ref":
       return (
-        <button type="button" className="xp-link tutor-ref" title={id} onClick={() => tutor?.onOpenRef?.(id)}>
+        <button type="button" className="xp-link tutor-ref" aria-label={`Abrir referencia ${id}`} onClick={() => tutor?.onOpenRef?.(id)}>
           [{children}]
         </button>
       );
     case "activity":
       return (
-        <button type="button" className="xp-link tutor-activity" title={id} onClick={() => tutor?.onOpenActivity?.(id)}>
+        <button type="button" className="xp-link tutor-activity" aria-label={`Abrir actividad ${id}`} onClick={() => tutor?.onOpenActivity?.(id)}>
           [▶ {children}]
         </button>
       );
     case "vocab":
-      return (
-        <VerbHover verb={id}>
-          <span className="tutor-vocab" title="en tu vocabulario">
-            {children}
-          </span>
-        </VerbHover>
-      );
+      return <VerbHover verb={id}><span className="tutor-vocab">{children}</span></VerbHover>;
     case "new":
-      return (
-        <VerbHover verb={id}>
-          <span className="tutor-new" title="todavía no está en tu vocabulario">
-            {children}
-          </span>
-        </VerbHover>
-      );
+      return <VerbHover verb={id}><span className="tutor-new">{children}</span></VerbHover>;
     default:
       return <span>{children}</span>;
   }

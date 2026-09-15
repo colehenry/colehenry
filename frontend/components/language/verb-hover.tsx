@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 
 import { getVerb, listVerbs } from "@/lib/api/language";
-import { joinSubject, speakText } from "@/components/language/language-shared";
+import { speakText, spokenConjugation } from "@/components/language/language-shared";
 
 export type VerbPreviewForm = { person: string; form: string };
 
@@ -19,6 +19,12 @@ const PERSON_LABELS: Record<string, string> = {
 };
 
 const CARD_WIDTH = 300;
+
+function previewLabel(person: string, form: string): string {
+  const spoken = spokenConjugation(person, form, "indicatif");
+  if (person === "1s" && spoken.startsWith("j'")) return spoken.replace("'", "’");
+  return `${PERSON_LABELS[person] ?? person} ${form}`;
+}
 
 /** Delayed, compact present-tense preview for an already-visible infinitive. */
 export function VerbHover({
@@ -121,17 +127,16 @@ export function VerbHover({
             <span className="verb-hover-grid">
               {preview.map((row) => (
                 <span key={`${row.person}-${row.form}`}>
-                  <i>{PERSON_LABELS[row.person] ?? row.person}</i>
                   <button
                     type="button"
                     className="xp-link verb-hover-form"
-                    title={`► ${joinSubject(row.person, row.form)}`}
+                    aria-label={`Écouter ${spokenConjugation(row.person, row.form, "indicatif")}`}
                     onClick={(event) => {
                       event.stopPropagation();
-                      void speakText("fr", joinSubject(row.person, row.form));
+                      void speakText("fr", spokenConjugation(row.person, row.form, "indicatif"));
                     }}
                   >
-                    {row.form}
+                    {previewLabel(row.person, row.form)}
                   </button>
                 </span>
               ))}
