@@ -141,13 +141,23 @@ export function DashboardView({
             <span className="hub-count">{target.done} / {target.total}</span>
           </div>
         )}
-        {dimension === "vocabulary" && (
-          <div className="hub-progress-item">
-            <span>{progress.vocab.productive >= progress.vocab.total ? "✓" : "○"}</span>
-            <span>Productive words</span>
-            <span className="hub-count">{progress.vocab.productive} / {progress.vocab.total}</span>
-          </div>
-        )}
+        {dimension === "vocabulary" &&
+          (
+            [
+              ["Productive words", progress.vocab.productive],
+              ["Heard & spelled", progress.vocab.heard],
+              ["Used in context", progress.vocab.in_context],
+              ["Spoken", progress.vocab.spoken],
+            ] as [string, number | undefined][]
+          )
+            .filter((entry): entry is [string, number] => entry[1] != null)
+            .map(([label, value]) => (
+              <div key={label} className="hub-progress-item">
+                <span>{value >= progress.vocab.total && progress.vocab.total > 0 ? "✓" : "○"}</span>
+                <span>{label}</span>
+                <span className="hub-count">{value} / {progress.vocab.total}</span>
+              </div>
+            ))}
         {learned.map((item) => (
           <button
             key={item.id}

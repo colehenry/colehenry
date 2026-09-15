@@ -211,9 +211,48 @@ def test_vocabulary_lesson_delays_production_and_keeps_one_word_batch():
     assert [exercise["kind"] for exercise in lesson[:8]] == ["intro"] * 8
     assert all(exercise["format"] != "es_to_fr" for exercise in lesson[:-8])
     assert lesson[-1]["format"] == "es_to_fr"
-    targets = {target for exercise in lesson for target in exercise["target_ids"]}
+    targets = {target for exercise in lesson for target in exercise["target_ids"] if target.startswith("fr_")}
     assert len(targets) == 8
     assert all(exercise["meta"]["retry_missed"] for exercise in lesson[8:])
+
+
+def test_every_productive_grammar_pattern_has_a_drill_that_evidences_it():
+    """Progress bars only move on accuracy for patterns some drill tags; a pattern
+    nothing emits is a bar that can never fill."""
+    from app.curriculum.sentences import REPAIRS
+    from app.services.learning.drills import PoolItem
+
+    rng = random.Random(9)
+    for s in SPRINTS:
+        n = s.number
+        pool = drills.pool_from_curriculum(n)
+        emitted: set[str] = set()
+        for _ in range(40):
+            for exercises in (
+                drills.sentence_transform(rng, n, 12), drills.translation_ladder(rng, n, 3, family="venir_de" if n == 3 else None),
+                drills.error_repair(rng, n, len(REPAIRS)), drills.verb_drill(rng, n, 10), drills.cloze(rng, pool, n, 40),
+                drills.timed_fluency(rng, n, 12, pool=pool),
+            ):
+                for exercise in exercises:
+                    emitted.update(exercise["target_ids"])
+        expected = {g.id for g in s.grammar if not g.recognition_only} - {"adjective_position"}
+        missing = sorted(expected - emitted)
+        assert not missing, f"S{n}: {missing}"
+    # S1 pronunciation target folded into another activity still gets its own evidence
+    ex = drills.pronunciation_for(rng, "silent_finals", 1, 40, extra=["final_ent"])
+    assert {"pron:silent_finals", "pron:final_ent"} <= {t for e in ex for t in e["target_ids"]}
+
+
+def test_recently_seen_words_are_damped():
+    from dataclasses import replace as dc_replace
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime(2026, 9, 15, 12, tzinfo=timezone.utc)
+    pool = drills.pool_from_curriculum(1, only_sprint=True)[:2]
+    fresh = dc_replace(pool[0], mastery={"recognition": 0.5}, attempts=3, last_seen_at=now - timedelta(hours=1))
+    rested = dc_replace(pool[1], mastery={"recognition": 0.5}, attempts=3, last_seen_at=now - timedelta(days=1))
+    picks = [drills._weighted_sample(random.Random(i), [fresh, rested], 1, "recognition", now)[0].id for i in range(200)]
+    assert picks.count(rested.id) > picks.count(fresh.id) * 2
 
 
 def test_vocabulary_lesson_rounds_alternate_mc_and_typed():

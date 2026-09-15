@@ -579,3 +579,53 @@ ALL_GRAMMAR: dict[str, GrammarTarget] = {g.id: g for s in SPRINTS for g in s.gra
 
 def grammar_through_sprint(sprint: int) -> list[GrammarTarget]:
     return [g for s in SPRINTS if s.number <= sprint for g in s.grammar]
+
+
+# ---------------------------------------------------------------------------
+# evidence routing: how drills that do not name a grammar pattern still credit one
+# ---------------------------------------------------------------------------
+
+# vocabulary item → the pattern a cloze on that item exercises
+GRAMMAR_BY_VOCAB: dict[str, str] = {
+    "fr_c_est": "cest",
+    "fr_il_y_a": "il_y_a",
+    "fr_mon": "possessives", "fr_ton": "possessives", "fr_son": "possessives", "fr_notre_votre": "possessives",
+    "fr_au": "contractions", "fr_du": "contractions",
+    "fr_chez": "prepositions_places", "fr_a": "prepositions_places", "fr_de": "prepositions_places",
+    "fr_le_la_les": "articles", "fr_un_une_des": "articles",
+    "fr_puis": "sequencing", "fr_apres": "sequencing", "fr_donc": "sequencing", "fr_d_abord": "sequencing", "fr_enfin": "sequencing",
+    "fr_parce_que": "reasons_opinions", "fr_je_pense_que": "reasons_opinions",
+    "fr_depuis": "depuis_pendant", "fr_pendant": "depuis_pendant",
+    "fr_on": "on_we",
+}
+
+# sprint-4 consolidation patterns are the earlier ones seen again; a sprint-4 drill credits both
+CONSOLIDATES: dict[str, str] = {
+    "questions_yesno": "questions_all", "questions_stronger": "questions_all", "question_words": "questions_all",
+    "negation": "negation_all", "negation_modals": "negation_all",
+    "object_pronouns_1": "object_pronouns_2",
+    "futur_proche": "tense_mixing", "passe_compose_avoir": "tense_mixing", "passe_compose_etre": "tense_mixing", "present_core4": "tense_mixing",
+    "articles": "articles_prepositions", "contractions": "articles_prepositions", "prepositions_places": "articles_prepositions",
+    "aimer_article": "articles_prepositions",
+    "gender_agreement": "agreement", "adjective_position": "agreement",
+}
+
+# reference sheet → pattern, for interference repairs (exact anchor first, then the sheet)
+GRAMMAR_BY_REF: dict[str, str] = {}
+for _grammar in ALL_GRAMMAR.values():
+    GRAMMAR_BY_REF.setdefault(_grammar.ref, _grammar.id)
+
+
+def grammar_for_ref(ref: str) -> str | None:
+    if ref in GRAMMAR_BY_REF:
+        return GRAMMAR_BY_REF[ref]
+    sheet = ref.split("#")[0]
+    return GRAMMAR_BY_REF.get(sheet)
+
+
+def with_consolidation(ids: list[str], sprint: int) -> list[str]:
+    """At sprint 4 every earlier pattern also evidences its consolidation pattern."""
+    if sprint < 4:
+        return ids
+    extra = [CONSOLIDATES[i] for i in ids if i in CONSOLIDATES]
+    return list(dict.fromkeys([*ids, *extra]))

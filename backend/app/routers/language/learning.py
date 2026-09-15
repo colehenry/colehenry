@@ -310,7 +310,7 @@ def build_exercises(db: Session, body: ExercisesIn) -> dict:
             raise HTTPException(status_code=400, detail="pronunciation target required")
         ex = drills.pronunciation_for(rng, target, sprint, count, unseen=bool(params.get("unseen")), extra=params.get("extra"))
     elif fmt == "timed_fluency":
-        ex = drills.timed_fluency(rng, sprint, count, timed=bool(params.get("timed")))
+        ex = drills.timed_fluency(rng, sprint, count, timed=bool(params.get("timed")), pool=pool)
     elif fmt == "self_task":
         ex = drills.self_task(params.get("task", "self_intro"), sprint)
     elif fmt == "error_repair":

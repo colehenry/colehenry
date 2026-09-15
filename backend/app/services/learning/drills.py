@@ -42,7 +42,7 @@ from app.curriculum.sentences import (
     TIME_ES,
     Frame,
 )
-from app.curriculum.sprints import ALL_GRAMMAR
+from app.curriculum.sprints import ALL_GRAMMAR, GRAMMAR_BY_VOCAB, grammar_for_ref, with_consolidation
 from app.curriculum.verbs import CORE_VERBS, CORE_VERBS_BY_INF, PERSONS, CoreVerb, verbs_through_sprint
 from app.curriculum.articles import noun_accepted, noun_display, split_forms, strip_article
 from app.curriculum.vocab import VOCAB, VocabItem
@@ -189,10 +189,16 @@ def pool_item_from_vocab(i: VocabItem) -> PoolItem:
     )
 
 
-def _weighted_sample(rng: random.Random, items: list[PoolItem], k: int, dim: str) -> list[PoolItem]:
-    """Weakest-first, but random: weight = (1 - mastery) + small floor, boosted for unseen."""
+SEEN_RECENTLY = timedelta(hours=12)
+
+
+def _weighted_sample(rng: random.Random, items: list[PoolItem], k: int, dim: str, now: datetime | None = None) -> list[PoolItem]:
+    """Weakest-first, but random: weight = (1 - mastery) + small floor, boosted
+    for unseen, damped for words already served in the last half day so a
+    re-run of the same drill reaches for different words."""
     if not items:
         return []
+    now = now or datetime.now(timezone.utc)
     k = min(k, len(items))
     weights = []
     for it in items:
@@ -202,6 +208,8 @@ def _weighted_sample(rng: random.Random, items: list[PoolItem], k: int, dim: str
             w += 0.5
         if it.priority == 1:
             w += 0.2
+        if it.last_seen_at is not None and now - it.last_seen_at < SEEN_RECENTLY:
+            w *= 0.35
         weights.append(w)
     chosen: list[PoolItem] = []
     pool = list(items)
@@ -353,7 +361,8 @@ def cloze(rng: random.Random, pool: list[PoolItem], sprint: int, count: int) -> 
         out.append(_base(
             "cloze", "mc", sprint, "vocabulary", {"vocabulary": 0.6, "grammar": 0.4}, instructions="Complète",
             prompt=sentence, prompt_es=item.example_es, options=options, answer_id=answer,
-            explanation=_vocab_explanation(item), refs=_vocab_refs(item), target_ids=[item.id],
+            explanation=_vocab_explanation(item), refs=_vocab_refs(item),
+            target_ids=with_consolidation([item.id, *([GRAMMAR_BY_VOCAB[item.id]] if item.id in GRAMMAR_BY_VOCAB else [])], sprint),
             meta={"dim": "contextual_use", "speak_after": item.example_fr, "article_required": answer_has_article},
         ))
     return out
@@ -561,7 +570,7 @@ def _apply(rng: random.Random, spec: SentenceSpec, transformation: str) -> tuple
     if transformation == "person":
         choices = [s for s in PRODUCTIVE_SUBJECTS if s in frame.subjects and s != spec.subject]
         new = rng.choice(choices)
-        return replace(spec, subject=new), f"→ {subject_label(new)}", "subject_pronouns"
+        return replace(spec, subject=new), f"→ {subject_label(new)}", "on_we" if new == "on" else "subject_pronouns"
     if transformation == "polarity":
         if spec.negative:
             return replace(spec, negative=False), "→ affirmatif", "negation"
@@ -651,7 +660,7 @@ def sentence_transform(rng: random.Random, sprint: int, count: int, *, transform
             audio=_fr_audio(base_fr) if base_fr else None,
             explanation=_transform_explanation(new, transformation, gid),
             refs=[ref_link(ALL_GRAMMAR[gid].ref)] if gid in ALL_GRAMMAR else [ref_link("sentence-architecture")],
-            target_ids=list(dict.fromkeys(targets)), difficulty=2 if transformation in ("person", "polarity", "translate") else 3,
+            target_ids=with_consolidation(list(dict.fromkeys(targets)), sprint), difficulty=2 if transformation in ("person", "polarity", "translate") else 3,
             transformation=transformation, meta={"speak_after": accepted[0], "timed": timed, "base": base_fr},
         ))
     return out
@@ -683,7 +692,8 @@ def translation_ladder(rng: random.Random, sprint: int, count: int, *, family: s
                 "translation_ladder", "typed", sprint, "grammar", {"grammar": 0.5, "verbs": 0.3, "writing": 0.2},
                 instructions=f"Échelle {i}/{len(rungs)} · {label}", prompt=render_es(spec), accepted=accepted,
                 explanation=_transform_explanation(spec, label, gid), refs=[ref_link(ALL_GRAMMAR[gid].ref)] if gid in ALL_GRAMMAR else [],
-                target_ids=[f"frame:{frame.id}", f"verb:{spec.main_verb}", *frame.grammar], difficulty=2, group=group,
+                target_ids=with_consolidation([f"frame:{frame.id}", f"verb:{spec.main_verb}", *frame.grammar, *(["venir_de"] if tense == "venir_de" else [])], sprint),
+                difficulty=2, group=group,
                 transformation="translate", meta={"speak_after": accepted[0]},
             ))
     return out
@@ -818,20 +828,20 @@ def pronunciation_3way(rng: random.Random, target: PronTarget, sprint: int, coun
 
 
 def grapheme(rng: random.Random, target: PronTarget, sprint: int, count: int, *, unseen: bool = False, extra: list[str] | None = None) -> list[dict]:
-    items = list(target.unseen_graphemes if unseen else target.graphemes)
+    items = [(row, target) for row in (target.unseen_graphemes if unseen else target.graphemes)]
     for tid in extra or []:
         t = PRON_BY_ID.get(tid)
         if t:
-            items += list(t.unseen_graphemes if unseen else t.graphemes)
+            items += [(row, t) for row in (t.unseen_graphemes if unseen else t.graphemes)]
     rng.shuffle(items)
     out = []
-    for word, g, correct, distractors in items[:count]:
+    for (word, g, correct, distractors), owner in items[:count]:
         options, answer = _mc_options(rng, correct, list(distractors), n=min(4, 1 + len(distractors)))
         out.append(_base(
             "grapheme", "mc", sprint, "pronunciation", {"pronunciation": 0.7, "reading": 0.3},
             instructions=f"« {g} » dans", prompt=word, hint=g, options=options, answer_id=answer,
-            explanation=f"{word}: {g} = {correct} — {target.note}", refs=[ref_link(target.ref)],
-            target_ids=[f"pron:{target.id}"], meta={"unseen": unseen, "speak_after": word},
+            explanation=f"{word}: {g} = {correct} — {owner.note}", refs=[ref_link(owner.ref)],
+            target_ids=[f"pron:{owner.id}"], meta={"unseen": unseen, "speak_after": word},
         ))
     return out
 
@@ -894,7 +904,30 @@ def pronunciation_for(rng: random.Random, target_id: str, sprint: int, count: in
 # ---------------------------------------------------------------------------
 
 
-def timed_fluency(rng: random.Random, sprint: int, count: int, *, timed: bool = False) -> list[dict]:
+QUESTION_WORD = re.compile(r"\b(qui|quoi|où|quand|comment|pourquoi|quel|quelle|quels|quelles|qu'est-ce|combien)\b", re.IGNORECASE)
+
+
+def vocab_ids_in(text: str, pool: list[PoolItem]) -> list[str]:
+    """Pool items whose headword appears as a whole word in `text` (glue words excluded)."""
+    lowered = f" {normalize_text(text)} "
+    found = []
+    for item in pool:
+        if item.pos in ("det", "pron", "prep", "conj"):
+            continue
+        for form in item.french_forms:
+            if len(form) >= 3 and f" {normalize_text(form)} " in lowered:
+                found.append(item.id)
+                break
+    return found
+
+
+def normalize_text(text: str) -> str:
+    return re.sub(r"[^\w' ]+", " ", text.lower().replace("’", "'")).replace("'", "' ").strip()
+
+
+def timed_fluency(rng: random.Random, sprint: int, count: int, *, timed: bool = False, pool: list[PoolItem] | None = None) -> list[dict]:
+    """Spoken answers to sprint questions. Question words credit `question_words`;
+    the words the question hands the learner credit their spoken production."""
     bank = [q for s in range(1, sprint + 1) for q in QUESTIONS.get(s, ())]
     recent = list(QUESTIONS.get(sprint, ()))
     picks = rng.sample(recent, min(count, len(recent)))
@@ -906,8 +939,9 @@ def timed_fluency(rng: random.Random, sprint: int, count: int, *, timed: bool = 
         out.append(_base(
             "timed_fluency", "self", sprint, "speaking", {"speaking": 0.7, "listening": 0.3},
             instructions="Écoute · réponds à voix haute", prompt=fr, prompt_es=es, audio=_fr_audio(fr), audio_only=True, autoplay=True,
-            reveal=f"{fr} — {es}", target_ids=[f"q:{fr[:30]}"],
-            meta={"timed": timed, "self_scale": ["rien", "avec effort", "ok", "fluide"]},
+            reveal=f"{fr} — {es}",
+            target_ids=with_consolidation([f"q:{fr[:30]}", *(["question_words"] if QUESTION_WORD.search(fr) else []), *vocab_ids_in(fr, pool or [])], sprint),
+            meta={"timed": timed, "self_scale": ["rien", "avec effort", "ok", "fluide"], "dim": "spoken_production"},
         ))
     return out
 
@@ -931,7 +965,8 @@ def error_repair(rng: random.Random, sprint: int, count: int, log_items: list[di
             "error_repair", "typed", sprint, "grammar", {"grammar": 1.0}, instructions="Corrige",
             prompt=f"✗ {item['error']}", prompt_es=item.get("spanish_source", ""), accepted=[item["correct"]],
             explanation=item.get("explanation", ""), refs=[ref_link(item["ref"])] if item.get("ref") else [],
-            target_ids=[f"interference:{item['id']}"], pattern=item.get("pattern", ""), difficulty=2,
+            target_ids=with_consolidation([f"interference:{item['id']}", *([g] if (g := grammar_for_ref(item.get("ref") or "")) else [])], sprint),
+            pattern=item.get("pattern", ""), difficulty=2,
             meta={"speak_after": item["correct"], "interference_id": item["id"]},
         ))
     for wrong, right, es_src, expl, ref, _s, pattern in curated:
@@ -940,7 +975,8 @@ def error_repair(rng: random.Random, sprint: int, count: int, log_items: list[di
         out.append(_base(
             "error_repair", "typed", sprint, "grammar", {"grammar": 1.0}, instructions="Corrige",
             prompt=f"✗ {wrong}", prompt_es=es_src, accepted=[right], explanation=expl, refs=[ref_link(ref)],
-            target_ids=[f"repair:{pattern}"], pattern=pattern, difficulty=2, meta={"speak_after": right, "curated": True},
+            target_ids=with_consolidation([f"repair:{pattern}", *([g] if (g := grammar_for_ref(ref)) else [])], sprint),
+            pattern=pattern, difficulty=2, meta={"speak_after": right, "curated": True},
         ))
     return out
 

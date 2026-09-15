@@ -267,6 +267,9 @@ def sprint_progress(db: Session, sprint: int) -> dict:
     ).scalars().all()
     known = [v for v in vocab_rows if v.recognition >= KNOWN_THRESHOLD]
     productive = [v for v in vocab_rows if v.written_production >= PRODUCTIVE_THRESHOLD]
+    heard = [v for v in vocab_rows if v.audio_recognition >= KNOWN_THRESHOLD]
+    in_context = [v for v in vocab_rows if v.contextual_use >= PRODUCTIVE_THRESHOLD]
+    spoken = [v for v in vocab_rows if v.spoken_production >= PRODUCTIVE_THRESHOLD]
 
     # verbs
     verb_detail = []
@@ -363,7 +366,8 @@ def sprint_progress(db: Session, sprint: int) -> dict:
         "verbs": verb_detail,
         "pronunciation": pron_detail,
         "grammar": grammar_detail,
-        "vocab": {"total": len(vocab_rows), "known": len(known), "productive": len(productive)},
+        "vocab": {"total": len(vocab_rows), "known": len(known), "productive": len(productive), "heard": len(heard), "in_context": len(in_context),
+                  "spoken": len(spoken)},
         "completions": {k: len(v) for k, v in completions.items()},
         "completed_activity_ids": sorted(completed_activity_ids),
         "practice": practice,
