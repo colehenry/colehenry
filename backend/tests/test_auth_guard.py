@@ -21,6 +21,7 @@ os.environ.setdefault("OAUTH_REDIRECT_URI", "http://localhost/callback")
 
 import jwt  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
+from fastapi.responses import RedirectResponse  # noqa: E402
 
 from app.config import get_settings  # noqa: E402
 from app.db import SessionLocal, engine  # noqa: E402
@@ -155,6 +156,25 @@ class AuthGuardTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 307)
         self.assertEqual(response.headers["location"], "http://localhost/auth/google/login")
+
+    def test_google_login_does_not_loop_behind_https_proxy(self):
+        settings = get_settings()
+        original_redirect = settings.oauth_redirect_uri
+        settings.oauth_redirect_uri = "https://api.colehenry.dev/auth/google/callback"
+        try:
+            with patch(
+                "app.routers.auth.oauth.google.authorize_redirect",
+                new=AsyncMock(return_value=RedirectResponse("https://accounts.google.com/o/oauth2/auth")),
+            ):
+                response = self.client.get(
+                    "http://api.colehenry.dev/auth/google/login",
+                    headers={"x-forwarded-proto": "https", "x-forwarded-host": "api.colehenry.dev"},
+                    follow_redirects=False,
+                )
+            self.assertEqual(response.status_code, 307)
+            self.assertTrue(response.headers["location"].startswith("https://accounts.google.com/"))
+        finally:
+            settings.oauth_redirect_uri = original_redirect
 
     def test_localhost_ignores_configured_production_cookie_domain(self):
         settings = get_settings()

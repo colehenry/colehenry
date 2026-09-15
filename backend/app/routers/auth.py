@@ -45,12 +45,19 @@ oauth.register(
 
 
 def _canonical_oauth_entry(request: Request) -> RedirectResponse | None:
-    """Keep OAuth state and callback cookies on one exact browser origin."""
+    """Keep OAuth state and callback cookies on one browser host.
+
+    TLS commonly terminates at the production proxy, so ``request.url`` may
+    report HTTP even though the browser is already using HTTPS. Comparing the
+    internal scheme caused an endless redirect back to the same public URL.
+    """
     callback = urlsplit(settings.oauth_redirect_uri)
     current = urlsplit(str(request.url))
     if not callback.scheme or not callback.netloc:
         return None
-    if (current.scheme, current.netloc) == (callback.scheme, callback.netloc):
+    forwarded_host = request.headers.get("x-forwarded-host", "").split(",", 1)[0].strip()
+    browser_host = forwarded_host or current.netloc
+    if browser_host.lower() == callback.netloc.lower():
         return None
     canonical_url = urlunsplit(
         (callback.scheme, callback.netloc, current.path, current.query, "")
