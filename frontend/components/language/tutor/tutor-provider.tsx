@@ -22,6 +22,7 @@ type TutorContextValue = {
   open: (opts?: TutorOpenOptions) => void;
   close: () => void;
   toggle: () => void;
+  prefillVersion: number;
   /** Consumed once by the dock when it opens with a prefilled question. */
   takePrefill: () => { text: string; send: boolean } | null;
   onOpenRef?: (ref: string) => void;
@@ -41,6 +42,7 @@ export function TutorProvider({
 }) {
   const [focus, setFocusState] = useState<TutorFocus | null>(null);
   const [isOpen, setOpen] = useState(false);
+  const [prefillVersion, setPrefillVersion] = useState(0);
   const prefillRef = useRef<{ text: string; send: boolean } | null>(null);
 
   // Views re-render often; only accept a focus that actually changed.
@@ -51,7 +53,10 @@ export function TutorProvider({
   const open = useCallback(
     (opts?: TutorOpenOptions) => {
       if (opts?.focus !== undefined) setFocus(opts.focus);
-      if (opts?.prefill) prefillRef.current = { text: opts.prefill, send: Boolean(opts.send) };
+      if (opts?.prefill) {
+        prefillRef.current = { text: opts.prefill, send: Boolean(opts.send) };
+        setPrefillVersion((version) => version + 1);
+      }
       setOpen(true);
     },
     [setFocus],
@@ -77,8 +82,8 @@ export function TutorProvider({
   }, []);
 
   const value = useMemo<TutorContextValue>(
-    () => ({ focus, setFocus, isOpen, open, close, toggle, takePrefill, onOpenRef, onOpenActivity }),
-    [focus, setFocus, isOpen, open, close, toggle, takePrefill, onOpenRef, onOpenActivity],
+    () => ({ focus, setFocus, isOpen, open, close, toggle, prefillVersion, takePrefill, onOpenRef, onOpenActivity }),
+    [focus, setFocus, isOpen, open, close, toggle, prefillVersion, takePrefill, onOpenRef, onOpenActivity],
   );
   return <TutorContext.Provider value={value}>{children}</TutorContext.Provider>;
 }

@@ -28,6 +28,7 @@ import {
   Speak,
   splitTags,
 } from "./language-shared";
+import { TutorInline } from "./tutor/tutor-inline";
 
 const EMPTY_TEXT_FORM = {
   title: "",
@@ -847,6 +848,15 @@ function Reader({
               title={`Listen: ${popoverAnnotation.selected_text}`}
             />
             <b>{popoverAnnotation.selected_text}</b>
+            <TutorInline
+              focus={{
+                surface: "text",
+                text_id: text.id,
+                sentence: sentenceAround(text.content, popoverAnnotation.start_offset, popoverAnnotation.end_offset),
+                selection: popoverAnnotation.selected_text,
+              }}
+              prefill="Explícame esta frase: estructura, verbo y vocabulario."
+            />
           </div>
           {popoverAnnotation.translation && (
             <div>{popoverAnnotation.translation}</div>
@@ -917,6 +927,15 @@ function Reader({
               title={`Listen: ${selection.selectedText}`}
             />
             <b>{selection.selectedText}</b>
+            <TutorInline
+              focus={{
+                surface: "text",
+                text_id: text.id,
+                sentence: sentenceAround(text.content, selection.start, selection.end),
+                selection: selection.selectedText,
+              }}
+              prefill="Explícame esta frase: estructura, verbo y vocabulario."
+            />
           </div>
           {selectionLookup.isFetching && (
             <div className="xp-muted">looking up…</div>

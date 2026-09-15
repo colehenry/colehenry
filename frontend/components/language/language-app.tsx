@@ -261,6 +261,7 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
         setSection("wiki");
       } else if (head === "wiki") {
         setWikiTab((rest[0] as WikiTab) || "search");
+        if (rest[0] === "conjugation" && rest[1]) setVerbInfinitive(decodeURIComponent(rest[1]));
         setSection("wiki");
       } else if ((SECTIONS as { id: string }[]).some((sec) => sec.id === head)) {
         setSection(head as SectionId);

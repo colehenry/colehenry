@@ -27,6 +27,7 @@ import {
 import { type Deck } from "@/lib/api/language";
 import { ExerciseRunner, RunnerSummaryView, toResult, type GradedItem, type RunnerProgress, type RunnerSummary } from "./exercise-runner";
 import { StudyView } from "./study-view";
+import { useTutorFocus } from "./tutor/tutor-provider";
 
 export type PracticeConfig = {
   activityId?: string;
@@ -553,6 +554,7 @@ function Picker({
   error: string | null;
   lastConfig: PracticeConfig | null;
 }) {
+  useTutorFocus({ surface: "practice" });
   const [format, setFormat] = useState(lastConfig?.format ?? "sentence_transform");
   const [count, setCount] = useState(lastConfig?.count ?? 10);
   const [source, setSource] = useState<"auto" | "deterministic" | "llm">(lastConfig?.source ?? "deterministic");

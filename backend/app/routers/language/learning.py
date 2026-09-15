@@ -1,5 +1,5 @@
 """/language/learning — the French learning hub: dashboard, exercises, results,
-sessions, mastery tests, vocabulary state, interference log, explain."""
+sessions, mastery tests, vocabulary state, and interference log."""
 
 from __future__ import annotations
 
@@ -36,7 +36,6 @@ from app.schemas.learning import (
     CompletionIn,
     EncounterIn,
     ExercisesIn,
-    ExplainIn,
     GradeIn,
     InterferenceIn,
     InterferenceOut,
@@ -564,17 +563,6 @@ def grade(body: GradeIn, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="sentence is required")
     sprint = body.sprint or get_state(db).active_sprint
     out = llm_learning.grade_sentence(db, sentence=body.sentence, target=body.target, sprint=sprint)
-    if out is None:
-        raise HTTPException(status_code=503, detail="LLM unavailable")
-    return out
-
-
-@router.post(f"{PREFIX}/explain")
-def explain(body: ExplainIn, db: Session = Depends(get_db)):
-    if not body.text.strip():
-        raise HTTPException(status_code=400, detail="text is required")
-    sprint = body.sprint or get_state(db).active_sprint
-    out = llm_learning.explain_french(db, text=body.text, mode=body.mode, sprint=sprint, context_sentence=body.context)
     if out is None:
         raise HTTPException(status_code=503, detail="LLM unavailable")
     return out

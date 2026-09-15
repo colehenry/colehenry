@@ -20,10 +20,11 @@ import {
 } from "@/lib/api/language";
 import { displayConjugation } from "@/lib/conjugation";
 import { nounDisplay } from "@/lib/french/articles";
-import { Fr, genderLabel, Speak, spokenConjugation } from "./language-shared";
+import { Fr, genderLabel, PartOfSpeech, Speak, spokenConjugation } from "./language-shared";
 import { Conjugation } from "./wiki-conjugation";
 import { Pronunciation } from "./wiki-pronunciation";
 import { ES_TENSES, TENSES, personSlotLabel } from "./wiki-tenses";
+import { VerbHover } from "./verb-hover";
 
 export type WikiTab = "search" | "conjugation" | "pronunciation" | "references";
 export type WikiQuery = { language: LanguageCode; word: string };
@@ -351,7 +352,21 @@ function WikiWordPage({
     <div className="flex flex-col gap-3">
       {/* header */}
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <span style={{ fontSize: "22px", fontWeight: 700 }}>{result.word}</span>
+        {result.is_verb ? (
+          <VerbHover
+            verb={result.headword || result.word}
+            knownVerb
+            forms={
+              conjugations.some((row) => row.mood === "indicatif" && row.tense === "présent")
+                ? conjugations.filter((row) => row.mood === "indicatif" && row.tense === "présent").map((row) => ({ person: row.person, form: row.form }))
+                : undefined
+            }
+          >
+            <span style={{ fontSize: "22px", fontWeight: 700 }}>{result.word}</span>
+          </VerbHover>
+        ) : (
+          <span style={{ fontSize: "22px", fontWeight: 700 }}>{result.word}</span>
+        )}
         <Speak language={result.language} text={result.word} label="► listen" />
         {result.ipa && <span className="xp-ipa xp-muted">{result.ipa}</span>}
         {result.gender && (
@@ -454,7 +469,7 @@ function WikiWordPage({
           {result.entries.map((entry, i) => (
             <fieldset key={i} className="xp-group">
               <legend>
-                {entry.part_of_speech || "entry"}
+                {entry.part_of_speech ? <PartOfSpeech value={entry.part_of_speech} /> : "entry"}
                 {entry.gender && (
                   <span className="xp-muted">
                     {" "}

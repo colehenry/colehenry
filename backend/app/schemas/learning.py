@@ -231,13 +231,6 @@ class GradeIn(BaseModel):
     sprint: int | None = None
 
 
-class ExplainIn(BaseModel):
-    text: str
-    mode: str = "explain"
-    context: str = ""
-    sprint: int | None = None
-
-
 # ---------------------------------------------------------------------------
 # tutor chat
 # ---------------------------------------------------------------------------

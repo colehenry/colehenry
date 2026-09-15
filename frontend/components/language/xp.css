@@ -2105,6 +2105,119 @@
 .tutor-msg {
   margin-bottom: 10px;
 }
+.tutor-focus-divider {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 10px;
+  color: var(--xp-text-muted);
+  font-size: 10px;
+}
+.tutor-focus-divider::before,
+.tutor-focus-divider::after {
+  height: 1px;
+  flex: 1;
+  background: var(--xp-well-border);
+  content: "";
+}
+.pos-abbr {
+  position: relative;
+  cursor: help;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+.pos-abbr::after {
+  position: absolute;
+  z-index: 80;
+  bottom: calc(100% + 5px);
+  left: 50%;
+  padding: 3px 6px;
+  border: 1px solid var(--xp-well-border);
+  background: var(--xp-tooltip-bg);
+  box-shadow: 2px 2px 0 rgb(0 0 0 / 0.25);
+  color: var(--xp-tooltip-text);
+  content: attr(data-tooltip);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 400;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 2px);
+  transition: opacity 100ms ease, transform 100ms ease;
+  white-space: nowrap;
+}
+.pos-abbr:hover::after,
+.pos-abbr:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.verb-hover {
+  position: relative;
+  display: inline-block;
+}
+.verb-hover.is-verb {
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+.verb-hover-card {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  box-sizing: border-box;
+  width: min(300px, calc(100vw - 16px));
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px;
+  border: 1px solid var(--xp-well-border);
+  background-color: var(--xp-tooltip-bg, #ffffe1);
+  background-image: none;
+  box-shadow: 3px 3px 0 rgb(0 0 0 / 0.25);
+  color: var(--xp-tooltip-text);
+  font-family: var(--xp-font);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1.35;
+  text-align: left;
+  opacity: 1;
+  isolation: isolate;
+}
+.verb-hover-tense {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  color: var(--xp-text-muted);
+}
+.verb-hover-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px 10px;
+}
+.verb-hover-grid > span {
+  display: grid;
+  grid-template-columns: 68px minmax(0, 1fr);
+  gap: 4px;
+}
+.verb-hover-grid i {
+  color: var(--xp-text-muted);
+  font-style: normal;
+  font-weight: 400;
+}
+.verb-hover-form {
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 360px) {
+  .verb-hover-grid {
+    grid-template-columns: 1fr;
+  }
+}
 .tutor-msg.is-user {
   padding: 4px 8px;
   border-left: 3px solid var(--xp-select);

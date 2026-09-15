@@ -31,6 +31,7 @@ import {
   speakText,
   spokenConjugation,
 } from "./language-shared";
+import { TutorInline } from "./tutor/tutor-inline";
 import {
   ES_TENSES,
   TENSES,
@@ -565,6 +566,14 @@ export function Conjugation({
             <span>
               <b style={{ fontSize: "14px" }}>{selectedVerb.infinitive}</b>{" "}
               <Speak language={language} text={selectedVerb.infinitive} label="►" />{" "}
+              {language === "fr" && (
+                <>
+                  <TutorInline
+                    focus={{ surface: "vocab", french: selectedVerb.infinitive }}
+                    prefill="Conjuga este verbo y dame ejemplos con palabras que ya conozco."
+                  />{" "}
+                </>
+              )}
               <span className="xp-muted">
                 {selectedVerb.translation}
                 {selectedVerb.equivalent_infinitive

@@ -15,6 +15,7 @@ import {
   type ProgressDetail,
 } from "@/lib/api/learning";
 import type { PracticeConfig } from "./practice-view";
+import { useTutorFocus } from "./tutor/tutor-provider";
 
 const DIM_LABELS: Record<string, string> = {
   vocabulary: "Vocab",
@@ -64,6 +65,7 @@ export function DashboardView({
   onOpenRef: (ref: string) => void;
   onTexts: () => void;
 }) {
+  useTutorFocus({ surface: "dashboard" });
   const queryClient = useQueryClient();
   const [time, setTime] = useState(1);
   const [skill, setSkill] = useState("all");

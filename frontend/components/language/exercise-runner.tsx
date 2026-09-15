@@ -8,14 +8,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 
-import { explainFrench, gradeSentence, type Exercise, type ExplainMode, type Grade, type ResultIn } from "@/lib/api/learning";
+import { gradeSentence, type Exercise, type Grade, type ResultIn } from "@/lib/api/learning";
 import { accentFor, missingAccents } from "@/lib/french/accents";
 import { FRENCH_ACCENTS, articleIssue } from "@/lib/french/articles";
 import { SELF_SCORES, checkTyped, dictationScore, normalize, wordDiff, type TypedResult } from "@/lib/french/grading";
-import { Fr, Speak, speakText } from "./language-shared";
+import { Fr, PartOfSpeech, Speak, speakText } from "./language-shared";
 import { RefSectionInline } from "./reference-view";
 import { TutorInline } from "./tutor/tutor-inline";
 import { useTutorFocus } from "./tutor/tutor-provider";
+import { VerbHover } from "./verb-hover";
 import type { TutorFocus } from "@/lib/api/tutor";
 
 export type GradedItem = {
@@ -256,12 +257,11 @@ export function ExerciseRunner({
   const [typed, setTyped] = useState("");
   const [picked, setPicked] = useState<string | null>(null);
   const [checked, setChecked] = useState<{ correct: boolean; score: number; detail?: TypedResult } | null>(null);
+  const [checkedIndex, setCheckedIndex] = useState<number | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [startedAt] = useState(Date.now);
   const itemStart = useRef<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [explain, setExplain] = useState<{ mode: ExplainMode; text: string } | null>(null);
-
   const ex = queue[index];
   const done = index >= queue.length;
   const passage = typeof ex?.meta?.passage === "string" ? (ex.meta.passage as string) : "";
@@ -272,9 +272,6 @@ export function ExerciseRunner({
   const llmGraded = ex?.meta?.llm_graded === true;
   const selfScale = Array.isArray(ex?.meta?.self_scale) ? (ex!.meta.self_scale as string[]) : ["raté", "difficile", "bien", "fluide"];
 
-  const explainMutation = useMutation({
-    mutationFn: (args: { text: string; mode: ExplainMode; context?: string }) => explainFrench(args),
-  });
   const [verdict, setVerdict] = useState<Grade | null>(null);
   // a [ref] clicked in the feedback unfolds that one section below it
   const [inlineRef, setInlineRef] = useState<string | null>(null);
@@ -289,6 +286,9 @@ export function ExerciseRunner({
   // What the tutor sees while this question is up: the item, and once checked, the answer given.
   const tutorFocus = useMemo<TutorFocus | null>(() => {
     if (!ex) return null;
+    // Production questions stay private until this exact item has been graded;
+    // otherwise `expected` (and the dock chip derived from it) gives away the answer.
+    if (ex.kind !== "intro" && checkedIndex !== index) return null;
     const expected = ex.kind === "mc" ? (ex.options.find((o) => o.id === ex.answer_id)?.text ?? "") : (ex.accepted[0] ?? "");
     const given = ex.kind === "mc" ? (ex.options.find((o) => o.id === picked)?.text ?? "") : typed;
     return {
@@ -302,7 +302,7 @@ export function ExerciseRunner({
       target_ids: ex.target_ids.length ? ex.target_ids : undefined,
       sprint: ex.sprint,
     };
-  }, [ex, picked, typed, checked]);
+  }, [ex, picked, typed, checked, checkedIndex, index]);
   useTutorFocus(tutorFocus);
 
   // autoplay audio on arrival
@@ -313,12 +313,11 @@ export function ExerciseRunner({
       setTyped("");
       setPicked(null);
       setChecked(null);
+      setCheckedIndex(null);
       setRevealed(false);
-      setExplain(null);
       setVerdict(null);
       setInlineRef(null);
       setRetype("");
-      explainMutation.reset();
       gradeMutation.reset();
       if (ex.audio && ex.autoplay) void speakText(ex.audio.language, ex.audio.text);
     }, 0);
@@ -355,6 +354,7 @@ export function ExerciseRunner({
       if (!ex || checked) return;
       const item: GradedItem = { exercise: ex, answer, correct, score, timeMs: itemStart.current ? Date.now() - itemStart.current : 0 };
       setChecked({ correct, score, detail });
+      setCheckedIndex(index);
       setGraded((g) => [...g, item]);
       if (speakAfter && ex.kind !== "self" && !(ex.audio && ex.audio.text === speakAfter && ex.autoplay && ex.audio_only === false)) {
         void speakText("fr", speakAfter);
@@ -362,7 +362,7 @@ export function ExerciseRunner({
         void speakText(ex.audio.language, ex.audio.text);
       }
     },
-    [ex, checked, speakAfter],
+    [ex, checked, speakAfter, index],
   );
 
   // End of the queue: one retry pass over misses (when asked), then finish.
@@ -417,7 +417,10 @@ export function ExerciseRunner({
             setVerdict(grade);
             commit(typed, grade.correct, grade.score);
           },
-          onError: () => setChecked({ correct: false, score: -1, detail: checkTyped(typed, ex.accepted) }),
+          onError: () => {
+            setChecked({ correct: false, score: -1, detail: checkTyped(typed, ex.accepted) });
+            setCheckedIndex(index);
+          },
         },
       );
       return;
@@ -433,10 +436,11 @@ export function ExerciseRunner({
     if (!r.correct && lenient) {
       // free-response formats: reveal samples, let the learner self-judge
       setChecked({ correct: false, score: -1, detail: r });
+      setCheckedIndex(index);
       return;
     }
     commit(typed, r.correct, r.score, r);
-  }, [ex, checked, typed, isDictation, lenient, llmGraded, commit, gradeMutation]);
+  }, [ex, checked, typed, isDictation, lenient, llmGraded, commit, gradeMutation, index]);
 
   const pickOption = useCallback(
     (id: string) => {
@@ -455,9 +459,10 @@ export function ExerciseRunner({
       const score = SELF_SCORES[level] ?? 0;
       if (checked) return;
       setChecked({ correct: score >= 0.8, score });
+      setCheckedIndex(index);
       setGraded((g) => [...g, { exercise: ex, answer: `self:${level}`, correct: score >= 0.8, score, timeMs: itemStart.current ? Date.now() - itemStart.current : 0 }]);
     },
-    [ex, checked],
+    [ex, checked, index],
   );
 
   // Retype-to-match: the form the learner should have produced, and whether it has been copied yet.
@@ -564,7 +569,7 @@ export function ExerciseRunner({
         )}
         <div className="pr-instructions">
           {ex.instructions}
-          {ex.hint && <span className="xp-muted"> · {ex.hint}</span>}
+          {ex.hint && <span className="xp-muted"> · <PartOfSpeech value={ex.hint} /></span>}
           {ex.source === "llm" && <span className="xp-muted"> · ✦</span>}
         </div>
 
@@ -776,7 +781,12 @@ export function ExerciseRunner({
                 {!checked.correct && articleIssue(typed, ex.accepted) === "missing" ? <b className="ko">article manquant : </b> : null}
                 {!checked.correct || !checked.detail?.exact ? (
                   <>
-                    <b><Fr text={ex.accepted[0] ?? ""} say /></b> <Speak language="fr" text={ex.accepted[0] ?? ""} label="►" />
+                    {ex.hint.toLowerCase() === "verb" ? (
+                      <VerbHover verb={ex.accepted[0] ?? ""} knownVerb><b><Fr text={ex.accepted[0] ?? ""} say /></b></VerbHover>
+                    ) : (
+                      <b><Fr text={ex.accepted[0] ?? ""} say /></b>
+                    )}{" "}
+                    <Speak language="fr" text={ex.accepted[0] ?? ""} label="►" />
                     {ex.accepted.length > 1 && (
                       <span className="xp-muted">
                         {" "}· aussi :{" "}
@@ -848,21 +858,9 @@ export function ExerciseRunner({
                   [{r.label}]
                 </button>
               ))}
-              {(["explain", "compare_es", "pronunciation"] as ExplainMode[]).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  className="xp-link"
-                  disabled={explainMutation.isPending}
-                  onClick={() => {
-                    const text = ex.accepted[0] || ex.options.find((o) => o.id === ex.answer_id)?.text || ex.prompt;
-                    setExplain({ mode, text });
-                    explainMutation.mutate({ text, mode, context: ex.prompt });
-                  }}
-                >
-                  [{mode === "explain" ? "explique" : mode === "compare_es" ? "vs español" : "prononciation"}]
-                </button>
-              ))}
+              <TutorInline focus={tutorFocus} label="[explique]" prefill="Explícame esta respuesta y la regla que la explica." send />
+              <TutorInline focus={tutorFocus} label="[vs español]" prefill="Compara esta respuesta con el español y explícame la trampa." send />
+              <TutorInline focus={tutorFocus} label="[prononciation]" prefill="Pronuncia la respuesta despacio y dime en qué sonidos fijarme." send />
               <TutorInline
                 focus={tutorFocus}
                 label="[✦ tuteur]"
@@ -873,27 +871,6 @@ export function ExerciseRunner({
               </button>
             </div>
             {inlineRef && <RefSectionInline target={inlineRef} onOpenFull={() => onOpenRef?.(inlineRef)} />}
-            {explain && (
-              <div className="mt-2" style={{ borderTop: "1px dotted var(--xp-face-lo)", paddingTop: 6 }}>
-                {explainMutation.isPending && <span className="xp-muted">✦ …</span>}
-                {explainMutation.isError && <span className="xp-muted">LLM indisponible.</span>}
-                {explainMutation.data && (
-                  <div>
-                    <div>{explainMutation.data.explanation}</div>
-                    {explainMutation.data.examples.map((e) => (
-                      <div key={e.fr} className="mt-1">
-                        <Speak language="fr" text={e.fr} label="►" /> <b><Fr text={e.fr} say /></b> <span className="xp-muted">- {e.es}</span>
-                      </div>
-                    ))}
-                    {explainMutation.data.refs.map((r) => (
-                      <button key={r.ref} type="button" className="xp-link mr-2" onClick={() => setInlineRef(r.ref)}>
-                        [{r.label}]
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         )}
       </div>

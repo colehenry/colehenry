@@ -10,6 +10,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { addInterference, deleteInterference, getCurriculum, listInterference, updateInterference, type CoreVerb } from "@/lib/api/learning";
 import { REFERENCE_SHEETS, SHEET_BY_ID, parseRef, type RefSection } from "@/lib/french/references";
 import { Speak } from "./language-shared";
+import { TutorInline } from "./tutor/tutor-inline";
+import { useTutorFocus } from "./tutor/tutor-provider";
+import { VerbHover } from "./verb-hover";
 
 const PERSONS: [string, string][] = [
   ["1s", "je"],
@@ -83,6 +86,7 @@ export function ReferenceView({
   }, [sheetId, section]);
 
   const sheet = SHEET_BY_ID[sheetId];
+  useTutorFocus({ surface: "reference", sheet: sheetId, section: section || undefined });
   const query = q.trim().toLowerCase();
 
   // global search across static sheets
@@ -208,6 +212,11 @@ function SectionBlock({ sheetId, section, highlight, onJump }: { sheetId: string
         <a href={`#ref/${sheetId}/${section.id}`} onClick={(e) => (onJump ? (e.preventDefault(), onJump()) : undefined)}>
           #{sheetId}/{section.id}
         </a>
+        {" "}
+        <TutorInline
+          focus={{ surface: "reference", sheet: sheetId, section: section.id }}
+          prefill="Explícame esta sección con un ejemplo por punto."
+        />
       </h3>
       {section.note && <p className="ref-note">{section.note}</p>}
       <table className="xp-listview ref-table">
@@ -284,7 +293,14 @@ function VerbCard({ v, highlight, onOpenVerb, onPractice }: { v: CoreVerb; highl
     <div id={`ref-core-verbs-${v.infinitive}`} className={`ref-verb ref-section ${highlight ? "is-target" : ""}`}>
       <div>
         <h4>
-          <Speak language="fr" text={v.infinitive} label={v.infinitive} className="xp-link" /> <span className="xp-ipa xp-muted" style={{ fontWeight: 400, fontSize: 12 }}>{v.ipa}</span>
+          <VerbHover
+            verb={v.infinitive}
+            knownVerb
+            forms={PERSONS.map(([person]) => ({ person, form: v.present[person] }))}
+          >
+            <Speak language="fr" text={v.infinitive} label={v.infinitive} className="xp-link" />
+          </VerbHover>{" "}
+          <span className="xp-ipa xp-muted" style={{ fontWeight: 400, fontSize: 12 }}>{v.ipa}</span>
         </h4>
         <div style={{ fontSize: 12 }}>
           {v.spanish} <span className="xp-muted">· {v.english} · S{v.sprint} · {v.group}</span>

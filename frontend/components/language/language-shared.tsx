@@ -31,6 +31,52 @@ export function genderLabel(gender: string): string {
   return gender;
 }
 
+const PART_OF_SPEECH_LABELS: Record<string, string> = {
+  n: "Noun",
+  nom: "Noun",
+  noun: "Noun",
+  v: "Verb",
+  verb: "Verb",
+  verbe: "Verb",
+  adj: "Adjective",
+  adjective: "Adjective",
+  adjectif: "Adjective",
+  adv: "Adverb",
+  adverb: "Adverb",
+  adverbe: "Adverb",
+  conj: "Conjunction",
+  conjunction: "Conjunction",
+  conjonction: "Conjunction",
+  prep: "Preposition",
+  preposition: "Preposition",
+  préposition: "Preposition",
+  pron: "Pronoun",
+  pronoun: "Pronoun",
+  pronom: "Pronoun",
+  det: "Determiner",
+  determiner: "Determiner",
+  déterminant: "Determiner",
+  interj: "Interjection",
+  interjection: "Interjection",
+};
+
+/** Keep compact POS abbreviations in the UI, with the full term on hover. */
+export function PartOfSpeech({ value }: { value: string }) {
+  const normalized = value.trim().toLowerCase().replace(/\.$/, "");
+  const label = PART_OF_SPEECH_LABELS[normalized];
+  const abbreviated = Boolean(label && normalized !== label.toLowerCase());
+  return (
+    <span
+      className={abbreviated ? "pos-abbr" : undefined}
+      data-tooltip={abbreviated ? label : undefined}
+      tabIndex={abbreviated ? 0 : undefined}
+      aria-label={abbreviated ? `${value}: ${label}` : undefined}
+    >
+      {value}
+    </span>
+  );
+}
+
 /**
  * French text with any leading article coloured by gender (blue masculine,
  * pink feminine). Handles "un ami / une amie" style alternates. Plain text

@@ -2,7 +2,6 @@
 
     generate_drill(...)       validated, cached exercises in the shared shape
     compose_session(...)      picks among *existing* activities for a time budget
-    explain_french(...)       short Spanish-bridge explanation of a French item
     analyze_conversation(...) prepared interface (v2)
     analyze_text(...)         prepared interface (v2)
     generate_micro_content(...) prepared interface (v2)
@@ -419,54 +418,6 @@ def compose_session(db: Session, *, sprint: int, minutes: int) -> dict | None:
     if not plan or total > minutes * 1.6 or total < minutes * 0.5:
         return None
     return {"plan": plan, "model": model}
-
-
-# ---------------------------------------------------------------------------
-# explain
-# ---------------------------------------------------------------------------
-
-EXPLAIN_SYSTEM = """You explain French to a learner with C1 Spanish (A0 French). Answer in Spanish, max 120 words, no preamble.
-Lead with the precise Spanish parallel when one exists (venir de + inf ↔ acabar de + inf). Flag false friends and pronunciation traps.
-Give 2 short French examples with Spanish glosses. Output ONLY JSON: {"explanation": str, "examples": [{"fr": str, "es": str}], "refs": [str]}
-refs are optional reference ids among: pronunciation, spelling, transfer, core-verbs, sentence-architecture, questions, articles, tense-map, pronouns, spoken-french, numbers."""
-
-EXPLAIN_MODES = {
-    "explain": "Explain this.",
-    "compare_es": "Compare it precisely with Spanish: what transfers, what doesn't.",
-    "why_tense": "Why this tense / construction here? Compare with the Spanish choice.",
-    "more_examples": "Give 4 more natural short examples with Spanish glosses (known language only).",
-    "pronunciation": "How is it pronounced? IPA, the spelling → sound rules involved, and the Spanish-speaker traps.",
-}
-
-
-def explain_french(db: Session, *, text: str, mode: str, sprint: int, context_sentence: str = "") -> dict | None:
-    text = text.strip()[:300]
-    mode = mode if mode in EXPLAIN_MODES else "explain"
-    phash = hashlib.sha1(f"explain|{mode}|{text.lower()}|{context_sentence.lower()[:120]}".encode()).hexdigest()[:32]
-    cached = db.execute(select(LearningGenerated).where(LearningGenerated.format == "explain", LearningGenerated.params_hash == phash)).scalars().first()
-    if cached:
-        cached.served_count += 1
-        cached.last_served_at = datetime.now(timezone.utc)
-        db.commit()
-        return {**cached.payload, "cached": True}
-    if not available():
-        return None
-    ctx = build_context(db, sprint, purpose="explain")
-    ctx.pop("core_vocab_known", None)
-    user = json.dumps({"item": text, "context_sentence": context_sentence, "task": EXPLAIN_MODES[mode], "learner": ctx}, ensure_ascii=False)
-    data, model = chat_json(EXPLAIN_SYSTEM, user, max_tokens=700, temperature=0.5)
-    if not data or not data.get("explanation"):
-        return None
-    payload = {
-        "explanation": str(data["explanation"])[:1200],
-        "examples": [{"fr": str(e.get("fr", "")), "es": str(e.get("es", ""))} for e in (data.get("examples") or []) if isinstance(e, dict)][:6],
-        "refs": [ref_link(r) for r in (data.get("refs") or []) if isinstance(r, str)][:3],
-        "mode": mode, "text": text,
-    }
-    db.add(LearningGenerated(params_hash=phash, format="explain", sprint=sprint, targets=[text], model=model, prompt_version=PROMPT_VERSION,
-                             payload=payload, valid=True, served_count=1, last_served_at=datetime.now(timezone.utc)))
-    db.commit()
-    return {**payload, "cached": False}
 
 
 # ---------------------------------------------------------------------------
