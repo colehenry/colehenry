@@ -4,14 +4,18 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
+  discardAttempt,
   getDashboard,
+  listAttempts,
   setActiveSprint,
   type Activity,
+  type Attempt,
   type Dashboard,
   type PlanItem,
   type ProgressDetail,
 } from "@/lib/api/learning";
 import type { PracticeConfig } from "./practice-view";
+import { useTutorFocus } from "./tutor/tutor-provider";
 
 const DIM_LABELS: Record<string, string> = {
   vocabulary: "Vocab",
@@ -61,6 +65,7 @@ export function DashboardView({
   onOpenRef: (ref: string) => void;
   onTexts: () => void;
 }) {
+  useTutorFocus({ surface: "dashboard" });
   const queryClient = useQueryClient();
   const [time, setTime] = useState(1);
   const [skill, setSkill] = useState("all");
@@ -71,6 +76,16 @@ export function DashboardView({
   });
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["language", "dashboard"] });
   const activate = useMutation({ mutationFn: setActiveSprint, onSuccess: invalidate });
+
+  // unfinished runs - resumable from here, and shown as a partial bar on their activity row
+  const attempts = useQuery({ queryKey: ["language", "attempts"], queryFn: listAttempts });
+  const discard = useMutation({
+    mutationFn: discardAttempt,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["language", "attempts"] }),
+  });
+  const openAttempts: Attempt[] = attempts.data ?? [];
+  const attemptByActivity = new Map(openAttempts.map((attempt) => [attempt.activity_id, attempt]));
+  const resumeAttempt = (attempt: Attempt) => onPractice({ attemptId: attempt.id, activityId: attempt.activity_id, sprint: attempt.sprint, title: attempt.title });
 
   const data: Dashboard | undefined = dashboard.data;
   const sprint = data?.sprint;
@@ -128,13 +143,23 @@ export function DashboardView({
             <span className="hub-count">{target.done} / {target.total}</span>
           </div>
         )}
-        {dimension === "vocabulary" && (
-          <div className="hub-progress-item">
-            <span>{progress.vocab.productive >= progress.vocab.total ? "✓" : "○"}</span>
-            <span>Productive words</span>
-            <span className="hub-count">{progress.vocab.productive} / {progress.vocab.total}</span>
-          </div>
-        )}
+        {dimension === "vocabulary" &&
+          (
+            [
+              ["Productive words", progress.vocab.productive],
+              ["Heard & spelled", progress.vocab.heard],
+              ["Used in context", progress.vocab.in_context],
+              ["Spoken", progress.vocab.spoken],
+            ] as [string, number | undefined][]
+          )
+            .filter((entry): entry is [string, number] => entry[1] != null)
+            .map(([label, value]) => (
+              <div key={label} className="hub-progress-item">
+                <span>{value >= progress.vocab.total && progress.vocab.total > 0 ? "✓" : "○"}</span>
+                <span>{label}</span>
+                <span className="hub-count">{value} / {progress.vocab.total}</span>
+              </div>
+            ))}
         {learned.map((item) => (
           <button
             key={item.id}
@@ -170,6 +195,26 @@ export function DashboardView({
 
   return (
     <div className="hub-dashboard">
+      {openAttempts.length > 0 && (
+        <fieldset className="xp-group">
+          <legend>Pick up where you left off</legend>
+          <div className="flex flex-col gap-2">
+            {openAttempts.map((attempt) => {
+              const done = attempt.graded.length;
+              return (
+                <div key={attempt.id} className="hub-resume">
+                  <b>{attempt.title || attempt.activity_id}</b>
+                  <span className="xp-muted">S{attempt.sprint} · {ago(attempt.updated_at)} ago</span>
+                  <span className="hub-bar"><i style={{ width: `${attempt.total ? Math.round((done / attempt.total) * 100) : 0}%` }} /></span>
+                  <span className="hub-count">{done} / {attempt.total}</span>
+                  <button type="button" className="xp-btn is-small is-default" onClick={() => resumeAttempt(attempt)}>Resume</button>
+                  <button type="button" className="xp-link" disabled={discard.isPending} onClick={() => discard.mutate(attempt.id)}>[discard]</button>
+                </div>
+              );
+            })}
+          </div>
+        </fieldset>
+      )}
       <fieldset className="xp-group">
         <legend>Do next</legend>
         <div className="hub-next-grid">
@@ -205,18 +250,26 @@ export function DashboardView({
               <span className="ml-auto xp-muted">{activities.length} activities</span>
             </div>
             <div className="hub-activity-scroll">
-              {activities.map((activity) => (
-                <button key={activity.id} type="button" className="hub-act is-button" onClick={() => runActivity(activity)}>
-                  <span className="hub-act-name">
-                    {completedIds.has(activity.id) && <span className="ok mr-1">✓</span>}
-                    {activity.name}
-                    {activity.kind === "llm" && <span className="xp-muted"> ✦</span>}
-                  </span>
-                  <span className="hub-act-target">{DIM_LABELS[activity.skill] ?? activity.skill}</span>
-                  <span className="hub-minutes">{TIME_BUCKETS[time][0]}</span>
-                  <span className="xp-btn is-small">{activity.kind === "external" ? "Open" : "Start"}</span>
-                </button>
-              ))}
+              {activities.map((activity) => {
+                const open = attemptByActivity.get(activity.id);
+                return (
+                  <button key={activity.id} type="button" className="hub-act is-button" onClick={() => (open ? resumeAttempt(open) : runActivity(activity))}>
+                    <span className="hub-act-name">
+                      {completedIds.has(activity.id) && <span className="ok mr-1">✓</span>}
+                      {activity.name}
+                      {activity.kind === "llm" && <span className="xp-muted"> ✦</span>}
+                      {open && (
+                        <span className="hub-act-partial" title={`${open.graded.length} / ${open.total} done`}>
+                          <i style={{ width: `${open.total ? Math.round((open.graded.length / open.total) * 100) : 0}%` }} />
+                        </span>
+                      )}
+                    </span>
+                    <span className="hub-act-target">{DIM_LABELS[activity.skill] ?? activity.skill}</span>
+                    <span className="hub-minutes">{TIME_BUCKETS[time][0]}</span>
+                    <span className="xp-btn is-small">{activity.kind === "external" ? "Open" : open ? "Resume" : "Start"}</span>
+                  </button>
+                );
+              })}
               {activities.length === 0 && <p className="xp-muted p-2">No activities in this filter.</p>}
             </div>
           </fieldset>

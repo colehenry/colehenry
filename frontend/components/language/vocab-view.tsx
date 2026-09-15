@@ -7,7 +7,9 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { importVocab, listVocab, setVocabStatus, type VocabItem } from "@/lib/api/learning";
-import { Speak } from "./language-shared";
+import { Fr, PartOfSpeech, Speak } from "./language-shared";
+import { TutorInline } from "./tutor/tutor-inline";
+import { VerbHover } from "./verb-hover";
 
 const DIMS: [keyof VocabItem, string][] = [
   ["recognition", "Recognize"],
@@ -176,15 +178,22 @@ function RowGroup({
     <>
       <tr className="is-clickable" onClick={onToggle}>
         <td>
-          <Speak language="fr" text={r.french.split(" / ")[0]} label="►" />
+          <Speak language="fr" text={r.display.split(" / ")[0]} label="►" />
         </td>
         <td style={{ fontWeight: 700 }}>
-          {r.french}
-          {r.gender && <span className="xp-muted"> ({r.gender})</span>}
+          {r.part_of_speech === "verb" ? (
+            <VerbHover verb={r.french} knownVerb><Fr text={r.display} say /></VerbHover>
+          ) : (
+            <Fr text={r.display} say />
+          )}
           {r.false_friend && <span title="faux ami"> ⚠</span>}
+          <span onClick={(event) => event.stopPropagation()}>
+            {" "}
+            <TutorInline focus={{ surface: "vocab", french: r.french, status: r.status }} prefill="¿Cómo se usa? Dame ejemplos con palabras que ya conozco." />
+          </span>
         </td>
         <td>{r.spanish}</td>
-        <td className="xp-muted">{r.part_of_speech}</td>
+        <td className="xp-muted"><PartOfSpeech value={r.part_of_speech} /></td>
         <td className="xp-muted">{r.sprint}</td>
         <td onClick={(e) => e.stopPropagation()}>
           <select className="xp-select vocab-status" value={r.status} onChange={(e) => onStatus(e.target.value as "core" | "recognition" | "encountered")}>

@@ -50,6 +50,7 @@ FORMAT_DIM = {
     "es_to_fr": "written_production",
     "srs_recognition": "recognition",
     "srs_production": "written_production",
+    "write_sentence": "written_production",
     "context_choice": "contextual_use",
 }
 
@@ -68,8 +69,10 @@ def get_state(db: Session) -> LearningState:
 
 
 def ema(old: float, attempts: int, score: float) -> float:
+    """First evidence on a dimension sets the level outright: a clean first pass
+    clears KNOWN_THRESHOLD, a shaky one does not. Later evidence blends in."""
     if attempts <= 0:
-        return round(0.6 * score + 0.1 * (1 if score >= 0.7 else 0), 3)
+        return round(0.75 * score + 0.1 * (1 if score >= 0.7 else 0), 3)
     return round(old + EMA_ALPHA * (score - old), 3)
 
 
@@ -93,7 +96,8 @@ def apply_vocab_result(row: LearningVocab, dim: str, score: float, when: datetim
     current = getattr(row, dim, None)
     if current is None:
         return
-    setattr(row, dim, ema(current, row.attempts, score))
+    # `attempts` is shared across dimensions; a dimension still at zero has no evidence of its own.
+    setattr(row, dim, ema(current, 0 if current == 0 else row.attempts, score))
     row.attempts += 1
     row.last_seen_at = when
 
@@ -143,7 +147,7 @@ def record_results(db: Session, results: list[dict], *, session_id: int | None =
         # interference log: failed repairs recycle; matching patterns get logged
         if r["format"] == "error_repair":
             _touch_interference(db, r, when)
-        elif not r["correct"] and r.get("answer") and r["format"] in ("sentence_transform", "translation_ladder", "es_to_fr", "verb_drill"):
+        elif not r["correct"] and r.get("answer") and r["format"] in ("sentence_transform", "translation_ladder", "es_to_fr", "verb_drill", "write_sentence"):
             _detect_interference(db, r, when)
     db.commit()
     return rows
@@ -263,6 +267,9 @@ def sprint_progress(db: Session, sprint: int) -> dict:
     ).scalars().all()
     known = [v for v in vocab_rows if v.recognition >= KNOWN_THRESHOLD]
     productive = [v for v in vocab_rows if v.written_production >= PRODUCTIVE_THRESHOLD]
+    heard = [v for v in vocab_rows if v.audio_recognition >= KNOWN_THRESHOLD]
+    in_context = [v for v in vocab_rows if v.contextual_use >= PRODUCTIVE_THRESHOLD]
+    spoken = [v for v in vocab_rows if v.spoken_production >= PRODUCTIVE_THRESHOLD]
 
     # verbs
     verb_detail = []
@@ -359,7 +366,8 @@ def sprint_progress(db: Session, sprint: int) -> dict:
         "verbs": verb_detail,
         "pronunciation": pron_detail,
         "grammar": grammar_detail,
-        "vocab": {"total": len(vocab_rows), "known": len(known), "productive": len(productive)},
+        "vocab": {"total": len(vocab_rows), "known": len(known), "productive": len(productive), "heard": len(heard), "in_context": len(in_context),
+                  "spoken": len(spoken)},
         "completions": {k: len(v) for k, v in completions.items()},
         "completed_activity_ids": sorted(completed_activity_ids),
         "practice": practice,

@@ -9,6 +9,21 @@ const FR_DISPLAY_SUBJECTS: Record<string, string> = {
   "3p": "ils/elles",
 };
 
+const FR_PREVIEW_SUBJECTS: Record<string, string> = {
+  ...FR_DISPLAY_SUBJECTS,
+  "3s": "il / elle / on",
+  "3p": "ils / elles",
+};
+
+const FR_SPOKEN_SUBJECTS: Record<string, string> = {
+  "1s": "je",
+  "2s": "tu",
+  "3s": "il",
+  "1p": "nous",
+  "2p": "vous",
+  "3p": "ils",
+};
+
 const ES_DISPLAY_SUBJECTS: Record<string, string> = {
   "1s": "yo",
   "2s": "tú",
@@ -91,4 +106,47 @@ export function displayConjugation(
     return /^[iî]/i.test(phrase) ? `qu'${phrase}` : `que ${phrase}`;
   }
   return phrase;
+}
+
+/** Natural spoken French: person codes become one subject, never a slash-list. */
+export function joinFrenchSubject(person: string, form: string): string {
+  const personLabel = FR_SPOKEN_SUBJECTS[person] ?? person;
+  const subject = personLabel.startsWith("ils")
+    ? "ils"
+    : personLabel.startsWith("il")
+      ? "il"
+      : personLabel;
+  if (subject === "je" && /^[aeiouyàâäéèêëîïôöùûüh]/i.test(form)) {
+    return `j'${form}`;
+  }
+  return `${subject} ${form}`;
+}
+
+/** Speech text for a conjugation cell, including its subject where applicable. */
+export function spokenConjugation(
+  person: string,
+  form: string,
+  mood: string,
+  language: ConjugationLanguage = "fr",
+): string {
+  if (!form || mood === "imperatif" || mood === "imperativo") return form;
+  if (language === "es") {
+    const subject = ES_DISPLAY_SUBJECTS[person]?.split("/")[0] ?? person;
+    const phrase = `${subject} ${form}`;
+    return mood === "subjuntivo" ? `que ${phrase}` : phrase;
+  }
+  const phrase = joinFrenchSubject(person, form);
+  if (mood === "subjonctif") {
+    return /^[iî]/i.test(phrase) ? `qu'${phrase}` : `que ${phrase}`;
+  }
+  return phrase;
+}
+
+/** Complete compact row label; unlike speech, includes all 3rd-person options. */
+export function verbPreviewLabel(person: string, form: string): string {
+  const spoken = spokenConjugation(person, form, "indicatif");
+  if (person === "1s" && spoken.startsWith("j'")) {
+    return spoken.replace("'", "’");
+  }
+  return `${FR_PREVIEW_SUBJECTS[person] ?? person} ${form}`;
 }

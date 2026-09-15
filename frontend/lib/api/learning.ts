@@ -54,6 +54,7 @@ export const activitySchema = z.object({
   params: z.record(z.string(), z.unknown()),
   resource: z.string(),
   dims: z.record(z.string(), z.number()),
+  requires: z.string().optional(),
 });
 export type Activity = z.infer<typeof activitySchema>;
 
@@ -154,7 +155,14 @@ export const progressSchema = z.object({
   verbs: z.array(detailSchema),
   pronunciation: z.array(detailSchema),
   grammar: z.array(detailSchema),
-  vocab: z.object({ total: z.number(), known: z.number(), productive: z.number() }),
+  vocab: z.object({
+    total: z.number(),
+    known: z.number(),
+    productive: z.number(),
+    heard: z.number().optional(),
+    in_context: z.number().optional(),
+    spoken: z.number().optional(),
+  }),
   completions: z.record(z.string(), z.number()),
   completed_activity_ids: z.array(z.string()),
   practice: z.record(z.string(), z.object({ done: z.number(), total: z.number() })),
@@ -343,6 +351,70 @@ export function listSessions(limit = 5): Promise<StudySession[]> {
 }
 
 // ---------------------------------------------------------------------------
+// attempts: a practice run in progress (resume after quit / reload / detour)
+// ---------------------------------------------------------------------------
+
+export const gradedItemSchema = z.object({
+  exercise_id: z.string(),
+  answer: z.string(),
+  correct: z.boolean(),
+  score: z.number(),
+  time_ms: z.number(),
+});
+export type GradedItemIn = z.infer<typeof gradedItemSchema>;
+
+export const attemptSchema = z.object({
+  id: z.number(),
+  activity_id: z.string(),
+  title: z.string(),
+  format: z.string(),
+  skill: z.string(),
+  sprint: z.number(),
+  session_id: z.number().nullable(),
+  payload: exerciseSetSchema,
+  index: z.number(),
+  total: z.number(),
+  graded: z.array(gradedItemSchema),
+  started_at: z.string(),
+  updated_at: z.string(),
+  finished_at: z.string().nullable(),
+});
+export type Attempt = z.infer<typeof attemptSchema>;
+
+export function listAttempts(): Promise<Attempt[]> {
+  return apiFetch("/language/learning/attempts", z.array(attemptSchema));
+}
+
+export function getAttempt(id: number): Promise<Attempt> {
+  return apiFetch(`/language/learning/attempts/${id}`, attemptSchema);
+}
+
+export function createAttempt(body: {
+  activity_id: string;
+  title?: string;
+  format?: string;
+  skill?: string;
+  sprint: number;
+  session_id?: number | null;
+  payload: ExerciseSet;
+}): Promise<Attempt> {
+  return apiFetch("/language/learning/attempts", attemptSchema, { method: "POST", body: JSON.stringify(body) });
+}
+
+export function updateAttempt(id: number, body: { index: number; graded: GradedItemIn[]; payload?: ExerciseSet }): Promise<Attempt> {
+  return apiFetch(`/language/learning/attempts/${id}`, attemptSchema, { method: "PUT", body: JSON.stringify(body) });
+}
+
+export function finishAttempt(id: number): Promise<Attempt> {
+  return apiFetch(`/language/learning/attempts/${id}/finish`, attemptSchema, { method: "POST" });
+}
+
+export async function discardAttempt(id: number): Promise<void> {
+  const res = await fetch(`${API_URL}/language/learning/attempts/${id}`, { method: "DELETE", credentials: "include" });
+  if (!res.ok) throw new ApiError(res.status, "Could not discard attempt");
+}
+
+// ---------------------------------------------------------------------------
 // mastery tests
 // ---------------------------------------------------------------------------
 
@@ -388,6 +460,7 @@ export const vocabSchema = z.object({
   id: z.number(),
   curriculum_id: z.string().nullable(),
   french: z.string(),
+  display: z.string(),
   spanish: z.string(),
   english: z.string(),
   part_of_speech: z.string(),
@@ -502,20 +575,20 @@ export async function deleteInterference(id: number): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// explain
+// model-graded writing
 // ---------------------------------------------------------------------------
 
-export const explanationSchema = z.object({
+export const gradeSchema = z.object({
+  score: z.number(),
+  correct: z.boolean(),
+  corrected: z.string(),
   explanation: z.string(),
-  examples: z.array(z.object({ fr: z.string(), es: z.string() })),
-  refs: z.array(z.object({ ref: z.string(), label: z.string() })),
-  mode: z.string(),
-  text: z.string(),
-  cached: z.boolean(),
+  issues: z.array(z.object({ kind: z.string(), text: z.string(), fix: z.string() })),
+  model: z.string(),
 });
-export type Explanation = z.infer<typeof explanationSchema>;
-export type ExplainMode = "explain" | "compare_es" | "why_tense" | "more_examples" | "pronunciation";
+export type Grade = z.infer<typeof gradeSchema>;
 
-export function explainFrench(body: { text: string; mode: ExplainMode; context?: string }): Promise<Explanation> {
-  return apiFetch("/language/learning/explain", explanationSchema, { method: "POST", body: JSON.stringify(body) });
+/** Model-graded free writing; rejects with 503 when no model is configured. */
+export function gradeSentence(body: { sentence: string; target: string; sprint?: number }): Promise<Grade> {
+  return apiFetch("/language/learning/grade", gradeSchema, { method: "POST", body: JSON.stringify(body) });
 }

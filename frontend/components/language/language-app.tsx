@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -12,6 +12,8 @@ import {
 } from "@/lib/api/language";
 import { getDashboard } from "@/lib/api/learning";
 import { Speak } from "./language-shared";
+import { TutorDock } from "@/components/language/tutor/tutor-dock";
+import { TutorProvider } from "@/components/language/tutor/tutor-provider";
 import { StudyView } from "./study-view";
 import { DecksView } from "./decks-view";
 import { TextsView } from "./texts-view";
@@ -95,6 +97,10 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
   const [wikiExpanded, setWikiExpanded] = useState(true);
   const [wikiQuery, setWikiQuery] = useState<WikiQuery | null>(null);
   const [studyInit, setStudyInit] = useState<StudyInit>({ key: 0 });
+  // A running lesson keeps its place: full sheets open in a dialog over it instead of navigating away.
+  const [runningActivity, setRunningActivity] = useState<string | null>(null);
+  const [drawerRef, setDrawerRef] = useState<string | null>(null);
+  const onRunningChange = useCallback((id: string | null) => setRunningActivity(id), []);
   const [openMenu, setOpenMenu] = useState<MenuId | null>(null);
   const [wide, setWide] = useState(true);
   const [minimized, setMinimized] = useState(false);
@@ -221,6 +227,14 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
     setRefTarget(ref);
     goWiki("references");
   };
+  // From inside a running lesson: same sheet, but as a dialog so the lesson stays mounted.
+  const goRefFromPractice = (ref: string) => {
+    if (section === "practice" && runningActivity) {
+      setDrawerRef(ref);
+      return;
+    }
+    goRef(ref);
+  };
   const goConjugation = (infinitive?: string) => {
     if (infinitive) setVerbInfinitive(infinitive);
     goWiki("conjugation");
@@ -230,19 +244,24 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
     go("test");
   };
 
-  // Hash deep links: #dashboard · #practice · #vocab · #ref/<sheet>/<section> · #wiki/<tab>
+  // Hash deep links: #dashboard · #practice · #practice/<activity> · #vocab · #ref/<sheet>/<section> · #wiki/<tab>
   useEffect(() => {
     if (readOnly) return;
     const apply = () => {
       const hash = window.location.hash.replace(/^#/, "");
       if (!hash) return;
       const [head, ...rest] = hash.split("/");
-      if (head === "ref") {
+      if (head === "practice" && rest[0]) {
+        // an activity id in the hash relaunches (or resumes) it on reload
+        setPracticeConfig((current) => (current?.activityId === rest[0] ? current : { activityId: rest[0] }));
+        setSection("practice");
+      } else if (head === "ref") {
         setRefTarget(rest.length ? `${rest[0]}${rest[1] ? `#${rest[1]}` : ""}` : null);
         setWikiTab("references");
         setSection("wiki");
       } else if (head === "wiki") {
         setWikiTab((rest[0] as WikiTab) || "search");
+        if (rest[0] === "conjugation" && rest[1]) setVerbInfinitive(decodeURIComponent(rest[1]));
         setSection("wiki");
       } else if ((SECTIONS as { id: string }[]).some((sec) => sec.id === head)) {
         setSection(head as SectionId);
@@ -254,11 +273,18 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
   }, [readOnly]);
   useEffect(() => {
     if (readOnly || typeof window === "undefined") return;
-    const next = section === "wiki" ? (wikiTab === "references" && refTarget ? `ref/${refTarget.replace("#", "/")}` : `wiki/${wikiTab}`) : section;
+    const next =
+      section === "wiki"
+        ? wikiTab === "references" && refTarget
+          ? `ref/${refTarget.replace("#", "/")}`
+          : `wiki/${wikiTab}`
+        : section === "practice" && runningActivity
+          ? `practice/${runningActivity}`
+          : section;
     if (window.location.hash.replace(/^#/, "") !== next) {
       window.history.replaceState(null, "", `#${next}`);
     }
-  }, [section, wikiTab, refTarget, readOnly]);
+  }, [section, wikiTab, refTarget, readOnly, runningActivity]);
 
   const menu = (id: MenuId, label: string, items: React.ReactNode) => (
     <div className="relative">
@@ -294,6 +320,10 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
   );
 
   return (
+    <TutorProvider
+      onOpenRef={readOnly ? undefined : goRefFromPractice}
+      onOpenActivity={readOnly ? undefined : (id) => goPractice({ activityId: id })}
+    >
     <div data-section="language" id="quenoseteolvide-app" className="xp-app">
       <div className="xp-desktop">
         <div className={`xp-window ${wide ? "is-wide" : "is-narrow"}`}>
@@ -550,9 +580,10 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
                           activeSprint={activeSprint}
                           resources={resources}
                           onExit={() => go("dashboard")}
-                          onOpenRef={goRef}
+                          onOpenRef={goRefFromPractice}
                           onOpenTexts={() => go("texts")}
                           onStartTest={goTest}
+                          onRunningChange={onRunningChange}
                         />
                       )}
                       {section === "vocab" && !readOnly && (
@@ -759,6 +790,39 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
         </div>
       )}
 
+      {drawerRef && !readOnly && (
+        <>
+          <button type="button" aria-label="Back to lesson" className="xp-dialog-backdrop cursor-default" onClick={() => setDrawerRef(null)} />
+          <div className="xp-dialog is-wide" role="dialog" aria-label="Reference">
+            <div className="xp-titlebar">
+              <span className="xp-title-text">Reference</span>
+              <button type="button" className="xp-caption-btn is-close" aria-label="Back to lesson" onClick={() => setDrawerRef(null)}>
+                ×
+              </button>
+            </div>
+            <div className="xp-dialog-body">
+              <ReferenceView
+                embedded
+                target={drawerRef}
+                onOpenVerb={(inf) => { setDrawerRef(null); goConjugation(inf); }}
+                onPractice={(format, targets) => {
+                  setDrawerRef(null);
+                  goPractice({ format, targets, source: "deterministic", count: 10, title: `Drill · ${targets.join(", ") || format}` });
+                }}
+              />
+            </div>
+            <div className="xp-dialog-buttons">
+              <button type="button" className="xp-link" onClick={() => { const ref = drawerRef; setDrawerRef(null); goRef(ref); }}>
+                [open in wiki]
+              </button>
+              <button type="button" className="xp-btn is-default" onClick={() => setDrawerRef(null)}>
+                ← Back to lesson
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
       {aboutOpen && (
         <>
           <button
@@ -804,6 +868,8 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
           </div>
         </>
       )}
+      {!readOnly && <TutorDock />}
     </div>
+    </TutorProvider>
   );
 }

@@ -1,4 +1,4 @@
-"""Small registry for Brain's LLM-facing tools.
+"""Small registry for LLM-facing tools (Brain chat, the French tutor).
 
 Keeping a tool's schema, handler, availability check, and activity label in one
 place makes connectors independently configurable and avoids parallel dispatch
@@ -19,7 +19,7 @@ def _always_available() -> bool:
 
 
 @dataclass(frozen=True)
-class BrainTool:
+class LLMTool:
     name: str
     description: str
     parameters: dict
@@ -38,14 +38,14 @@ class BrainTool:
         }
 
 
-class BrainToolRegistry:
-    def __init__(self, tools: list[BrainTool]):
+class ToolRegistry:
+    def __init__(self, tools: list[LLMTool]):
         names = [tool.name for tool in tools]
         if len(names) != len(set(names)):
-            raise ValueError("Brain tool names must be unique")
+            raise ValueError("tool names must be unique")
         self._tools = {tool.name: tool for tool in tools}
 
-    def get(self, name: str) -> BrainTool | None:
+    def get(self, name: str) -> LLMTool | None:
         return self._tools.get(name)
 
     def active_schemas(self, names: set[str] | None = None) -> list[dict]:
@@ -54,3 +54,8 @@ class BrainToolRegistry:
             for tool in self._tools.values()
             if (names is None or tool.name in names) and tool.available()
         ]
+
+
+# Brain's original names, kept so its connector modules read naturally.
+BrainTool = LLMTool
+BrainToolRegistry = ToolRegistry

@@ -14,7 +14,7 @@ os.environ.setdefault("GOOGLE_CLIENT_SECRET", "test")
 os.environ.setdefault("OAUTH_REDIRECT_URI", "http://localhost/callback")
 
 from app.services import brain, brain_code  # noqa: E402
-from app.services.brain_tool_registry import (  # noqa: E402
+from app.services.tool_registry import (  # noqa: E402
     BrainTool,
     BrainToolRegistry,
 )

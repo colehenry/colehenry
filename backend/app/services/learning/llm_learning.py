@@ -2,7 +2,6 @@
 
     generate_drill(...)       validated, cached exercises in the shared shape
     compose_session(...)      picks among *existing* activities for a time budget
-    explain_french(...)       short Spanish-bridge explanation of a French item
     analyze_conversation(...) prepared interface (v2)
     analyze_text(...)         prepared interface (v2)
     generate_micro_content(...) prepared interface (v2)
@@ -50,6 +49,7 @@ Rules (non-negotiable):
 - ~90% of the French must come from the learner's known/learning vocabulary lists supplied. Never add advanced words to practice one target.
 - One primary difficulty per item. Rotate contexts: daily life, work, friends, tech, travel, media, sports, plans, opinions.
 - Where several natural answers exist, list them all in accepted_answers (with and without est-ce que; nous/on; etc.).
+- A French noun on its own is never shown or accepted bare: always with an article that reveals its gender (le/la, un/une; "un ami" not "l'ami").
 - Output ONLY valid JSON matching the requested schema. No prose, no markdown fences."""
 
 FORMAT_SPECS = {
@@ -421,51 +421,48 @@ def compose_session(db: Session, *, sprint: int, minutes: int) -> dict | None:
 
 
 # ---------------------------------------------------------------------------
-# explain
+# grade free writing
 # ---------------------------------------------------------------------------
 
-EXPLAIN_SYSTEM = """You explain French to a learner with C1 Spanish (A0 French). Answer in Spanish, max 120 words, no preamble.
-Lead with the precise Spanish parallel when one exists (venir de + inf ↔ acabar de + inf). Flag false friends and pronunciation traps.
-Give 2 short French examples with Spanish glosses. Output ONLY JSON: {"explanation": str, "examples": [{"fr": str, "es": str}], "refs": [str]}
-refs are optional reference ids among: pronunciation, spelling, transfer, core-verbs, sentence-architecture, questions, articles, tense-map, pronouns, spoken-french, numbers."""
+GRADE_SYSTEM = """You grade ONE French sentence written by a learner (A0 French, C1 Spanish). Metropolitan France French.
+The learner had to use a given target word in an original sentence. Be strict where it matters, generous elsewhere:
+- HARD FAIL (score ≤ 0.5, correct=false): target word missing or not used as itself; noun without its article or with the wrong-gender article; wrong verb conjugation or agreement; not French / not a sentence.
+- MINOR (score 0.8–0.95, correct=true): accents, single-letter spelling slips, missing final punctuation, slightly unnatural but clear phrasing.
+- PERFECT (score 1.0): natural, correct, target used properly.
+Always give the corrected sentence (unchanged if perfect). Explanation in Spanish, ≤ 40 words, name the rule not the feeling.
+issue kinds: article | gender | agreement | verb | spelling | vocab | missing_target | other.
+Output ONLY JSON: {"score": number, "correct": boolean, "corrected": str, "explanation": str, "issues": [{"kind": str, "text": str, "fix": str}]}"""
 
-EXPLAIN_MODES = {
-    "explain": "Explain this.",
-    "compare_es": "Compare it precisely with Spanish: what transfers, what doesn't.",
-    "why_tense": "Why this tense / construction here? Compare with the Spanish choice.",
-    "more_examples": "Give 4 more natural short examples with Spanish glosses (known language only).",
-    "pronunciation": "How is it pronounced? IPA, the spelling → sound rules involved, and the Spanish-speaker traps.",
-}
+ISSUE_KINDS = {"article", "gender", "agreement", "verb", "spelling", "vocab", "missing_target", "other"}
+HARD_ISSUES = {"article", "gender", "agreement", "verb", "missing_target"}
 
 
-def explain_french(db: Session, *, text: str, mode: str, sprint: int, context_sentence: str = "") -> dict | None:
-    text = text.strip()[:300]
-    mode = mode if mode in EXPLAIN_MODES else "explain"
-    phash = hashlib.sha1(f"explain|{mode}|{text.lower()}|{context_sentence.lower()[:120]}".encode()).hexdigest()[:32]
-    cached = db.execute(select(LearningGenerated).where(LearningGenerated.format == "explain", LearningGenerated.params_hash == phash)).scalars().first()
-    if cached:
-        cached.served_count += 1
-        cached.last_served_at = datetime.now(timezone.utc)
-        db.commit()
-        return {**cached.payload, "cached": True}
+def grade_sentence(db: Session, *, sentence: str, target: str, sprint: int) -> dict | None:
+    sentence = sentence.strip()[:300]
     if not available():
         return None
     ctx = build_context(db, sprint, purpose="explain")
     ctx.pop("core_vocab_known", None)
-    user = json.dumps({"item": text, "context_sentence": context_sentence, "task": EXPLAIN_MODES[mode], "learner": ctx}, ensure_ascii=False)
-    data, model = chat_json(EXPLAIN_SYSTEM, user, max_tokens=700, temperature=0.5)
-    if not data or not data.get("explanation"):
+    user = json.dumps({"target_word": target, "sentence": sentence, "learner": ctx}, ensure_ascii=False)
+    data, model = chat_json(GRADE_SYSTEM, user, max_tokens=500, temperature=0.2)
+    if not data or "score" not in data:
         return None
-    payload = {
-        "explanation": str(data["explanation"])[:1200],
-        "examples": [{"fr": str(e.get("fr", "")), "es": str(e.get("es", ""))} for e in (data.get("examples") or []) if isinstance(e, dict)][:6],
-        "refs": [ref_link(r) for r in (data.get("refs") or []) if isinstance(r, str)][:3],
-        "mode": mode, "text": text,
+    issues = [
+        {"kind": str(i.get("kind", "other")) if str(i.get("kind", "")) in ISSUE_KINDS else "other", "text": str(i.get("text", ""))[:120], "fix": str(i.get("fix", ""))[:120]}
+        for i in (data.get("issues") or []) if isinstance(i, dict)
+    ][:6]
+    try:
+        score = max(0.0, min(1.0, float(data["score"])))
+    except (TypeError, ValueError):
+        return None
+    # the rubric's hard fails are not negotiable, whatever the model's own verdict
+    if any(i["kind"] in HARD_ISSUES for i in issues):
+        score = min(score, 0.5)
+    correct = score >= 0.8
+    return {
+        "score": round(score, 2), "correct": correct, "corrected": str(data.get("corrected", ""))[:300],
+        "explanation": str(data.get("explanation", ""))[:500], "issues": issues, "model": model,
     }
-    db.add(LearningGenerated(params_hash=phash, format="explain", sprint=sprint, targets=[text], model=model, prompt_version=PROMPT_VERSION,
-                             payload=payload, valid=True, served_count=1, last_served_at=datetime.now(timezone.utc)))
-    db.commit()
-    return {**payload, "cached": False}
 
 
 # ---------------------------------------------------------------------------

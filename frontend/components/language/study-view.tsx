@@ -10,7 +10,7 @@ import {
   type Deck,
   type LanguageCode,
 } from "@/lib/api/language";
-import { cardSpeechText, genderLabel, Speak, speakText } from "./language-shared";
+import { cardFrench, cardSpeechText, Fr, genderLabel, Speak, speakText } from "./language-shared";
 
 const GRADES: [number, string][] = [
   [1, "Again"],
@@ -284,7 +284,9 @@ export function StudyView({
               />
             ) : (
               <>
-                <p style={{ fontSize: "30px", lineHeight: 1.3 }}>{card.front}</p>
+                <p style={{ fontSize: "30px", lineHeight: 1.3 }}>
+                  {cardLanguage === "fr" && card.direction !== "production" ? <Fr text={cardFrench(card, card.front)} say /> : card.front}
+                </p>
                 {/* A production card's audio is the answer. */}
                 {(card.direction !== "production" || revealed) && (
                   <div className="mt-5 flex justify-center">
@@ -306,7 +308,7 @@ export function StudyView({
                 style={{ borderColor: "var(--xp-well-border)" }}
               >
                 <p style={{ fontSize: "20px" }}>
-                  {card.back}
+                  {cardLanguage === "fr" && card.direction === "production" ? <Fr text={cardFrench(card, card.back)} say /> : card.back}
                   {card.gender && (
                     <span className="xp-muted" style={{ fontSize: "13px" }}>
                       {" "}

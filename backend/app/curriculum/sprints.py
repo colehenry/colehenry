@@ -56,11 +56,12 @@ class Activity:
     params: dict = field(default_factory=dict)
     resource: str = ""  # Resource id for external kind
     dims: dict = field(default_factory=dict)  # mastery effect weights
+    requires: str = ""  # activity to finish first (a gate for the recommender, a hint in the bank - not a lock)
 
     def as_dict(self) -> dict:
         return {"id": self.id, "name": self.name, "skill": self.skill, "minutes": self.minutes, "kind": self.kind,
                 "format": self.format, "target": self.target, "params": self.params, "resource": self.resource,
-                "dims": self.dims}
+                "dims": self.dims, "requires": self.requires}
 
 
 @dataclass(frozen=True)
@@ -216,8 +217,10 @@ S1_ACTIVITIES = (
              params={"count": 10}, dims={"vocabulary": 0.8, "writing": 0.2}),
     Activity("s1_audio", "Audio recognition", "listening", 5, "drill", format="audio_recognition", target="hear → meaning",
              params={"count": 10}, dims={"listening": 0.6, "vocabulary": 0.4}),
+    Activity("s1_verb_intro", "Meet être · avoir · aller · faire", "verbs", 10, "drill", format="verb_intro", target="tables · recognise · fill",
+             params={"count": 4}, dims={"verbs": 1}),
     Activity("s1_verbs", "Verb drill · être/avoir/aller/faire", "verbs", 8, "drill", format="verb_drill", target="je · tu · on · vous",
-             params={"count": 12}, dims={"verbs": 1}),
+             params={"count": 12}, dims={"verbs": 1}, requires="s1_verb_intro"),
     Activity("s1_transform", "Sentence transformations", "grammar", 8, "drill", format="sentence_transform",
              target="negation · question · person", params={"count": 8}, dims={"grammar": 0.6, "verbs": 0.4}),
     Activity("s1_cloze", "Cloze", "vocabulary", 5, "drill", format="cloze", target="glue words", params={"count": 10},
@@ -228,6 +231,8 @@ S1_ACTIVITIES = (
              target="one sentence → meaning", params={"count": 8}, dims={"listening": 1}),
     Activity("s1_ladder", "Translation ladder", "grammar", 8, "drill", format="translation_ladder", target="je suis / j'ai / je vais",
              params={"count": 2}, dims={"grammar": 0.5, "verbs": 0.3, "writing": 0.2}),
+    Activity("s1_write", "Write with yesterday's words", "writing", 10, "drill", format="write_sentence",
+             target="known words → your own sentences", params={"count": 6}, dims={"writing": 0.5, "vocabulary": 0.5}),
     Activity("s1_repair", "Interference repair", "grammar", 5, "drill", format="error_repair", target="je suis 30 ans → j'ai",
              params={"count": 6}, dims={"grammar": 1}),
     Activity("s1_questions", "10 spoken questions", "speaking", 8, "drill", format="timed_fluency", target="answer aloud",
@@ -300,10 +305,12 @@ S2_ACTIVITIES = (
              target="modal + infinitif", params={"count": 2, "sprint": 2}, dims={"grammar": 0.5, "verbs": 0.3, "writing": 0.2}),
     Activity("s2_futur", "Futur proche", "grammar", 5, "drill", format="sentence_transform", target="aller + infinitif",
              params={"count": 8, "sprint": 2, "transformations": ["tense_futur_proche"]}, dims={"grammar": 1}),
+    Activity("s2_verb_intro", "Meet the S2 verbs", "verbs", 10, "drill", format="verb_intro", target="4 weakest of 8 · tables · fill",
+             params={"count": 4}, dims={"verbs": 1}),
     Activity("s2_verbs", "Verb drill · modals + -er", "verbs", 8, "drill", format="verb_drill", target="8 new verbs",
-             params={"count": 14, "sprint": 2}, dims={"verbs": 1}),
+             params={"count": 14, "sprint": 2}, dims={"verbs": 1}, requires="s2_verb_intro"),
     Activity("s2_er", "Regular -er", "verbs", 5, "drill", format="verb_drill", target="parler · penser · aimer",
-             params={"count": 10, "sprint": 2, "group": "er"}, dims={"verbs": 1}),
+             params={"count": 10, "sprint": 2, "group": "er"}, dims={"verbs": 1}, requires="s2_verb_intro"),
     Activity("s2_vocab_lesson", "Learn 8 core words", "vocabulary", 15, "drill", format="vocab_lesson", target="recognize · listen · context · produce",
              params={"count": 8, "only_sprint_vocab": True}, dims={"vocabulary": 1}),
     Activity("s2_fr_es", "French → Spanish", "vocabulary", 5, "drill", format="fr_to_es", target="Sprint 2 core",
@@ -326,6 +333,8 @@ S2_ACTIVITIES = (
              params={"count": 6, "level": 2, "sprint": 2}, dims={"listening": 0.7, "writing": 0.3}),
     Activity("s2_comprehension", "Audio comprehension", "listening", 5, "drill", format="audio_comprehension",
              target="plans · likes", params={"count": 8, "sprint": 2}, dims={"listening": 1}),
+    Activity("s2_write", "Write with yesterday's words", "writing", 10, "drill", format="write_sentence",
+             target="known words → your own sentences", params={"count": 6}, dims={"writing": 0.5, "vocabulary": 0.5}),
     Activity("s2_repair", "Interference repair", "grammar", 5, "drill", format="error_repair", target="me gusta → j'aime le",
              params={"count": 6, "sprint": 2}, dims={"grammar": 1}),
     Activity("s2_questions", "20 spoken questions", "speaking", 10, "drill", format="timed_fluency", target="answer aloud",
@@ -393,9 +402,11 @@ S3_ACTIVITIES = (
     Activity("s3_pc", "Passé composé transforms", "grammar", 8, "drill", format="sentence_transform", target="présent → passé composé",
              params={"count": 10, "sprint": 3, "transformations": ["tense_passe_compose"]}, dims={"grammar": 0.6, "verbs": 0.4}),
     Activity("s3_participles", "Participles · core verbs", "verbs", 5, "drill", format="verb_drill", target="fait · vu · pris",
-             params={"count": 12, "sprint": 3, "tense": "passe_compose"}, dims={"verbs": 1}),
+             params={"count": 12, "sprint": 3, "tense": "passe_compose"}, dims={"verbs": 1}, requires="s3_verb_intro"),
+    Activity("s3_verb_intro", "Meet the S3 verbs", "verbs", 10, "drill", format="verb_intro", target="4 weakest of 10 · tables · fill",
+             params={"count": 4}, dims={"verbs": 1}),
     Activity("s3_verbs", "Verb drill · 10 new verbs", "verbs", 8, "drill", format="verb_drill", target="venir · prendre · voir …",
-             params={"count": 14, "sprint": 3}, dims={"verbs": 1}),
+             params={"count": 14, "sprint": 3}, dims={"verbs": 1}, requires="s3_verb_intro"),
     Activity("s3_venir_de", "venir de + infinitif", "grammar", 5, "drill", format="translation_ladder", target="acabo de …",
              params={"count": 2, "sprint": 3, "family": "venir_de"}, dims={"grammar": 1}),
     Activity("s3_pronouns", "Object pronouns", "grammar", 5, "drill", format="sentence_transform", target="le / la / les",
@@ -420,6 +431,8 @@ S3_ACTIVITIES = (
              target="what happened?", params={"count": 8, "sprint": 3}, dims={"listening": 1}),
     Activity("s3_enchainement", "Linking & schwa · read aloud", "pronunciation", 5, "drill", format="read_aloud", target="il‿est là",
              params={"target": "enchainement_schwa", "count": 6}, dims={"pronunciation": 0.6, "speaking": 0.4}),
+    Activity("s3_write", "Write with yesterday's words", "writing", 10, "drill", format="write_sentence",
+             target="known words → your own sentences", params={"count": 6}, dims={"writing": 0.5, "vocabulary": 0.5}),
     Activity("s3_repair", "Interference repair", "grammar", 5, "drill", format="error_repair", target="past & pronouns",
              params={"count": 6, "sprint": 3}, dims={"grammar": 1}),
     Activity("s3_questions", "Questions about yesterday", "speaking", 10, "drill", format="timed_fluency", target="answer aloud",
@@ -486,9 +499,11 @@ S4_ACTIVITIES = (
     Activity("s4_ladder", "Translation ladder · mixed", "grammar", 8, "drill", format="translation_ladder", target="3 tenses",
              params={"count": 3, "sprint": 4}, dims={"grammar": 0.5, "verbs": 0.3, "writing": 0.2}),
     Activity("s4_verbs", "Verb drill · all 32", "verbs", 8, "drill", format="verb_drill", target="mixed persons & tenses",
-             params={"count": 16, "sprint": 4, "mixed": True}, dims={"verbs": 1}),
+             params={"count": 16, "sprint": 4, "mixed": True}, dims={"verbs": 1}, requires="s4_verb_intro"),
+    Activity("s4_verb_intro", "Meet the S4 verbs", "verbs", 10, "drill", format="verb_intro", target="4 weakest of 10 · tables · fill",
+             params={"count": 4}, dims={"verbs": 1}),
     Activity("s4_new_verbs", "Verb drill · S4 verbs", "verbs", 5, "drill", format="verb_drill", target="vivre · partir · finir …",
-             params={"count": 12, "sprint": 4, "only_sprint": True}, dims={"verbs": 1}),
+             params={"count": 12, "sprint": 4, "only_sprint": True}, dims={"verbs": 1}, requires="s4_verb_intro"),
     Activity("s4_vocab_lesson", "Learn 8 core words", "vocabulary", 15, "drill", format="vocab_lesson", target="recognize · listen · context · produce",
              params={"count": 8, "only_sprint_vocab": True}, dims={"vocabulary": 1}),
     Activity("s4_speed", "Speed recognition", "vocabulary", 5, "drill", format="fr_to_es", target="all core, timed",
@@ -505,6 +520,8 @@ S4_ACTIVITIES = (
              target="3 tenses", params={"count": 8, "sprint": 4}, dims={"listening": 1}),
     Activity("s4_shadow", "Shadowing", "pronunciation", 5, "drill", format="read_aloud", target="known text only",
              params={"target": "shadowing", "count": 4}, dims={"pronunciation": 0.5, "speaking": 0.5}),
+    Activity("s4_write", "Write with yesterday's words", "writing", 10, "drill", format="write_sentence",
+             target="known words → your own sentences", params={"count": 6}, dims={"writing": 0.5, "vocabulary": 0.5}),
     Activity("s4_repair", "Interference repair · all", "grammar", 5, "drill", format="error_repair", target="your log",
              params={"count": 8, "sprint": 4}, dims={"grammar": 1}),
     Activity("s4_questions", "10 known questions · fast", "speaking", 5, "drill", format="timed_fluency", target="no pauses",
@@ -571,3 +588,53 @@ ALL_GRAMMAR: dict[str, GrammarTarget] = {g.id: g for s in SPRINTS for g in s.gra
 
 def grammar_through_sprint(sprint: int) -> list[GrammarTarget]:
     return [g for s in SPRINTS if s.number <= sprint for g in s.grammar]
+
+
+# ---------------------------------------------------------------------------
+# evidence routing: how drills that do not name a grammar pattern still credit one
+# ---------------------------------------------------------------------------
+
+# vocabulary item → the pattern a cloze on that item exercises
+GRAMMAR_BY_VOCAB: dict[str, str] = {
+    "fr_c_est": "cest",
+    "fr_il_y_a": "il_y_a",
+    "fr_mon": "possessives", "fr_ton": "possessives", "fr_son": "possessives", "fr_notre_votre": "possessives",
+    "fr_au": "contractions", "fr_du": "contractions",
+    "fr_chez": "prepositions_places", "fr_a": "prepositions_places", "fr_de": "prepositions_places",
+    "fr_le_la_les": "articles", "fr_un_une_des": "articles",
+    "fr_puis": "sequencing", "fr_apres": "sequencing", "fr_donc": "sequencing", "fr_d_abord": "sequencing", "fr_enfin": "sequencing",
+    "fr_parce_que": "reasons_opinions", "fr_je_pense_que": "reasons_opinions",
+    "fr_depuis": "depuis_pendant", "fr_pendant": "depuis_pendant",
+    "fr_on": "on_we",
+}
+
+# sprint-4 consolidation patterns are the earlier ones seen again; a sprint-4 drill credits both
+CONSOLIDATES: dict[str, str] = {
+    "questions_yesno": "questions_all", "questions_stronger": "questions_all", "question_words": "questions_all",
+    "negation": "negation_all", "negation_modals": "negation_all",
+    "object_pronouns_1": "object_pronouns_2",
+    "futur_proche": "tense_mixing", "passe_compose_avoir": "tense_mixing", "passe_compose_etre": "tense_mixing", "present_core4": "tense_mixing",
+    "articles": "articles_prepositions", "contractions": "articles_prepositions", "prepositions_places": "articles_prepositions",
+    "aimer_article": "articles_prepositions",
+    "gender_agreement": "agreement", "adjective_position": "agreement",
+}
+
+# reference sheet → pattern, for interference repairs (exact anchor first, then the sheet)
+GRAMMAR_BY_REF: dict[str, str] = {}
+for _grammar in ALL_GRAMMAR.values():
+    GRAMMAR_BY_REF.setdefault(_grammar.ref, _grammar.id)
+
+
+def grammar_for_ref(ref: str) -> str | None:
+    if ref in GRAMMAR_BY_REF:
+        return GRAMMAR_BY_REF[ref]
+    sheet = ref.split("#")[0]
+    return GRAMMAR_BY_REF.get(sheet)
+
+
+def with_consolidation(ids: list[str], sprint: int) -> list[str]:
+    """At sprint 4 every earlier pattern also evidences its consolidation pattern."""
+    if sprint < 4:
+        return ids
+    extra = [CONSOLIDATES[i] for i in ids if i in CONSOLIDATES]
+    return list(dict.fromkeys([*ids, *extra]))

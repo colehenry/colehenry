@@ -262,3 +262,64 @@ def targets_for_sprint(sprint: int) -> list[PronTarget]:
 
 def targets_through_sprint(sprint: int) -> list[PronTarget]:
     return [t for t in PRON_TARGETS if t.sprint <= sprint]
+
+
+# ---------------------------------------------------------------------------
+# meanings for every minimal-pair word, so a sound drill never quizzes on a
+# word the learner cannot place. Spanish glosses; "(nombre)" marks names.
+# ---------------------------------------------------------------------------
+
+GLOSSES: dict[str, str] = {
+    "Jean": "Juan (nombre)", "allait": "iba", "allé": "ido", "bain": "baño", "baiser": "beso / besar", "baisser": "bajar",
+    "banc": "banco (asiento)", "base": "base", "basse": "baja", "beau": "bello", "beige": "beis", "blanc": "blanco", "blin": "blini",
+    "blond": "rubio", "bon": "bueno", "bouche": "boca", "bouge": "(se) mueve", "boule": "bola", "bout": "extremo / trozo", "bu": "bebido",
+    "bulle": "burbuja", "bêche": "pala", "bœufs": "bueyes", "c'est pas grave": "no pasa nada (oral)", "cache": "esconde", "cage": "jaula",
+    "case": "casilla", "caser": "colocar", "casse": "rompe", "casser": "romper", "ce n'est pas grave": "no pasa nada", "cent": "cien",
+    "cesse": "cesa", "ceux": "los (que)", "champ": "campo", "chant": "canto", "char": "carro", "chaîne": "cadena", "chevaux": "caballos",
+    "cheveux": "cabellos", "chez eux": "en su casa", "choix": "elección", "chose": "cosa", "chou": "col / repollo", "chute": "caída",
+    "claie": "rejilla", "clé": "llave", "cour": "patio", "cousin": "primo", "coussin": "cojín", "cri": "grito", "cru": "crudo",
+    "cure": "cura", "côte": "costa / costilla", "daim": "gamo / ante", "dais": "dosel", "dans": "en / dentro", "dans un mois": "dentro de un mes",
+    "dessert": "postre", "dessous": "debajo", "dessus": "encima", "deux": "dos", "deux heures": "dos horas / las dos", "dire": "decir",
+    "dit": "dice / dicho", "don": "don / donación", "dos": "espalda", "douce": "dulce (f)", "doux": "dulce (m)", "douze": "doce", "du": "del",
+    "dur": "duro", "dé": "dado", "désert": "desierto", "elles aiment": "ellas aman", "elles ont": "ellas tienen", "elles s'aiment": "ellas se aman",
+    "elles sont": "ellas son", "et aussi": "y también", "et elle": "y ella", "face": "cara", "fait": "hace / hecho", "faux": "falso", "feu": "fuego",
+    "fit": "hizo", "fut": "fue", "fée": "hada", "gain": "ganancia", "gant": "guante", "gens": "gente", "gond": "bisagra", "guet": "acecho",
+    "gué": "vado", "gêne": "molestia", "hache": "hacha", "hausse": "subida", "il est pas là": "no está (oral)", "il n'est pas là": "no está",
+    "il n'y a pas de souci": "no hay problema", "il y a du monde": "hay gente", "il y a un problème": "hay un problema", "ils aiment": "ellos aman",
+    "ils appellent": "ellos llaman", "ils attendent": "ellos esperan", "ils habitent": "ellos viven", "ils ont": "ellos tienen",
+    "ils s'aiment": "ellos se aman", "ils s'appellent": "ellos se llaman", "ils s'attendent": "ellos se esperan", "ils s'écoutent": "ellos se escuchan",
+    "ils sont": "ellos son", "ils écoutent": "ellos escuchan", "j'ai pas faim": "no tengo hambre (oral)", "j'ose": "me atrevo",
+    "j'sais pas": "no sé (muy oral)", "jar": "jarra", "jaune": "amarillo", "je n'ai pas faim": "no tengo hambre", "je ne sais pas": "no sé",
+    "je ne veux pas": "no quiero", "je sais pas": "no sé (oral)", "je veux pas": "no quiero (oral)", "jeune": "joven", "joie": "alegría",
+    "joue": "mejilla / juega", "jus": "jugo", "jute": "yute", "kir": "kir (bebida)", "lait": "leche", "le hasard": "la casualidad", "lent": "lento",
+    "les": "los / las", "les amis": "los amigos", "les enfants": "los niños", "les héros": "los héroes", "liaison": "enlace", "lin": "lino",
+    "lise": "lea (subj.)", "lisse": "liso", "lit": "cama", "long": "largo", "loup": "lobo", "lu": "leído", "lécher": "lamer", "léger": "ligero",
+    "mage": "mago", "main": "mano", "mais": "pero", "mais oui": "claro que sí", "ment": "miente", "mes": "mis", "mi": "mi (nota)", "mille": "mil",
+    "mon ami": "mi amigo", "mont": "monte", "mou": "blando", "moule": "mejillón / molde", "mu": "movido", "mue": "muda (de piel)", "mule": "mula",
+    "mâche": "mastica", "naît": "nace", "nid": "nido", "no liaison": "sin enlace", "nos": "nuestros", "nous": "nosotros", "nous allons": "vamos",
+    "nous allons manger": "vamos a comer", "nous avons": "tenemos", "nous savons": "sabemos", "nous y allons": "vamos allí", "nu": "desnudo",
+    "né": "nacido", "nœud": "nudo", "on va manger": "vamos a comer", "on y va": "vamos", "ose": "se atreve", "pain": "pan", "pan": "faldón / lado",
+    "parlait": "hablaba", "parlé": "hablado", "peau": "piel", "petit ami": "novio", "peu": "poco", "phase": "fase", "pire": "peor", "pis": "peor (oral)",
+    "plan": "plano / plan", "plein": "lleno", "plomb": "plomo", "pneu": "neumático", "poison": "veneno", "poisson": "pez / pescado", "pont": "puente",
+    "pot": "tarro", "pou": "piojo", "poule": "gallina", "pour": "para", "pré": "prado", "prêt": "listo", "pu": "podido", "pull": "jersey", "pur": "puro",
+    "queue": "cola", "raie": "raya", "rang": "fila", "rein": "riñón", "riz": "arroz", "rond": "redondo", "roue": "rueda", "rue": "calle",
+    "ruse": "astucia", "russe": "ruso", "ré": "re (nota)", "sain": "sano", "saint": "santo", "sans": "sin", "seau": "cubo", "seize": "dieciséis",
+    "si": "si / tan", "son": "su / sonido", "sourd": "sordo", "sous": "bajo / debajo", "su": "sabido", "sûr": "seguro", "t'as le temps ?": "¿tienes tiempo? (oral)",
+    "t'es prêt ?": "¿estás listo? (oral)", "t'habites où ?": "¿dónde vives? (oral)", "taie": "funda", "tant": "tanto", "teint": "tez", "temps": "tiempo",
+    "thon": "atún", "thé": "té", "ton": "tu / tono", "tout": "todo", "très important": "muy importante", "tu": "tú", "tu as le temps ?": "¿tienes tiempo?",
+    "tu es prêt ?": "¿estás listo?", "tu habites où ?": "¿dónde vives?", "un homme": "un hombre", "un peu": "un poco", "valet": "criado / sota",
+    "vallée": "valle", "veau": "ternera", "vent": "viento", "veux": "quiero / quieres", "vie": "vida", "vin": "vino", "vise": "apunta", "visse": "atornilla",
+    "vont": "van", "vos": "vuestros", "vous": "vosotros / usted", "vous aimez": "amáis", "vous avez": "tenéis", "vous savez": "sabéis",
+    "vous semez": "sembráis", "vous êtes": "sois", "vu": "visto", "vue": "vista", "vœu": "deseo", "y a du monde": "hay gente (oral)",
+    "y a pas de souci": "no hay problema (oral)", "y a un problème": "hay un problema (oral)", "âge": "edad", "était": "era / estaba", "été": "verano / sido",
+}
+
+
+def gloss(word: str) -> str:
+    return GLOSSES.get(word, "")
+
+
+def glossed(word: str) -> str:
+    """"tout = todo" when a gloss exists, else the bare word."""
+    meaning = gloss(word)
+    return f"{word} = {meaning}" if meaning else word

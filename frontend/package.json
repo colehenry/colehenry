@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --import tsx --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/*.test.mjs"
+    "test": "node --import tsx --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/*.test.mjs",
+    "export:references": "node --import tsx scripts/export-references.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.101.2",

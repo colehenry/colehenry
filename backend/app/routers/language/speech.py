@@ -55,7 +55,7 @@ def spoken_conjugation(
 @router.post("/speak", response_model=SpeakOut)
 def speak(body: SpeakIn):
     """Cached TTS for arbitrary text; "" tells the client to use browser speech."""
-    return SpeakOut(audio_url=tts.synthesize(body.language.value, body.text))
+    return SpeakOut(audio_url=tts.synthesize(body.language.value, body.text, body.rate))
 
 
 @router.post("/conjugations/{conjugation_id}/audio", response_model=ConjugationAudioOut)

@@ -374,6 +374,7 @@ class ImportCommitOut(BaseModel):
 class SpeakIn(BaseModel):
     language: Language
     text: str = Field(max_length=300)
+    rate: float = Field(default=1.0, ge=0.5, le=2.0)
 
     @field_validator("text")
     @classmethod

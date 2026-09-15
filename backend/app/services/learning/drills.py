@@ -25,8 +25,9 @@ import random
 import re
 import uuid
 from dataclasses import dataclass, field, replace
+from datetime import datetime, timedelta, timezone
 
-from app.curriculum.pronunciation import PRON_BY_ID, PronTarget
+from app.curriculum.pronunciation import PRON_BY_ID, PronTarget, glossed
 from app.curriculum.sentences import (
     COGNATE_PARAGRAPH,
     DIALOGUES,
@@ -41,8 +42,9 @@ from app.curriculum.sentences import (
     TIME_ES,
     Frame,
 )
-from app.curriculum.sprints import ALL_GRAMMAR
+from app.curriculum.sprints import ALL_GRAMMAR, GRAMMAR_BY_VOCAB, grammar_for_ref, with_consolidation
 from app.curriculum.verbs import CORE_VERBS, CORE_VERBS_BY_INF, PERSONS, CoreVerb, verbs_through_sprint
+from app.curriculum.articles import noun_accepted, noun_display, split_forms, strip_article
 from app.curriculum.vocab import VOCAB, VocabItem
 from app.services.learning.grammar import (
     PRODUCTIVE_SUBJECTS,
@@ -91,10 +93,14 @@ def _base(fmt: str, kind: str, sprint: int, skill: str, dims: dict, **kw) -> dic
     return ex
 
 
-def _mc_options(rng: random.Random, correct: str, distractors: list[str], *, audio: bool = False, n: int = 4) -> tuple[list[dict], str]:
+def _mc_options(rng: random.Random, correct: str, distractors: list[str], *, audio: bool = False, n: int = 4,
+                keep_first: bool = False) -> tuple[list[dict], str]:
+    """`keep_first` pins distractors[0] into the option set (the rest are shuffled in)."""
     pool = [d for d in dict.fromkeys(distractors) if d and d != correct]
+    pinned = pool[:1] if keep_first and pool else []
+    pool = pool[len(pinned):]
     rng.shuffle(pool)
-    texts = [correct, *pool[: n - 1]]
+    texts = [correct, *pinned, *pool[: n - 1 - len(pinned)]]
     rng.shuffle(texts)
     options = []
     answer_id = ""
@@ -130,6 +136,7 @@ class PoolItem:
     mastery: dict = field(default_factory=dict)  # dim → 0..1
     attempts: int = 0
     priority: int = 2
+    last_seen_at: datetime | None = None
 
     @property
     def french_forms(self) -> list[str]:
@@ -140,6 +147,28 @@ class PoolItem:
     @property
     def headword(self) -> str:
         return self.french_forms[0]
+
+    @property
+    def is_noun(self) -> bool:
+        return self.pos == "noun" and bool(self.gender)
+
+    @property
+    def display(self) -> str:
+        """What the learner sees and hears: nouns carry their article."""
+        return noun_display(self.french, self.gender, self.pos)
+
+    @property
+    def display_head(self) -> str:
+        return split_forms(self.display)[0]
+
+    @property
+    def bare_head(self) -> str:
+        return strip_article(self.display_head)[1]
+
+    @property
+    def accepted_forms(self) -> list[str]:
+        """Typed answers that count; nouns must include a gender-bearing article."""
+        return noun_accepted(self.french, self.gender, self.pos) or self.french_forms
 
     @property
     def spanish_short(self) -> str:
@@ -160,10 +189,16 @@ def pool_item_from_vocab(i: VocabItem) -> PoolItem:
     )
 
 
-def _weighted_sample(rng: random.Random, items: list[PoolItem], k: int, dim: str) -> list[PoolItem]:
-    """Weakest-first, but random: weight = (1 - mastery) + small floor, boosted for unseen."""
+SEEN_RECENTLY = timedelta(hours=12)
+
+
+def _weighted_sample(rng: random.Random, items: list[PoolItem], k: int, dim: str, now: datetime | None = None) -> list[PoolItem]:
+    """Weakest-first, but random: weight = (1 - mastery) + small floor, boosted
+    for unseen, damped for words already served in the last half day so a
+    re-run of the same drill reaches for different words."""
     if not items:
         return []
+    now = now or datetime.now(timezone.utc)
     k = min(k, len(items))
     weights = []
     for it in items:
@@ -173,6 +208,8 @@ def _weighted_sample(rng: random.Random, items: list[PoolItem], k: int, dim: str
             w += 0.5
         if it.priority == 1:
             w += 0.2
+        if it.last_seen_at is not None and now - it.last_seen_at < SEEN_RECENTLY:
+            w *= 0.35
         weights.append(w)
     chosen: list[PoolItem] = []
     pool = list(items)
@@ -199,7 +236,7 @@ def _distractors(rng: random.Random, item: PoolItem, pool: list[PoolItem], attr:
 
 
 def _vocab_explanation(item: PoolItem) -> str:
-    bits = [f"{item.headword} {item.ipa}".strip(), f"= {item.spanish}"]
+    bits = [f"{item.display} {item.ipa}".strip(), f"= {item.spanish}"]
     if item.english:
         bits.append(f"({item.english})")
     if item.example_fr:
@@ -228,7 +265,7 @@ def fr_to_es(rng: random.Random, pool: list[PoolItem], sprint: int, count: int, 
         options, answer = _mc_options(rng, item.spanish_short, [PoolItem.spanish_short.fget(p) for p in _pool_distractors(rng, item, pool)])
         out.append(_base(
             "fr_to_es", "mc", sprint, "vocabulary", {"vocabulary": 1.0}, instructions="→ español",
-            prompt=item.headword, hint=item.ipa, audio=_fr_audio(item.headword), autoplay=True,
+            prompt=item.display, hint=item.ipa, audio=_fr_audio(item.display), autoplay=True,
             options=options, answer_id=answer, explanation=_vocab_explanation(item), refs=_vocab_refs(item),
             target_ids=[item.id], meta={"dim": "recognition", "timed": timed},
         ))
@@ -246,15 +283,12 @@ def _pool_distractors(rng: random.Random, item: PoolItem, pool: list[PoolItem], 
 def es_to_fr(rng: random.Random, pool: list[PoolItem], sprint: int, count: int) -> list[dict]:
     out = []
     for item in _weighted_sample(rng, pool, count, "written_production"):
-        hint = ""
-        if item.pos == "noun" and item.gender:
-            hint = "m." if item.gender == "m" else "f."
-        elif item.pos:
-            hint = item.pos
+        hint = "" if item.is_noun else item.pos
         out.append(_base(
             "es_to_fr", "typed", sprint, "vocabulary", {"vocabulary": 0.8, "writing": 0.2}, instructions="→ français",
-            prompt=item.spanish, hint=hint, accepted=item.french_forms, explanation=_vocab_explanation(item),
-            refs=_vocab_refs(item), target_ids=[item.id], difficulty=2, meta={"dim": "written_production", "speak_after": item.headword},
+            prompt=item.spanish_short if item.is_noun else item.spanish, hint=hint, accepted=item.accepted_forms, explanation=_vocab_explanation(item),
+            refs=_vocab_refs(item), target_ids=[item.id], difficulty=2,
+            meta={"dim": "written_production", "speak_after": item.display_head, "article_required": item.is_noun},
         ))
     return out
 
@@ -265,7 +299,7 @@ def audio_recognition(rng: random.Random, pool: list[PoolItem], sprint: int, cou
         options, answer = _mc_options(rng, item.spanish_short, [p.spanish_short for p in _pool_distractors(rng, item, pool)])
         out.append(_base(
             "audio_recognition", "mc", sprint, "listening", {"listening": 0.6, "vocabulary": 0.4}, instructions="Écoute → significado",
-            prompt=item.headword, audio=_fr_audio(item.headword), audio_only=True, autoplay=True,
+            prompt=item.display, audio=_fr_audio(item.display_head), audio_only=True, autoplay=True,
             options=options, answer_id=answer, explanation=_vocab_explanation(item), refs=_vocab_refs(item),
             target_ids=[item.id], meta={"dim": "audio_recognition", "timed": timed},
         ))
@@ -273,7 +307,11 @@ def audio_recognition(rng: random.Random, pool: list[PoolItem], sprint: int, cou
 
 
 def _blank(sentence: str, forms: list[str]) -> tuple[str, str] | None:
-    """Replace the first whole-word occurrence of any form with ___ (case-insensitive)."""
+    """Replace the first whole-word occurrence of any form with ___ (case-insensitive).
+
+    Forms that start with an article swallow it too, so the blank tests
+    gender: "Je suis à la maison." → "Je suis à ___."
+    """
     for form in sorted(forms, key=len, reverse=True):
         if len(form) < 2:
             continue
@@ -284,30 +322,72 @@ def _blank(sentence: str, forms: list[str]) -> tuple[str, str] | None:
     return None
 
 
+def _cloze_forms(item: PoolItem) -> list[str]:
+    """Article-bearing forms first so the blank prefers them; bare forms as fallback."""
+    if not item.is_noun:
+        return item.french_forms
+    articled = [f"{article} {form}" for form in item.french_forms for article in ("le", "la", "l'", "les", "un", "une", "des")]
+    articled = [f.replace("l' ", "l'") for f in articled]
+    return [*articled, *item.french_forms]
+
+
+def _swap_article(answer: str, gender: str) -> str:
+    """The same noun with the wrong-gender article - the sharpest cloze distractor."""
+    article, word = strip_article(answer)
+    if not article or not word:
+        return ""
+    swapped = {"le": "la", "la": "le", "un": "une", "une": "un"}.get(article)
+    return f"{swapped} {word}" if swapped else ""
+
+
 def cloze(rng: random.Random, pool: list[PoolItem], sprint: int, count: int) -> list[dict]:
-    candidates = [p for p in pool if p.example_fr and _blank(p.example_fr, p.french_forms)]
+    candidates = [p for p in pool if p.example_fr and _blank(p.example_fr, _cloze_forms(p))]
     out = []
     for item in _weighted_sample(rng, candidates, count, "contextual_use"):
-        blanked = _blank(item.example_fr, item.french_forms)
+        blanked = _blank(item.example_fr, _cloze_forms(item))
         if not blanked:
             continue
         sentence, answer_form = blanked
-        distractors = [p.headword for p in _pool_distractors(rng, item, candidates, 8) if p.headword.lower() != answer_form.lower()]
-        options, answer = _mc_options(rng, answer_form, distractors)
+        answer_has_article = bool(strip_article(answer_form)[0])
+        distractors = [
+            (p.display_head if answer_has_article else p.headword)
+            for p in _pool_distractors(rng, item, candidates, 8)
+            if p.headword.lower() != item.headword.lower()
+        ]
+        wrong_gender = _swap_article(answer_form, item.gender) if answer_has_article else ""
+        if wrong_gender:
+            distractors = [wrong_gender, *distractors]
+        options, answer = _mc_options(rng, answer_form, distractors, keep_first=bool(wrong_gender))
         out.append(_base(
             "cloze", "mc", sprint, "vocabulary", {"vocabulary": 0.6, "grammar": 0.4}, instructions="Complète",
             prompt=sentence, prompt_es=item.example_es, options=options, answer_id=answer,
-            explanation=_vocab_explanation(item), refs=_vocab_refs(item), target_ids=[item.id],
-            meta={"dim": "contextual_use", "speak_after": item.example_fr},
+            explanation=_vocab_explanation(item), refs=_vocab_refs(item),
+            target_ids=with_consolidation([item.id, *([GRAMMAR_BY_VOCAB[item.id]] if item.id in GRAMMAR_BY_VOCAB else [])], sprint),
+            meta={"dim": "contextual_use", "speak_after": item.example_fr, "article_required": answer_has_article},
+        ))
+    return out
+
+
+def listen_and_type(rng: random.Random, pool: list[PoolItem], sprint: int, count: int) -> list[dict]:
+    """Hear the bare word, type it with its article - spelling from sound, gender from memory."""
+    out = []
+    for item in _weighted_sample(rng, pool, count, "audio_recognition"):
+        out.append(_base(
+            "dictation", "typed", sprint, "listening", {"listening": 0.5, "vocabulary": 0.5}, instructions="Écoute → écris",
+            prompt=item.display_head, audio=_fr_audio(item.bare_head), audio_only=True, autoplay=True,
+            accepted=item.accepted_forms, explanation=_vocab_explanation(item), refs=_vocab_refs(item), target_ids=[item.id],
+            meta={"dim": "audio_recognition", "dictation": True, "article_required": item.is_noun, "speak_after": item.display_head},
         ))
     return out
 
 
 def vocabulary_lesson(rng: random.Random, pool: list[PoolItem], sprint: int, count: int = 8) -> list[dict]:
-    """One coherent word batch: recognize, hear, use, then produce.
+    """One coherent word batch, each round adding one demand:
 
-    Production is deliberately last, after every word has appeared in two
-    other modes. The shared runner adds one retry round for missed prompts.
+    meet → recognize (MC) → hear & spell with article (typed) → pick it into a
+    sentence frame (MC, article inside the blank) → produce from Spanish (typed).
+    The intro cards are the only place the article is shown before a test.
+    The shared runner adds one retry round for missed prompts.
     """
     unseen = [item for item in pool if item.attempts == 0]
     batch = _weighted_sample(rng, unseen, count, "recognition")
@@ -320,16 +400,16 @@ def vocabulary_lesson(rng: random.Random, pool: list[PoolItem], sprint: int, cou
     introductions = [
         _base(
             "vocab_intro", "intro", sprint, "vocabulary", {},
-            instructions="Meet the words", prompt=item.headword, prompt_es=item.spanish,
-            hint=item.ipa, audio=_fr_audio(item.headword), autoplay=True,
+            instructions="Meet the words", prompt=item.display, prompt_es=item.spanish,
+            hint=item.ipa, audio=_fr_audio(item.display), autoplay=True,
             explanation=_vocab_explanation(item), refs=_vocab_refs(item), target_ids=[item.id],
-            group="vocab-lesson", meta={"lesson_stage": "Meet the words"},
+            group="vocab-lesson", meta={"lesson_stage": "Meet the words", "gender": item.gender if item.is_noun else ""},
         )
         for item in batch
     ]
     rounds = [
         ("1 / 4 · Recognize", fr_to_es(rng, batch, sprint, len(batch))),
-        ("2 / 4 · Listen", audio_recognition(rng, batch, sprint, len(batch))),
+        ("2 / 4 · Listen & write", listen_and_type(rng, batch, sprint, len(batch))),
         ("3 / 4 · Use in context", cloze(rng, batch, sprint, len(batch))),
         ("4 / 4 · Produce", es_to_fr(rng, batch, sprint, len(batch))),
     ]
@@ -343,6 +423,36 @@ def vocabulary_lesson(rng: random.Random, pool: list[PoolItem], sprint: int, cou
     return out
 
 
+KNOWN_FOR_WRITING = 0.75
+PRODUCTIVE_CEILING = 0.6
+WRITING_REST = timedelta(days=1)
+
+
+def writing_candidates(pool: list[PoolItem], now: datetime | None = None) -> list[PoolItem]:
+    """Words recognized but not yet productive, rested at least a day - spaced
+    production, never same-session production. Falls back to unrested words
+    only when nothing has rested."""
+    now = now or datetime.now(timezone.utc)
+    ready = [p for p in pool if p.mastery.get("recognition", 0.0) >= KNOWN_FOR_WRITING and p.mastery.get("written_production", 0.0) < PRODUCTIVE_CEILING]
+    rested = [p for p in ready if p.last_seen_at is None or now - p.last_seen_at >= WRITING_REST]
+    return rested or ready
+
+
+def write_sentences(rng: random.Random, pool: list[PoolItem], sprint: int, count: int, now: datetime | None = None) -> list[dict]:
+    """Free production: one original sentence per word, graded by the model
+    (strict on article / gender / agreement). The catalog example is the
+    sample shown only when the model is unavailable."""
+    out = []
+    for item in _weighted_sample(rng, writing_candidates(pool, now), count, "written_production"):
+        out.append(_base(
+            "write_sentence", "typed", sprint, "writing", {"writing": 0.5, "vocabulary": 0.5}, instructions="Écris une phrase avec",
+            prompt=item.display, prompt_es=item.spanish, accepted=[item.example_fr] if item.example_fr else [], explanation=_vocab_explanation(item), refs=_vocab_refs(item),
+            target_ids=[item.id], difficulty=3,
+            meta={"dim": "written_production", "llm_graded": True, "lenient": True, "target_word": item.display_head, "article_required": item.is_noun},
+        ))
+    return out
+
+
 def audio_comprehension(rng: random.Random, pool: list[PoolItem], sprint: int, count: int) -> list[dict]:
     candidates = [p for p in pool if p.example_fr and p.example_es]
     out = []
@@ -352,7 +462,7 @@ def audio_comprehension(rng: random.Random, pool: list[PoolItem], sprint: int, c
         out.append(_base(
             "audio_comprehension", "mc", sprint, "listening", {"listening": 1.0}, instructions="Écoute → ¿qué significa?",
             prompt=item.example_fr, audio=_fr_audio(item.example_fr), audio_only=True, autoplay=True,
-            options=options, answer_id=answer, explanation=f"{item.example_fr} — {item.example_es} · {item.headword} = {item.spanish}",
+            options=options, answer_id=answer, explanation=f"{item.example_fr} — {item.example_es} · {item.display} = {item.spanish}",
             refs=_vocab_refs(item), target_ids=[item.id], difficulty=2, meta={"dim": "audio_recognition"},
         ))
     return out
@@ -365,9 +475,9 @@ def dictation(rng: random.Random, pool: list[PoolItem], sprint: int, count: int,
         for item in _weighted_sample(rng, pool, count, "audio_recognition"):
             out.append(_base(
                 "dictation", "typed", sprint, "listening", {"listening": 0.7, "writing": 0.3}, instructions="Dictée · un mot",
-                prompt=item.headword, audio=_fr_audio(item.headword), audio_only=True, autoplay=True,
-                accepted=item.french_forms, explanation=_vocab_explanation(item), refs=_vocab_refs(item), target_ids=[item.id],
-                meta={"dim": "audio_recognition", "dictation": True},
+                prompt=item.display_head, audio=_fr_audio(item.display_head), audio_only=True, autoplay=True,
+                accepted=item.accepted_forms, explanation=_vocab_explanation(item), refs=_vocab_refs(item), target_ids=[item.id],
+                meta={"dim": "audio_recognition", "dictation": True, "article_required": item.is_noun},
             ))
         return out
     if level == 2:
@@ -460,7 +570,7 @@ def _apply(rng: random.Random, spec: SentenceSpec, transformation: str) -> tuple
     if transformation == "person":
         choices = [s for s in PRODUCTIVE_SUBJECTS if s in frame.subjects and s != spec.subject]
         new = rng.choice(choices)
-        return replace(spec, subject=new), f"→ {subject_label(new)}", "subject_pronouns"
+        return replace(spec, subject=new), f"→ {subject_label(new)}", "on_we" if new == "on" else "subject_pronouns"
     if transformation == "polarity":
         if spec.negative:
             return replace(spec, negative=False), "→ affirmatif", "negation"
@@ -550,7 +660,7 @@ def sentence_transform(rng: random.Random, sprint: int, count: int, *, transform
             audio=_fr_audio(base_fr) if base_fr else None,
             explanation=_transform_explanation(new, transformation, gid),
             refs=[ref_link(ALL_GRAMMAR[gid].ref)] if gid in ALL_GRAMMAR else [ref_link("sentence-architecture")],
-            target_ids=list(dict.fromkeys(targets)), difficulty=2 if transformation in ("person", "polarity", "translate") else 3,
+            target_ids=with_consolidation(list(dict.fromkeys(targets)), sprint), difficulty=2 if transformation in ("person", "polarity", "translate") else 3,
             transformation=transformation, meta={"speak_after": accepted[0], "timed": timed, "base": base_fr},
         ))
     return out
@@ -582,7 +692,8 @@ def translation_ladder(rng: random.Random, sprint: int, count: int, *, family: s
                 "translation_ladder", "typed", sprint, "grammar", {"grammar": 0.5, "verbs": 0.3, "writing": 0.2},
                 instructions=f"Échelle {i}/{len(rungs)} · {label}", prompt=render_es(spec), accepted=accepted,
                 explanation=_transform_explanation(spec, label, gid), refs=[ref_link(ALL_GRAMMAR[gid].ref)] if gid in ALL_GRAMMAR else [],
-                target_ids=[f"frame:{frame.id}", f"verb:{spec.main_verb}", *frame.grammar], difficulty=2, group=group,
+                target_ids=with_consolidation([f"frame:{frame.id}", f"verb:{spec.main_verb}", *frame.grammar, *(["venir_de"] if tense == "venir_de" else [])], sprint),
+                difficulty=2, group=group,
                 transformation="translate", meta={"speak_after": accepted[0]},
             ))
     return out
@@ -593,6 +704,77 @@ def translation_ladder(rng: random.Random, sprint: int, count: int, *, family: s
 # ---------------------------------------------------------------------------
 
 PERSON_WEIGHTS = {"1s": 3, "2s": 3, "on": 3, "2p": 2, "3s": 1.5, "3sf": 1.5, "1p": 1, "3p": 1.5}
+
+FR_SUBJECT = {"1s": "je", "2s": "tu", "3s": "il", "1p": "nous", "2p": "vous", "3p": "ils"}
+FR_SUBJECT_LABEL = {"1s": "je", "2s": "tu", "3s": "il / elle / on", "1p": "nous", "2p": "vous", "3p": "ils / elles"}
+ES_SUBJECT = {"1s": "yo", "2s": "tú", "3s": "él / ella", "1p": "nosotros", "2p": "vosotros", "3p": "ellos"}
+INTRO_PERSON_WEIGHTS = {"1s": 3, "2s": 3, "3s": 2, "1p": 1, "2p": 2, "3p": 2}
+
+
+def _fr_conjugated(person: str, form: str) -> str:
+    subject = FR_SUBJECT[person]
+    if subject == "je" and re.match(r"^[aeiouyàâäéèêëîïôöùûüh]", form, re.IGNORECASE):
+        return f"j'{form}"
+    return f"{subject} {form}"
+
+
+def verb_intro(rng: random.Random, sprint: int, count: int = 4, *, verbs: list[str] | None = None, only_sprint: bool = True,
+               verb_mastery: dict[str, float] | None = None) -> list[dict]:
+    """Meet the verbs before drilling them: the full present table per verb,
+    then recognise the form from its Spanish, then fill two cells from memory.
+    Weakest verbs first; `count` verbs per run."""
+    if verbs:
+        cv = [CORE_VERBS_BY_INF[v] for v in verbs if v in CORE_VERBS_BY_INF]
+    else:
+        cv = [v for v in CORE_VERBS if v.sprint == sprint] if only_sprint else verbs_through_sprint(sprint)
+    mastery = verb_mastery or {}
+    cv = sorted(cv, key=lambda v: mastery.get(v.infinitive, 0.0))[:count]
+    if not cv:
+        return []
+    out: list[dict] = []
+    for v in cv:
+        table = {
+            "persons": [FR_SUBJECT_LABEL[p] for p in PERSONS],
+            "fr": [_fr_conjugated(p, v.form(p)) for p in PERSONS],
+            "es": [f"{ES_SUBJECT[p]} {v.es_form(p)}" for p in PERSONS],
+        }
+        notes = " · ".join(bit for bit in (v.pronunciation, v.notes) if bit)
+        out.append(_base(
+            "verb_intro", "intro", sprint, "verbs", {}, instructions="Meet the verb", prompt=v.infinitive, prompt_es=v.spanish,
+            hint=v.ipa, audio=_fr_audio(v.infinitive), autoplay=True, explanation=notes,
+            refs=[ref_link(f"core-verbs#{v.infinitive}")], target_ids=[f"verb:{v.infinitive}"], group="verb-intro",
+            meta={"lesson_stage": "Meet the verbs", "conjugation": table, "examples": [{"fr": fr, "es": es} for fr, es in v.examples[:2]]},
+        ))
+    persons = list(INTRO_PERSON_WEIGHTS)
+    weights = [INTRO_PERSON_WEIGHTS[p] for p in persons]
+    # recognise: Spanish form → the French one, among this verb's other persons and another verb's same person
+    for v in cv:
+        for person in rng.sample(persons, 2):
+            correct = _fr_conjugated(person, v.form(person))
+            others = [_fr_conjugated(p, v.form(p)) for p in PERSONS if p != person]
+            rng.shuffle(others)
+            cross = [_fr_conjugated(person, o.form(person)) for o in cv if o is not v]
+            distractors = [*others[:2], *(rng.sample(cross, 1) if cross else others[2:3])]
+            options, answer = _mc_options(rng, correct, distractors)
+            out.append(_base(
+                "verb_intro", "mc", sprint, "verbs", {"verbs": 1.0}, instructions="1 / 2 · Reconnaître",
+                prompt=f"{ES_SUBJECT[person]} {v.es_form(person)}", hint=v.infinitive, options=options, answer_id=answer,
+                explanation=f"{v.infinitive} = {v.spanish} · {correct} — {notes}"[:300], refs=[ref_link(f"core-verbs#{v.infinitive}")],
+                target_ids=[f"verb:{v.infinitive}"], group="verb-intro",
+                meta={"lesson_stage": "1 / 2 · Reconnaître", "speak_after": correct, "retry_missed": True},
+            ))
+    # produce: the cell from memory
+    for v in cv:
+        for person in rng.choices(persons, weights=weights, k=2):
+            form = v.form(person)
+            out.append(_base(
+                "verb_intro", "typed", sprint, "verbs", {"verbs": 1.0}, instructions="2 / 2 · Compléter",
+                prompt=f"{FR_SUBJECT[person]} ___ ({v.infinitive})",
+                prompt_es=f"{ES_SUBJECT[person]} {v.es_form(person)}", accepted=[form], explanation=f"{_fr_conjugated(person, form)} — {notes}"[:300],
+                refs=[ref_link(f"core-verbs#{v.infinitive}")], target_ids=[f"verb:{v.infinitive}"], group="verb-intro", difficulty=2,
+                meta={"lesson_stage": "2 / 2 · Compléter", "speak_after": _fr_conjugated(person, form), "retry_missed": True},
+            ))
+    return out
 
 
 def verb_drill(rng: random.Random, sprint: int, count: int, *, tense: str | None = None, group: str | None = None,
@@ -680,57 +862,92 @@ def verb_drill(rng: random.Random, sprint: int, count: int, *, tense: str | None
 # ---------------------------------------------------------------------------
 
 
-def pronunciation_ab(rng: random.Random, target: PronTarget, sprint: int, count: int, *, unseen: bool = False) -> list[dict]:
+WARMUP_ITEMS = 4
+
+
+def _pair_warmup(rng: random.Random, target: PronTarget, sprint: int, groups: list[tuple[str, ...]], fmt: str) -> list[dict]:
+    """Listen-and-compare cards before the quiz: every word played in turn with
+    its meaning, nothing to answer. The learner meets the words, then gets tested."""
+    out = []
+    for group in groups[:WARMUP_ITEMS]:
+        out.append(_base(
+            fmt, "intro", sprint, "pronunciation", {}, instructions=f"{target.label} · écoute et compare",
+            prompt=" / ".join(group), audio=_fr_audio(" / ".join(group)), autoplay=True,
+            explanation=" · ".join(f"{glossed(w)} {s}".strip() for w, s in zip(group, target.sounds or [""] * len(group))) + f" — {target.note}",
+            refs=[ref_link(target.ref)], target_ids=[f"pron:{target.id}"], meta={"warmup": True, "compare": list(group)},
+        ))
+    return out
+
+
+def _prefer_known(rng: random.Random, groups: list[tuple[str, ...]], pool: list[PoolItem] | None) -> list[tuple[str, ...]]:
+    """Pairs made of words the learner already has come first (weighted, not exclusive)."""
+    if not pool:
+        rng.shuffle(groups)
+        return groups
+    known = {form.lower() for item in pool for form in item.french_forms}
+    weights = [1.0 + 2.0 * sum(w.lower() in known for w in group) for group in groups]
+    ordered: list[tuple[str, ...]] = []
+    remaining = list(groups)
+    while remaining:
+        pick = rng.choices(range(len(remaining)), weights=[weights[groups.index(g)] for g in remaining], k=1)[0]
+        ordered.append(remaining.pop(pick))
+    return ordered
+
+
+def pronunciation_ab(rng: random.Random, target: PronTarget, sprint: int, count: int, *, unseen: bool = False,
+                     pool: list[PoolItem] | None = None, warmup: bool = True) -> list[dict]:
     pairs = list(target.unseen_pairs if unseen else target.pairs)
     if unseen and rng.random() < 0.3 and target.pairs:
         pairs += rng.sample(list(target.pairs), min(2, len(target.pairs)))
-    out = []
+    pairs = _prefer_known(rng, pairs, pool)
+    out = _pair_warmup(rng, target, sprint, pairs, "pronunciation_ab") if warmup and not unseen else []
     for i in range(count):
         a, b = pairs[i % len(pairs)] if i < len(pairs) else rng.choice(pairs)
         played = rng.choice([a, b])
-        options = [{"id": "a", "text": a, "audio": None}, {"id": "b", "text": b, "audio": None}]
+        options = [{"id": "a", "text": a, "audio": _fr_audio(a)}, {"id": "b", "text": b, "audio": _fr_audio(b)}]
         out.append(_base(
             "pronunciation_ab", "mc", sprint, "pronunciation", {"pronunciation": 1.0}, instructions=f"{target.label} · ¿cuál oyes?",
             prompt=played, audio=_fr_audio(played), audio_only=True, autoplay=True, options=options,
             answer_id="a" if played == a else "b",
-            explanation=f"{a} {target.sounds[0] if target.sounds else ''} · {b} {target.sounds[1] if len(target.sounds) > 1 else ''} — {target.note}",
+            explanation=f"{glossed(a)} {target.sounds[0] if target.sounds else ''} · {glossed(b)} {target.sounds[1] if len(target.sounds) > 1 else ''} — {target.note}",
             refs=[ref_link(target.ref)], target_ids=[f"pron:{target.id}"], meta={"unseen": unseen, "compare": [a, b]},
         ))
     return out
 
 
-def pronunciation_3way(rng: random.Random, target: PronTarget, sprint: int, count: int, *, unseen: bool = False) -> list[dict]:
-    triads = list(target.unseen_triads if unseen else target.triads)
-    out = []
+def pronunciation_3way(rng: random.Random, target: PronTarget, sprint: int, count: int, *, unseen: bool = False,
+                       pool: list[PoolItem] | None = None, warmup: bool = True) -> list[dict]:
+    triads = _prefer_known(rng, list(target.unseen_triads if unseen else target.triads), pool)
+    out = _pair_warmup(rng, target, sprint, triads, "pronunciation_odd") if warmup and not unseen else []
     for i in range(count):
         triad = triads[i % len(triads)] if i < len(triads) else rng.choice(triads)
         played = rng.choice(triad)
-        options = [{"id": "abc"[j], "text": w, "audio": None} for j, w in enumerate(triad)]
+        options = [{"id": "abc"[j], "text": w, "audio": _fr_audio(w)} for j, w in enumerate(triad)]
         out.append(_base(
             "pronunciation_odd", "mc", sprint, "pronunciation", {"pronunciation": 1.0}, instructions=f"{target.label} · ¿cuál oyes?",
             prompt=played, audio=_fr_audio(played), audio_only=True, autoplay=True, options=options,
             answer_id="abc"[triad.index(played)],
-            explanation=" · ".join(f"{w} {s}" for w, s in zip(triad, target.sounds)) + f" — {target.note}",
+            explanation=" · ".join(f"{glossed(w)} {s}" for w, s in zip(triad, target.sounds)) + f" — {target.note}",
             refs=[ref_link(target.ref)], target_ids=[f"pron:{target.id}"], meta={"unseen": unseen, "compare": list(triad)},
         ))
     return out
 
 
 def grapheme(rng: random.Random, target: PronTarget, sprint: int, count: int, *, unseen: bool = False, extra: list[str] | None = None) -> list[dict]:
-    items = list(target.unseen_graphemes if unseen else target.graphemes)
+    items = [(row, target) for row in (target.unseen_graphemes if unseen else target.graphemes)]
     for tid in extra or []:
         t = PRON_BY_ID.get(tid)
         if t:
-            items += list(t.unseen_graphemes if unseen else t.graphemes)
+            items += [(row, t) for row in (t.unseen_graphemes if unseen else t.graphemes)]
     rng.shuffle(items)
     out = []
-    for word, g, correct, distractors in items[:count]:
+    for (word, g, correct, distractors), owner in items[:count]:
         options, answer = _mc_options(rng, correct, list(distractors), n=min(4, 1 + len(distractors)))
         out.append(_base(
             "grapheme", "mc", sprint, "pronunciation", {"pronunciation": 0.7, "reading": 0.3},
             instructions=f"« {g} » dans", prompt=word, hint=g, options=options, answer_id=answer,
-            explanation=f"{word}: {g} = {correct} — {target.note}", refs=[ref_link(target.ref)],
-            target_ids=[f"pron:{target.id}"], meta={"unseen": unseen, "speak_after": word},
+            explanation=f"{word}: {g} = {correct} — {owner.note}", refs=[ref_link(owner.ref)],
+            target_ids=[f"pron:{owner.id}"], meta={"unseen": unseen, "speak_after": word},
         ))
     return out
 
@@ -746,7 +963,7 @@ def liaison(rng: random.Random, target: PronTarget, sprint: int, count: int, *, 
             out.append(_base(
                 "liaison", "mc", sprint, "listening", {"listening": 1.0}, instructions="À l'oral → à l'écrit",
                 prompt=spoken, audio=_fr_audio(spoken), audio_only=True, autoplay=True, options=options, answer_id=answer,
-                explanation=f"« {spoken} » = {careful} — {target.note}", refs=[ref_link(target.ref)],
+                explanation=f"« {spoken} » = {careful} ({glossed(careful).split(' = ')[-1]}) — {target.note}", refs=[ref_link(target.ref)],
                 target_ids=[f"pron:{target.id}"], meta={"unseen": unseen},
             ))
         return out
@@ -755,7 +972,7 @@ def liaison(rng: random.Random, target: PronTarget, sprint: int, count: int, *, 
         out.append(_base(
             "liaison", "mc", sprint, "pronunciation", {"pronunciation": 0.6, "listening": 0.4}, instructions="Liaison ?",
             prompt=phrase, audio=_fr_audio(phrase), autoplay=True, options=options, answer_id="a" if label == "liaison" else "b",
-            explanation=f"{phrase}: {label} — {target.note}", refs=[ref_link(target.ref)], target_ids=[f"pron:{target.id}"],
+            explanation=f"{glossed(phrase)}: {label} — {target.note}", refs=[ref_link(target.ref)], target_ids=[f"pron:{target.id}"],
             meta={"unseen": unseen, "speak_after": phrase},
         ))
     return out
@@ -775,12 +992,13 @@ def read_aloud(rng: random.Random, target: PronTarget, sprint: int, count: int, 
     return out
 
 
-def pronunciation_for(rng: random.Random, target_id: str, sprint: int, count: int, *, unseen: bool = False, extra: list[str] | None = None) -> list[dict]:
+def pronunciation_for(rng: random.Random, target_id: str, sprint: int, count: int, *, unseen: bool = False, extra: list[str] | None = None,
+                      pool: list[PoolItem] | None = None) -> list[dict]:
     target = PRON_BY_ID[target_id]
     if target.kind == "ab":
-        return pronunciation_ab(rng, target, sprint, count, unseen=unseen)
+        return pronunciation_ab(rng, target, sprint, count, unseen=unseen, pool=pool)
     if target.kind == "odd":
-        return pronunciation_3way(rng, target, sprint, count, unseen=unseen)
+        return pronunciation_3way(rng, target, sprint, count, unseen=unseen, pool=pool)
     if target.kind == "grapheme":
         return grapheme(rng, target, sprint, count, unseen=unseen, extra=extra)
     if target.kind == "liaison":
@@ -793,7 +1011,30 @@ def pronunciation_for(rng: random.Random, target_id: str, sprint: int, count: in
 # ---------------------------------------------------------------------------
 
 
-def timed_fluency(rng: random.Random, sprint: int, count: int, *, timed: bool = False) -> list[dict]:
+QUESTION_WORD = re.compile(r"\b(qui|quoi|où|quand|comment|pourquoi|quel|quelle|quels|quelles|qu'est-ce|combien)\b", re.IGNORECASE)
+
+
+def vocab_ids_in(text: str, pool: list[PoolItem]) -> list[str]:
+    """Pool items whose headword appears as a whole word in `text` (glue words excluded)."""
+    lowered = f" {normalize_text(text)} "
+    found = []
+    for item in pool:
+        if item.pos in ("det", "pron", "prep", "conj"):
+            continue
+        for form in item.french_forms:
+            if len(form) >= 3 and f" {normalize_text(form)} " in lowered:
+                found.append(item.id)
+                break
+    return found
+
+
+def normalize_text(text: str) -> str:
+    return re.sub(r"[^\w' ]+", " ", text.lower().replace("’", "'")).replace("'", "' ").strip()
+
+
+def timed_fluency(rng: random.Random, sprint: int, count: int, *, timed: bool = False, pool: list[PoolItem] | None = None) -> list[dict]:
+    """Spoken answers to sprint questions. Question words credit `question_words`;
+    the words the question hands the learner credit their spoken production."""
     bank = [q for s in range(1, sprint + 1) for q in QUESTIONS.get(s, ())]
     recent = list(QUESTIONS.get(sprint, ()))
     picks = rng.sample(recent, min(count, len(recent)))
@@ -805,8 +1046,9 @@ def timed_fluency(rng: random.Random, sprint: int, count: int, *, timed: bool = 
         out.append(_base(
             "timed_fluency", "self", sprint, "speaking", {"speaking": 0.7, "listening": 0.3},
             instructions="Écoute · réponds à voix haute", prompt=fr, prompt_es=es, audio=_fr_audio(fr), audio_only=True, autoplay=True,
-            reveal=f"{fr} — {es}", target_ids=[f"q:{fr[:30]}"],
-            meta={"timed": timed, "self_scale": ["rien", "avec effort", "ok", "fluide"]},
+            reveal=f"{fr} — {es}",
+            target_ids=with_consolidation([f"q:{fr[:30]}", *(["question_words"] if QUESTION_WORD.search(fr) else []), *vocab_ids_in(fr, pool or [])], sprint),
+            meta={"timed": timed, "self_scale": ["rien", "avec effort", "ok", "fluide"], "dim": "spoken_production"},
         ))
     return out
 
@@ -830,7 +1072,8 @@ def error_repair(rng: random.Random, sprint: int, count: int, log_items: list[di
             "error_repair", "typed", sprint, "grammar", {"grammar": 1.0}, instructions="Corrige",
             prompt=f"✗ {item['error']}", prompt_es=item.get("spanish_source", ""), accepted=[item["correct"]],
             explanation=item.get("explanation", ""), refs=[ref_link(item["ref"])] if item.get("ref") else [],
-            target_ids=[f"interference:{item['id']}"], pattern=item.get("pattern", ""), difficulty=2,
+            target_ids=with_consolidation([f"interference:{item['id']}", *([g] if (g := grammar_for_ref(item.get("ref") or "")) else [])], sprint),
+            pattern=item.get("pattern", ""), difficulty=2,
             meta={"speak_after": item["correct"], "interference_id": item["id"]},
         ))
     for wrong, right, es_src, expl, ref, _s, pattern in curated:
@@ -839,7 +1082,8 @@ def error_repair(rng: random.Random, sprint: int, count: int, log_items: list[di
         out.append(_base(
             "error_repair", "typed", sprint, "grammar", {"grammar": 1.0}, instructions="Corrige",
             prompt=f"✗ {wrong}", prompt_es=es_src, accepted=[right], explanation=expl, refs=[ref_link(ref)],
-            target_ids=[f"repair:{pattern}"], pattern=pattern, difficulty=2, meta={"speak_after": right, "curated": True},
+            target_ids=with_consolidation([f"repair:{pattern}", *([g] if (g := grammar_for_ref(ref)) else [])], sprint),
+            pattern=pattern, difficulty=2, meta={"speak_after": right, "curated": True},
         ))
     return out
 

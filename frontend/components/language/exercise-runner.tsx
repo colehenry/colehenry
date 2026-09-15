@@ -8,9 +8,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 
-import { explainFrench, type Exercise, type ExplainMode, type ResultIn } from "@/lib/api/learning";
-import { SELF_SCORES, checkTyped, dictationScore, wordDiff, type TypedResult } from "@/lib/french/grading";
-import { Speak, speakText } from "./language-shared";
+import { gradeSentence, type Exercise, type Grade, type ResultIn } from "@/lib/api/learning";
+import { accentFor, missingAccents } from "@/lib/french/accents";
+import { FRENCH_ACCENTS, articleIssue } from "@/lib/french/articles";
+import { SELF_SCORES, checkTyped, dictationScore, normalize, wordDiff, type TypedResult } from "@/lib/french/grading";
+import { Fr, PartOfSpeech, Speak, speakText } from "./language-shared";
+import { RefSectionInline } from "./reference-view";
+import { TutorInline } from "./tutor/tutor-inline";
+import { useTutorFocus } from "./tutor/tutor-provider";
+import { VerbHover } from "./verb-hover";
+import type { TutorFocus } from "@/lib/api/tutor";
 
 export type GradedItem = {
   exercise: Exercise;
@@ -28,6 +35,74 @@ export type RunnerSummary = {
   bySkill: Record<string, { score: number; n: number }>;
   seconds: number;
 };
+
+/** Snapshot the runner emits after every graded item - what a resumable attempt stores. */
+export type RunnerProgress = {
+  queue: Exercise[];
+  index: number;
+  graded: GradedItem[];
+};
+
+type Conjugation = { persons: string[]; fr: string[]; es: string[] };
+function isConjugation(value: unknown): value is Conjugation {
+  return !!value && typeof value === "object" && Array.isArray((value as Conjugation).persons) && Array.isArray((value as Conjugation).fr);
+}
+
+/** Retry copies of the missed items that asked for one (never retries of retries). */
+function missedRetries(all: GradedItem[]): Exercise[] {
+  return all
+    .filter((item) => !item.correct && item.exercise.meta?.retry_missed === true && item.exercise.meta?.is_retry !== true)
+    .map((item) => ({
+      ...item.exercise,
+      id: `${item.exercise.id}-retry`,
+      instructions: `Retry · ${item.exercise.instructions.replace(/^\d\s*\/\s*\d\s*·\s*/, "")}`,
+      meta: { ...item.exercise.meta, is_retry: true },
+    }));
+}
+
+/** Inserts an accented letter at the caret and hands focus back to the input; [?] names every mark. */
+function AccentBar({
+  inputRef,
+  onInsert,
+  onHelp,
+}: {
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  onInsert: (next: string) => void;
+  onHelp?: () => void;
+}) {
+  return (
+    <div className="pr-accents" aria-label="Accents">
+      {FRENCH_ACCENTS.map((accent) => (
+        <button
+          key={accent}
+          type="button"
+          tabIndex={-1}
+          title={accentFor(accent) ? `${accentFor(accent)!.name} · ${accentFor(accent)!.sound}` : undefined}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => {
+            const input = inputRef.current;
+            if (!input) return;
+            const start = input.selectionStart ?? input.value.length;
+            const end = input.selectionEnd ?? start;
+            const next = input.value.slice(0, start) + accent + input.value.slice(end);
+            onInsert(next);
+            requestAnimationFrame(() => {
+              input.focus();
+              input.setSelectionRange(start + accent.length, start + accent.length);
+            });
+          }}
+        >
+          {accent}
+        </button>
+      ))}
+      {onHelp && (
+        <button type="button" tabIndex={-1} title="What each accent is called" onMouseDown={(event) => event.preventDefault()} onClick={onHelp}>
+          ?
+        </button>
+      )}
+    </div>
+  );
+}
 
 export function toResult(item: GradedItem, sprint: number, activityId: string, extraMeta: Record<string, unknown> = {}): ResultIn {
   const ex = item.exercise;
@@ -139,45 +214,96 @@ export function ExerciseRunner({
   exercises,
   title,
   subtitle,
+  crumbs,
   onFinish,
   onExit,
   onOpenRef,
+  onProgress,
+  resume,
   autoAdvanceMs = 0,
   retryMissed = false,
 }: {
   exercises: Exercise[];
   title: string;
   subtitle?: string;
+  crumbs?: React.ReactNode;
   onFinish: (summary: RunnerSummary) => void;
   onExit: () => void;
   onOpenRef?: (ref: string) => void;
+  onProgress?: (progress: RunnerProgress) => void;
+  resume?: RunnerProgress | null;
   autoAdvanceMs?: number;
   retryMissed?: boolean;
 }) {
-  const [queue, setQueue] = useState(exercises);
-  const [retryAdded, setRetryAdded] = useState(false);
-  const [index, setIndex] = useState(0);
-  const [graded, setGraded] = useState<GradedItem[]>([]);
+  // A resumed attempt that stopped after its last item still owes the retry pass; build it up front.
+  const [initial] = useState(() => {
+    const queue = resume?.queue ?? exercises;
+    const graded = resume?.graded ?? [];
+    let retryAdded = queue.some((ex) => ex.meta?.is_retry === true);
+    let fullQueue = queue;
+    if (resume && graded.length >= queue.length && retryMissed && !retryAdded) {
+      const retries = missedRetries(graded);
+      if (retries.length) {
+        fullQueue = [...queue, ...retries];
+        retryAdded = true;
+      }
+    }
+    return { queue: fullQueue, graded, index: resume ? graded.length : 0, retryAdded };
+  });
+  const [queue, setQueue] = useState(initial.queue);
+  const [retryAdded, setRetryAdded] = useState(initial.retryAdded);
+  const [index, setIndex] = useState(initial.index);
+  const [graded, setGraded] = useState<GradedItem[]>(initial.graded);
   const [typed, setTyped] = useState("");
   const [picked, setPicked] = useState<string | null>(null);
   const [checked, setChecked] = useState<{ correct: boolean; score: number; detail?: TypedResult } | null>(null);
+  const [checkedIndex, setCheckedIndex] = useState<number | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [startedAt] = useState(Date.now);
   const itemStart = useRef<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [explain, setExplain] = useState<{ mode: ExplainMode; text: string } | null>(null);
-
   const ex = queue[index];
   const done = index >= queue.length;
   const passage = typeof ex?.meta?.passage === "string" ? (ex.meta.passage as string) : "";
   const speakAfter = typeof ex?.meta?.speak_after === "string" ? (ex.meta.speak_after as string) : "";
   const isDictation = ex?.meta?.dictation === true;
+  const articleRequired = ex?.meta?.article_required === true;
   const lenient = ex?.meta?.lenient === true;
+  const llmGraded = ex?.meta?.llm_graded === true;
   const selfScale = Array.isArray(ex?.meta?.self_scale) ? (ex!.meta.self_scale as string[]) : ["raté", "difficile", "bien", "fluide"];
 
-  const explainMutation = useMutation({
-    mutationFn: (args: { text: string; mode: ExplainMode; context?: string }) => explainFrench(args),
+  const [verdict, setVerdict] = useState<Grade | null>(null);
+  // a [ref] clicked in the feedback unfolds that one section below it
+  const [inlineRef, setInlineRef] = useState<string | null>(null);
+  // a missed typed answer must be recopied before moving on
+  const [retype, setRetype] = useState("");
+  const retypeRef = useRef<HTMLInputElement>(null);
+  // Free writing: the model grades; without one, fall back to the sample + self-judgement.
+  const gradeMutation = useMutation({
+    mutationFn: (args: { sentence: string; target: string; sprint: number }) => gradeSentence(args),
   });
+
+  // What the tutor sees while this question is up: the item, and once checked, the answer given.
+  const tutorFocus = useMemo<TutorFocus | null>(() => {
+    if (!ex) return null;
+    // Production questions stay private until this exact item has been graded;
+    // otherwise `expected` (and the dock chip derived from it) gives away the answer.
+    if (ex.kind !== "intro" && checkedIndex !== index) return null;
+    const expected = ex.kind === "mc" ? (ex.options.find((o) => o.id === ex.answer_id)?.text ?? "") : (ex.accepted[0] ?? "");
+    const given = ex.kind === "mc" ? (ex.options.find((o) => o.id === picked)?.text ?? "") : typed;
+    return {
+      surface: "exercise",
+      format: ex.format,
+      prompt: ex.prompt,
+      prompt_es: ex.prompt_es || undefined,
+      expected: expected || undefined,
+      given: checked ? given || undefined : undefined,
+      correct: checked ? checked.correct : undefined,
+      target_ids: ex.target_ids.length ? ex.target_ids : undefined,
+      sprint: ex.sprint,
+    };
+  }, [ex, picked, typed, checked, checkedIndex, index]);
+  useTutorFocus(tutorFocus);
 
   // autoplay audio on arrival
   useEffect(() => {
@@ -187,9 +313,12 @@ export function ExerciseRunner({
       setTyped("");
       setPicked(null);
       setChecked(null);
+      setCheckedIndex(null);
       setRevealed(false);
-      setExplain(null);
-      explainMutation.reset();
+      setVerdict(null);
+      setInlineRef(null);
+      setRetype("");
+      gradeMutation.reset();
       if (ex.audio && ex.autoplay) void speakText(ex.audio.language, ex.audio.text);
     }, 0);
     const focusTimer = window.setTimeout(() => inputRef.current?.focus(), 30);
@@ -207,11 +336,25 @@ export function ExerciseRunner({
     [onFinish, startedAt],
   );
 
+  const lastReported = useRef<{ graded: number; index: number; queue: number }>({
+    graded: graded.length,
+    index,
+    queue: queue.length,
+  });
+  useEffect(() => {
+    if (!onProgress) return;
+    const last = lastReported.current;
+    if (last.graded === graded.length && last.index === index && last.queue === queue.length) return;
+    lastReported.current = { graded: graded.length, index, queue: queue.length };
+    onProgress({ queue, index, graded });
+  }, [graded, index, queue, onProgress]);
+
   const commit = useCallback(
     (answer: string, correct: boolean, score: number, detail?: TypedResult) => {
       if (!ex || checked) return;
       const item: GradedItem = { exercise: ex, answer, correct, score, timeMs: itemStart.current ? Date.now() - itemStart.current : 0 };
       setChecked({ correct, score, detail });
+      setCheckedIndex(index);
       setGraded((g) => [...g, item]);
       if (speakAfter && ex.kind !== "self" && !(ex.audio && ex.audio.text === speakAfter && ex.autoplay && ex.audio_only === false)) {
         void speakText("fr", speakAfter);
@@ -219,31 +362,38 @@ export function ExerciseRunner({
         void speakText(ex.audio.language, ex.audio.text);
       }
     },
-    [ex, checked, speakAfter],
+    [ex, checked, speakAfter, index],
+  );
+
+  // End of the queue: one retry pass over misses (when asked), then finish.
+  const advanceFromEnd = useCallback(
+    (all: GradedItem[]) => {
+      const retries = retryMissed && !retryAdded ? missedRetries(all) : [];
+      if (retries.length) {
+        setQueue((current) => [...current, ...retries]);
+        setRetryAdded(true);
+        setIndex(all.length);
+        return;
+      }
+      finish(all);
+    },
+    [finish, retryMissed, retryAdded],
   );
 
   const next = useCallback(() => {
     if (!checked) return;
-    const all = graded;
     if (index + 1 >= queue.length) {
-      const missed = all.filter((item) => !item.correct && item.exercise.meta?.retry_missed === true && item.exercise.meta?.is_retry !== true);
-      if (retryMissed && !retryAdded && missed.length) {
-        const retries = missed.map((item) => ({
-          ...item.exercise,
-          id: `${item.exercise.id}-retry`,
-          instructions: `Retry · ${item.exercise.instructions.replace(/^\d\s*\/\s*\d\s*·\s*/, "")}`,
-          meta: { ...item.exercise.meta, is_retry: true },
-        }));
-        setQueue((current) => [...current, ...retries]);
-        setRetryAdded(true);
-        setIndex((current) => current + 1);
-        return;
-      }
-      finish(all);
+      advanceFromEnd(graded);
     } else {
       setIndex((i) => i + 1);
     }
-  }, [checked, graded, index, queue.length, finish, retryMissed, retryAdded]);
+  }, [checked, graded, index, queue.length, advanceFromEnd]);
+
+  // A resumed attempt with nothing left to answer goes straight to its summary.
+  useEffect(() => {
+    if (resume && initial.index >= initial.queue.length && initial.queue.length > 0) finish(initial.graded);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const nextIntro = useCallback(() => {
     if (index + 1 < queue.length) setIndex((current) => current + 1);
@@ -257,10 +407,27 @@ export function ExerciseRunner({
   }, [checked, autoAdvanceMs, next, ex?.kind]);
 
   const checkTypedAnswer = useCallback(() => {
-    if (!ex || checked) return;
+    if (!ex || checked || gradeMutation.isPending) return;
+    if (llmGraded) {
+      if (!typed.trim()) return;
+      gradeMutation.mutate(
+        { sentence: typed, target: String(ex.meta?.target_word ?? ex.prompt), sprint: ex.sprint },
+        {
+          onSuccess: (grade) => {
+            setVerdict(grade);
+            commit(typed, grade.correct, grade.score);
+          },
+          onError: () => {
+            setChecked({ correct: false, score: -1, detail: checkTyped(typed, ex.accepted) });
+            setCheckedIndex(index);
+          },
+        },
+      );
+      return;
+    }
     if (isDictation) {
-      const expected = ex.accepted[0] ?? "";
-      const score = dictationScore(expected, typed);
+      // any accepted variant counts ("une maison" for "la maison")
+      const score = Math.max(0, ...ex.accepted.map((expected) => dictationScore(expected, typed)));
       const detail = checkTyped(typed, ex.accepted);
       commit(typed, score >= 0.85, Math.max(score, detail.score), detail);
       return;
@@ -269,10 +436,11 @@ export function ExerciseRunner({
     if (!r.correct && lenient) {
       // free-response formats: reveal samples, let the learner self-judge
       setChecked({ correct: false, score: -1, detail: r });
+      setCheckedIndex(index);
       return;
     }
     commit(typed, r.correct, r.score, r);
-  }, [ex, checked, typed, isDictation, lenient, commit]);
+  }, [ex, checked, typed, isDictation, lenient, llmGraded, commit, gradeMutation, index]);
 
   const pickOption = useCallback(
     (id: string) => {
@@ -291,10 +459,24 @@ export function ExerciseRunner({
       const score = SELF_SCORES[level] ?? 0;
       if (checked) return;
       setChecked({ correct: score >= 0.8, score });
+      setCheckedIndex(index);
       setGraded((g) => [...g, { exercise: ex, answer: `self:${level}`, correct: score >= 0.8, score, timeMs: itemStart.current ? Date.now() - itemStart.current : 0 }]);
     },
-    [ex, checked],
+    [ex, checked, index],
   );
+
+  // Retype-to-match: the form the learner should have produced, and whether it has been copied yet.
+  const retypeTarget =
+    ex?.kind === "typed" && checked && checked.score >= 0 && !checked.correct
+      ? (verdict?.corrected?.trim() || checked.detail?.closest || ex.accepted[0] || "")
+      : "";
+  const retypeDone = !retypeTarget || normalize(retype, true) === normalize(retypeTarget, true);
+  const retypeExact = !!retypeTarget && normalize(retype) === normalize(retypeTarget);
+  const canAdvance = !!checked && (checked.score >= 0 || ex?.kind !== "typed") && retypeDone;
+
+  useEffect(() => {
+    if (retypeTarget) window.setTimeout(() => retypeRef.current?.focus(), 30);
+  }, [retypeTarget]);
 
   // keyboard: 1-4 options / ratings, Enter check or next, P play
   useEffect(() => {
@@ -308,7 +490,7 @@ export function ExerciseRunner({
           nextIntro();
         } else if (checked && (checked.score >= 0 || ex.kind !== "typed")) {
           e.preventDefault();
-          next();
+          if (canAdvance) next();
         } else if (ex.kind === "typed" && !checked) {
           e.preventDefault();
           checkTypedAnswer();
@@ -333,9 +515,10 @@ export function ExerciseRunner({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [ex, checked, next, nextIntro, checkTypedAnswer, pickOption, rateSelf, revealed]);
+  }, [ex, checked, next, nextIntro, checkTypedAnswer, pickOption, rateSelf, revealed, canAdvance]);
 
   const progressPct = useMemo(() => (queue.length ? (index / queue.length) * 100 : 0), [index, queue.length]);
+
 
   if (!ex || done) {
     return null;
@@ -346,6 +529,19 @@ export function ExerciseRunner({
 
   return (
     <div className="pr-shell">
+      {crumbs && (
+        <div className="pr-crumbs">
+          {crumbs}
+          <span className="is-sep">›</span>
+          <b>{title}</b>
+          {ex.meta?.lesson_stage ? (
+            <>
+              <span className="is-sep">›</span>
+              <span>{String(ex.meta.lesson_stage)}</span>
+            </>
+          ) : null}
+        </div>
+      )}
       <div className="pr-top">
         <b style={{ color: "var(--xp-text)" }}>{title}</b>
         {subtitle && <span>{subtitle}</span>}
@@ -357,7 +553,7 @@ export function ExerciseRunner({
         </span>
         {graded.length > 0 && <span>{Math.round((graded.reduce((a, b) => a + b.score, 0) / graded.length) * 100)}%</span>}
         <button type="button" className="xp-link" onClick={onExit}>
-          [quit]
+          [save & quit]
         </button>
       </div>
 
@@ -373,7 +569,7 @@ export function ExerciseRunner({
         )}
         <div className="pr-instructions">
           {ex.instructions}
-          {ex.hint && <span className="xp-muted"> · {ex.hint}</span>}
+          {ex.hint && <span className="xp-muted"> · <PartOfSpeech value={ex.hint} /></span>}
           {ex.source === "llm" && <span className="xp-muted"> · ✦</span>}
         </div>
 
@@ -384,15 +580,47 @@ export function ExerciseRunner({
         )}
         {showPromptText && ex.kind !== "self" && (
           <div className={`pr-prompt ${ex.prompt.length > 60 ? "is-small" : ""}`} style={{ whiteSpace: "pre-wrap" }}>
-            {ex.prompt}
+            {ex.audio?.language === "fr" || ex.kind === "intro" || ex.format === "write_sentence" || ex.format === "cloze" ? <Fr text={ex.prompt} say /> : ex.prompt}
           </div>
         )}
         {ex.prompt_es && showPromptText && ex.kind !== "self" && ex.format !== "es_to_fr" && (
           <div className="pr-prompt-es">{ex.prompt_es}</div>
         )}
 
+        {ex.kind === "intro" && isConjugation(ex.meta?.conjugation) && (
+          <table className="xp-listview pr-conj">
+            <tbody>
+              {ex.meta.conjugation.persons.map((person, i) => (
+                <tr key={person}>
+                  <td className="xp-muted">{person}</td>
+                  <td>
+                    <b><Fr text={(ex.meta.conjugation as Conjugation).fr[i]} say /></b>
+                  </td>
+                  <td className="xp-muted">{(ex.meta.conjugation as Conjugation).es[i]}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {ex.kind === "intro" && Array.isArray(ex.meta?.examples) && (ex.meta.examples as { fr: string; es: string }[]).length > 0 && (
+          <div className="mb-2" style={{ fontSize: 13 }}>
+            {(ex.meta.examples as { fr: string; es: string }[]).map((e) => (
+              <div key={e.fr}>
+                <Fr text={e.fr} say /> <span className="xp-muted">- {e.es}</span>
+              </div>
+            ))}
+          </div>
+        )}
         {ex.kind === "intro" && (
           <div className="pr-feedback">
+            {typeof ex.meta?.gender === "string" && ex.meta.gender ? (
+              <div className="fr-gender-key mb-1">
+                <span className={`is-${ex.meta.gender}`}>
+                  <i />
+                  {ex.meta.gender === "f" ? "féminin" : "masculin"}
+                </span>
+              </div>
+            ) : null}
             <div>{ex.explanation}</div>
             <div className="pr-actions">
               <button type="button" className="xp-btn is-default" onClick={nextIntro}>Continue (Enter)</button>
@@ -414,7 +642,7 @@ export function ExerciseRunner({
                   onClick={() => pickOption(o.id)}
                 >
                   <kbd>{i + 1}</kbd>
-                  <span>{o.text}</span>
+                  <span>{o.audio?.language === "fr" || ex.format === "cloze" ? <Fr text={o.text} say={!!checked} /> : o.text}</span>
                   {checked && o.audio && <Speak language={o.audio.language} text={o.audio.text} label="►" />}
                 </button>
               );
@@ -434,19 +662,21 @@ export function ExerciseRunner({
               autoCapitalize="off"
               spellCheck={false}
               lang="fr"
-              placeholder={isDictation ? "écris ce que tu entends" : "→ français"}
+              placeholder={isDictation ? (articleRequired ? "article + mot" : "écris ce que tu entends") : articleRequired ? "article + mot" : "→ français"}
               onChange={(e) => setTyped(e.target.value)}
             />
             {!checked && (
-              <div className="pr-actions">
-                <button type="button" className="xp-btn is-default" onClick={checkTypedAnswer}>
-                  Vérifier (Enter)
-                </button>
-                <button type="button" className="xp-btn is-small" onClick={() => commit("", false, 0)}>
-                  Je ne sais pas
-                </button>
-                <span className="xp-muted" style={{ fontSize: 11 }}>é è ê à ç ù î ô</span>
-              </div>
+              <>
+                <AccentBar inputRef={inputRef} onInsert={setTyped} onHelp={() => setInlineRef((current) => (current === "spelling#accents" ? null : "spelling#accents"))} />
+                <div className="pr-actions">
+                  <button type="button" className="xp-btn is-default" disabled={gradeMutation.isPending} onClick={checkTypedAnswer}>
+                    {gradeMutation.isPending ? "✦ …" : "Vérifier (Enter)"}
+                  </button>
+                  <button type="button" className="xp-btn is-small" onClick={() => commit("", false, 0)}>
+                    Je ne sais pas
+                  </button>
+                </div>
+              </>
             )}
           </>
         )}
@@ -462,7 +692,7 @@ export function ExerciseRunner({
             )}
             {(!ex.audio_only || revealed) && (
               <div className="pr-prompt is-small" style={{ whiteSpace: "pre-wrap" }}>
-                {ex.prompt}
+                <Fr text={ex.prompt} say />
               </div>
             )}
             {ex.prompt_es && revealed && <div className="pr-prompt-es">{ex.prompt_es}</div>}
@@ -496,11 +726,11 @@ export function ExerciseRunner({
         {checked && checked.score === -1 && ex.kind === "typed" && (
           <div className="pr-feedback">
             <div>
-              Pas dans la liste. Réponses possibles :
+              {llmGraded ? "Modèle indisponible - compare avec l'exemple :" : "Pas dans la liste. Réponses possibles :"}
               <ul className="pr-steps" style={{ fontSize: 13 }}>
                 {ex.accepted.slice(0, 4).map((a) => (
                   <li key={a}>
-                    {a} <Speak language="fr" text={a} label="►" />
+                    <Fr text={a} say /> <Speak language="fr" text={a} label="►" />
                   </li>
                 ))}
               </ul>
@@ -517,16 +747,57 @@ export function ExerciseRunner({
         )}
         {checked && checked.score >= 0 && (
           <div className={`pr-feedback ${checked.correct ? "is-correct" : "is-wrong"}`}>
-            {ex.kind === "typed" && (
+            {ex.kind === "typed" && verdict && (
+              <div>
+                {checked.correct ? <b className="ok">✓</b> : <b className="ko">✗</b>} {Math.round(verdict.score * 100)}%
+                {verdict.corrected && verdict.corrected.trim() !== typed.trim() && (
+                  <div className="mt-1">
+                    <b><Fr text={verdict.corrected} say /></b> <Speak language="fr" text={verdict.corrected} label="►" />
+                  </div>
+                )}
+                {verdict.issues.length > 0 && (
+                  <ul className="pr-steps" style={{ fontSize: 12 }}>
+                    {verdict.issues.map((issue, i) => (
+                      <li key={`${issue.kind}-${i}`}>
+                        <b className={["article", "gender", "agreement", "verb", "missing_target"].includes(issue.kind) ? "ko" : ""}>{issue.kind}</b>
+                        {issue.text && <> · {issue.text}</>}
+                        {issue.fix && <> → <Fr text={issue.fix} /></>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {verdict.explanation && <div className="mt-1">{verdict.explanation}</div>}
+              </div>
+            )}
+            {ex.kind === "typed" && !verdict && (
               <div>
                 {checked.correct ? <b className="ok">✓</b> : <b className="ko">✗</b>}{" "}
                 {checked.detail?.exact ? "exact" : ""}
-                {checked.detail?.accentIssue ? "accent : " : ""}
+                {checked.detail?.accentIssue
+                  ? `accent : ${missingAccents(checked.detail.closest || ex.accepted[0] || "", typed).map((m) => `${m.letter} (${m.info.name}, ${m.info.sound})`).join(" · ") || ""} `
+                  : ""}
                 {checked.detail?.neDropped ? "ne omis (oral) : " : ""}
+                {!checked.correct && articleIssue(typed, ex.accepted) === "genre" ? <b className="ko">genre ! </b> : null}
+                {!checked.correct && articleIssue(typed, ex.accepted) === "missing" ? <b className="ko">article manquant : </b> : null}
                 {!checked.correct || !checked.detail?.exact ? (
                   <>
-                    <b>{ex.accepted[0]}</b> <Speak language="fr" text={ex.accepted[0] ?? ""} label="►" />
-                    {ex.accepted.length > 1 && <span className="xp-muted"> · aussi : {ex.accepted.slice(1, 3).join(" · ")}</span>}
+                    {ex.hint.toLowerCase() === "verb" ? (
+                      <VerbHover verb={ex.accepted[0] ?? ""} knownVerb><b><Fr text={ex.accepted[0] ?? ""} say /></b></VerbHover>
+                    ) : (
+                      <b><Fr text={ex.accepted[0] ?? ""} say /></b>
+                    )}{" "}
+                    <Speak language="fr" text={ex.accepted[0] ?? ""} label="►" />
+                    {ex.accepted.length > 1 && (
+                      <span className="xp-muted">
+                        {" "}· aussi :{" "}
+                        {ex.accepted.slice(1, 3).map((a, i) => (
+                          <span key={a}>
+                            {i > 0 && " · "}
+                            <Fr text={a} say />
+                          </span>
+                        ))}
+                      </span>
+                    )}
                   </>
                 ) : null}
                 {isDictation && typed && (
@@ -542,59 +813,64 @@ export function ExerciseRunner({
             )}
             {ex.kind === "mc" && (
               <div>
-                {checked.correct ? <b className="ok">✓</b> : <b className="ko">✗ → {ex.options.find((o) => o.id === ex.answer_id)?.text}</b>}
-                {ex.audio_only && <> · {ex.prompt}</>}
+                {checked.correct ? <b className="ok">✓</b> : <b className="ko">✗ → <Fr text={ex.options.find((o) => o.id === ex.answer_id)?.text ?? ""} say /></b>}
+                {ex.audio_only && <> · <Fr text={ex.prompt} say /></>}
               </div>
             )}
             {ex.kind === "self" && <div>{checked.correct ? <b className="ok">✓</b> : <b className="ko">→ à refaire</b>}</div>}
             {ex.explanation && <div className="mt-1">{ex.explanation}</div>}
             {ex.prompt_es && ex.format === "es_to_fr" ? null : ex.prompt_es && ex.audio_only ? <div className="xp-muted">{ex.prompt_es}</div> : null}
+            {retypeTarget && (
+              <div className="pr-retype">
+                <label className="xp-label mb-0" htmlFor={`retype-${ex.id}`}>
+                  Recopie : <Fr text={retypeTarget} say />
+                </label>
+                <input
+                  id={`retype-${ex.id}`}
+                  ref={retypeRef}
+                  className={`xp-input pr-input ${retypeDone ? "is-ok" : ""}`}
+                  value={retype}
+                  disabled={retypeDone}
+                  autoComplete="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
+                  lang="fr"
+                  placeholder={retypeTarget}
+                  onChange={(e) => setRetype(e.target.value)}
+                />
+                {!retypeDone && <AccentBar inputRef={retypeRef} onInsert={setRetype} />}
+                {retypeDone && !retypeExact && (
+                  <span className="xp-muted" style={{ fontSize: 11 }}>
+                    accent : {missingAccents(retypeTarget, retype).map((m) => `${m.letter} (${m.info.name})`).join(" · ")}
+                  </span>
+                )}
+                {retypeDone && retypeExact && <b className="ok">✓</b>}
+              </div>
+            )}
             <div className="pr-actions">
               {ex.refs.map((r) => (
-                <button key={r.ref} type="button" className="xp-link" onClick={() => onOpenRef?.(r.ref)}>
+                <button
+                  key={r.ref}
+                  type="button"
+                  className={`xp-link ${inlineRef === r.ref ? "is-active" : ""}`}
+                  onClick={() => setInlineRef((current) => (current === r.ref ? null : r.ref))}
+                >
                   [{r.label}]
                 </button>
               ))}
-              {(["explain", "compare_es", "pronunciation"] as ExplainMode[]).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  className="xp-link"
-                  disabled={explainMutation.isPending}
-                  onClick={() => {
-                    const text = ex.accepted[0] || ex.options.find((o) => o.id === ex.answer_id)?.text || ex.prompt;
-                    setExplain({ mode, text });
-                    explainMutation.mutate({ text, mode, context: ex.prompt });
-                  }}
-                >
-                  [{mode === "explain" ? "explique" : mode === "compare_es" ? "vs español" : "prononciation"}]
-                </button>
-              ))}
-              <button type="button" className="xp-btn is-default" style={{ marginLeft: "auto" }} onClick={next}>
-                {index + 1 >= exercises.length ? "Terminer" : "Suivant"} (Enter)
+              <TutorInline focus={tutorFocus} label="[explique]" prefill="Explícame esta respuesta y la regla que la explica." send />
+              <TutorInline focus={tutorFocus} label="[vs español]" prefill="Compara esta respuesta con el español y explícame la trampa." send />
+              <TutorInline focus={tutorFocus} label="[prononciation]" prefill="Pronuncia la respuesta despacio y dime en qué sonidos fijarme." send />
+              <TutorInline
+                focus={tutorFocus}
+                label="[✦ tuteur]"
+                prefill={checked && !checked.correct ? "¿Por qué está mal mi respuesta? Explícame la regla." : undefined}
+              />
+              <button type="button" className="xp-btn is-default" style={{ marginLeft: "auto" }} disabled={!canAdvance} onClick={next}>
+                {index + 1 >= queue.length ? "Terminer" : "Suivant"} (Enter)
               </button>
             </div>
-            {explain && (
-              <div className="mt-2" style={{ borderTop: "1px dotted var(--xp-face-lo)", paddingTop: 6 }}>
-                {explainMutation.isPending && <span className="xp-muted">✦ …</span>}
-                {explainMutation.isError && <span className="xp-muted">LLM indisponible.</span>}
-                {explainMutation.data && (
-                  <div>
-                    <div>{explainMutation.data.explanation}</div>
-                    {explainMutation.data.examples.map((e) => (
-                      <div key={e.fr} className="mt-1">
-                        <Speak language="fr" text={e.fr} label="►" /> <b>{e.fr}</b> <span className="xp-muted">- {e.es}</span>
-                      </div>
-                    ))}
-                    {explainMutation.data.refs.map((r) => (
-                      <button key={r.ref} type="button" className="xp-link mr-2" onClick={() => onOpenRef?.(r.ref)}>
-                        [{r.label}]
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+            {inlineRef && <RefSectionInline target={inlineRef} onOpenFull={() => onOpenRef?.(inlineRef)} />}
           </div>
         )}
       </div>
@@ -646,10 +922,10 @@ export function RunnerSummaryView({
                 const expected = ex.kind === "mc" ? ex.options.find((o) => o.id === ex.answer_id)?.text : ex.accepted[0];
                 return (
                   <tr key={ex.id}>
-                    <td style={{ maxWidth: 320 }}>{ex.prompt || ex.audio?.text}</td>
+                    <td style={{ maxWidth: 320 }}><Fr text={ex.prompt || ex.audio?.text || ""} say={ex.audio?.language !== "es" && ex.format !== "es_to_fr"} /></td>
                     <td className="xp-muted">{w.answer && !w.answer.startsWith("self:") ? w.answer : "-"}</td>
                     <td>
-                      <b>{expected}</b> {expected && <Speak language="fr" text={expected} label="►" />}
+                      <b><Fr text={expected ?? ""} say /></b> {expected && <Speak language="fr" text={expected} label="►" />}
                     </td>
                   </tr>
                 );

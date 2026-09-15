@@ -153,7 +153,8 @@ def recommend_next(db: Session, *, sprint: int, progress: dict | None = None, co
     def add_for_skill(skill: str, fallback: bool = False) -> bool:
         if skill in used_skills:
             return False
-        candidates = [a for a in bank if a.skill == skill and a.id not in used_ids]
+        # gated work waits for its prerequisite (the intro before the drill)
+        candidates = [a for a in bank if a.skill == skill and a.id not in used_ids and (not a.requires or a.requires in completed)]
         repeatable = {a.id for a in candidates if a.format == "vocab_lesson" and progress["dims"].get("vocabulary", 0) < 1}
         unfinished = [a for a in candidates if (a.id not in completed or a.id in repeatable) and a.id not in recent]
         if not unfinished:

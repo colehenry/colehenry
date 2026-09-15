@@ -31,7 +31,7 @@ from app.services.brain_code import code_repositories, tools as code_tools
 from app.services.brain_gmail import tools as gmail_tools
 from app.services.brain_railway import target_names as railway_target_names
 from app.services.brain_railway import tools as railway_tools
-from app.services.brain_tool_registry import BrainTool, BrainToolRegistry
+from app.services.tool_registry import BrainTool, BrainToolRegistry
 
 log = logging.getLogger(__name__)
 

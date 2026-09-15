@@ -1,0 +1,3663 @@
+[
+ {
+  "id": "pronunciation",
+  "title": "Pronunciation master sheet",
+  "blurb": "Sound inventory, contrasts, connected speech, Spanish traps.",
+  "dynamic": null,
+  "sections": [
+   {
+    "id": "inventory",
+    "title": "IPA you need",
+    "note": "",
+    "columns": [
+     "Sound",
+     "Spelling",
+     "Hear",
+     "Cue"
+    ],
+    "speak": 2,
+    "rows": [
+     [
+      "/i/",
+      "i · y",
+      "vie · stylo",
+      "Spanish i"
+     ],
+     [
+      "/y/",
+      "u",
+      "tu · rue · musique",
+      "say /i/, round the lips hard"
+     ],
+     [
+      "/u/",
+      "ou",
+      "tout · jour",
+      "Spanish u"
+     ],
+     [
+      "/e/",
+      "é · -er · -ez",
+      "été · parler · chez",
+      "closed, lips spread"
+     ],
+     [
+      "/ɛ/",
+      "è · ê · ai · et",
+      "mère · fête · mais",
+      "open, like Spanish e in 'perro'"
+     ],
+     [
+      "/ə/",
+      "e",
+      "le · petit",
+      "weak, often dropped"
+     ],
+     [
+      "/ø/",
+      "eu · œu",
+      "peu · deux",
+      "say /e/, round the lips"
+     ],
+     [
+      "/œ/",
+      "eu + consonant",
+      "sœur · fleur · heure",
+      "open version"
+     ],
+     [
+      "/o/",
+      "o · au · eau",
+      "mot · chaud · beau",
+      "closed o"
+     ],
+     [
+      "/ɔ/",
+      "o + consonant",
+      "porte · homme",
+      "open o"
+     ],
+     [
+      "/a/",
+      "a",
+      "chat · madame",
+      "Spanish a"
+     ],
+     [
+      "/ɑ̃/",
+      "an · en",
+      "vent · enfant",
+      "nasal, mouth open"
+     ],
+     [
+      "/ɔ̃/",
+      "on",
+      "bon · maison",
+      "nasal, lips round"
+     ],
+     [
+      "/ɛ̃/",
+      "in · ain · ein · un",
+      "vin · pain · plein · brun",
+      "nasal, lips spread"
+     ],
+     [
+      "/ʁ/",
+      "r",
+      "rue · Paris",
+      "back of throat, like a voiced jota"
+     ],
+     [
+      "/ʃ/",
+      "ch",
+      "chat · chien",
+      "English sh"
+     ],
+     [
+      "/ʒ/",
+      "j · g(e,i)",
+      "jour · genou",
+      "voiced sh"
+     ],
+     [
+      "/ɲ/",
+      "gn",
+      "montagne · gagner",
+      "ñ"
+     ],
+     [
+      "/j/",
+      "ill · y · i+vowel",
+      "fille · yeux · bien",
+      "English y"
+     ],
+     [
+      "/w/",
+      "ou+vowel · oi",
+      "oui · moi",
+      "w"
+     ],
+     [
+      "/ɥ/",
+      "u+vowel",
+      "huit · lui · puis",
+      "/y/ glide - say 'u' fast into the vowel"
+     ]
+    ]
+   },
+   {
+    "id": "i-y-u",
+    "title": "/i/ vs /y/ vs /u/",
+    "note": "Same tongue for i/u-French; only the lips change. tu ≠ tout, rue ≠ roue, vie ≠ vue.",
+    "columns": [
+     "/i/",
+     "/y/",
+     "/u/"
+    ],
+    "speak": 1,
+    "rows": [
+     [
+      "vie",
+      "vue",
+      "vous"
+     ],
+     [
+      "dit",
+      "du",
+      "doux"
+     ],
+     [
+      "lit",
+      "lu",
+      "loup"
+     ],
+     [
+      "si",
+      "su",
+      "sous"
+     ],
+     [
+      "riz",
+      "rue",
+      "roue"
+     ],
+     [
+      "mi",
+      "mu",
+      "mou"
+     ]
+    ]
+   },
+   {
+    "id": "y-vs-u",
+    "title": "u /y/ vs ou /u/",
+    "note": "The one contrast Spanish never prepares you for. Round harder for ou.",
+    "columns": [
+     "u /y/",
+     "ou /u/",
+     "meaning"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "tu",
+      "tout",
+      "you · all"
+     ],
+     [
+      "rue",
+      "roue",
+      "street · wheel"
+     ],
+     [
+      "dessus",
+      "dessous",
+      "on top · under"
+     ],
+     [
+      "pur",
+      "pour",
+      "pure · for"
+     ],
+     [
+      "su",
+      "sous",
+      "known · under"
+     ],
+     [
+      "vu",
+      "vous",
+      "seen · you"
+     ],
+     [
+      "bu",
+      "bout",
+      "drunk · end"
+     ],
+     [
+      "mule",
+      "moule",
+      "mule · mussel"
+     ]
+    ]
+   },
+   {
+    "id": "nasals",
+    "title": "Nasal vowels",
+    "note": "The n/m is a spelling for nasality - never pronounce it. Before a vowel or double n it is a normal consonant (bonne, année).",
+    "columns": [
+     "Sound",
+     "Spellings",
+     "Hear",
+     "Trap"
+    ],
+    "speak": 2,
+    "rows": [
+     [
+      "/ɑ̃/",
+      "an · am · en · em",
+      "vent · blanc · temps · enfant",
+      "en in 'comment' too"
+     ],
+     [
+      "/ɔ̃/",
+      "on · om",
+      "bon · maison · nom",
+      "bon /bɔ̃/ but bonne /bɔn/"
+     ],
+     [
+      "/ɛ̃/",
+      "in · im · ain · ein · un · yn",
+      "vin · pain · plein · brun · sympa",
+      "americain /ɛ̃/ · americaine /ɛn/"
+     ],
+     [
+      "triads",
+      "",
+      "vent · vont · vin · banc · bon · bain · sans · son · sain",
+      "hear the three"
+     ]
+    ]
+   },
+   {
+    "id": "e-vs-eh",
+    "title": "/e/ vs /ɛ/",
+    "note": "é, -er, -ez → closed /e/. è, ê, ai, ais, ait, -et, e + double consonant → open /ɛ/.",
+    "columns": [
+     "/e/",
+     "/ɛ/"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "été",
+      "était"
+     ],
+     [
+      "pré",
+      "prêt"
+     ],
+     [
+      "les",
+      "lait"
+     ],
+     [
+      "mes",
+      "mais"
+     ],
+     [
+      "allé",
+      "allait"
+     ],
+     [
+      "thé",
+      "tête"
+     ],
+     [
+      "chez",
+      "chaise"
+     ]
+    ]
+   },
+   {
+    "id": "eu",
+    "title": "eu · œu · e muet",
+    "note": "/ø/ closed (peu, deux), /œ/ open before a consonant (sœur, heure), /ə/ the weak e (le, petit).",
+    "columns": [
+     "/ø/",
+     "/œ/",
+     "/ə/"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "peu",
+      "peur",
+      "le"
+     ],
+     [
+      "deux",
+      "sœur",
+      "de"
+     ],
+     [
+      "veux",
+      "veulent",
+      "petit"
+     ],
+     [
+      "jeu",
+      "jeune",
+      "samedi"
+     ],
+     [
+      "nœud",
+      "cœur",
+      "ce"
+     ]
+    ]
+   },
+   {
+    "id": "r",
+    "title": "French R /ʁ/",
+    "note": "Uvular. Start from Spanish jota (caja) and add voice. Never trilled, never English.",
+    "columns": [
+     "Position",
+     "Hear"
+    ],
+    "speak": 1,
+    "rows": [
+     [
+      "initial",
+      "rue · rouge · rester"
+     ],
+     [
+      "between vowels",
+      "Paris · arriver · heure"
+     ],
+     [
+      "cluster",
+      "très · trois · prendre · France"
+     ],
+     [
+      "final",
+      "pour · sur · mer · dernier (silent!)"
+     ]
+    ]
+   },
+   {
+    "id": "semivowels",
+    "title": "Semivowels /j/ /w/ /ɥ/",
+    "note": "",
+    "columns": [
+     "Sound",
+     "Hear",
+     "Note"
+    ],
+    "speak": 1,
+    "rows": [
+     [
+      "/j/",
+      "bien · fille · travail · yeux",
+      "ill = /j/ except ville, mille, tranquille"
+     ],
+     [
+      "/w/",
+      "oui · moi · voiture · trois",
+      "oi = /wa/ always"
+     ],
+     [
+      "/ɥ/",
+      "huit · lui · puis · nuit",
+      "u gliding into the next vowel"
+     ]
+    ]
+   },
+   {
+    "id": "silent-finals",
+    "title": "Silent final consonants",
+    "note": "Final consonants are silent - except C, R, F, L (CaReFuL) most of the time. -er infinitives: r silent.",
+    "columns": [
+     "Silent",
+     "Pronounced"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "grand · petit · trop · vous · nez · temps · beaucoup",
+      "avec · sac · pour · mer · chef · neuf · hôtel · mal"
+     ],
+     [
+      "blanc · froid · prix · tabac · sport",
+      "bus · fils · sept · huit · dix"
+     ]
+    ]
+   },
+   {
+    "id": "final-ent",
+    "title": "-ent: verb vs word",
+    "note": "On a verb (ils parlent) the -ent is completely silent: parle = parlent. On adverbs/nouns it is /ɑ̃/.",
+    "columns": [
+     "silent (verb)",
+     "/ɑ̃/ (word)"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "ils parlent",
+      "comment"
+     ],
+     [
+      "elles aiment",
+      "souvent"
+     ],
+     [
+      "ils mangent",
+      "vraiment"
+     ],
+     [
+      "ils restent",
+      "argent"
+     ],
+     [
+      "ils veulent",
+      "moment"
+     ]
+    ]
+   },
+   {
+    "id": "elision",
+    "title": "Elision",
+    "note": "je, ne, le, la, de, que, ce, me, te, se drop their vowel before a vowel or h muet.",
+    "columns": [
+     "Written",
+     "Never"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "j'ai · j'habite · n'ai · l'ami · d'accord · qu'il · c'est",
+      "je ai · le ami · ce est"
+     ],
+     [
+      "s'il te plaît · qu'est-ce que · jusqu'à",
+      "tu → t' only in speech (t'as)"
+     ]
+    ]
+   },
+   {
+    "id": "liaison",
+    "title": "Liaison",
+    "note": "A silent final consonant is pronounced when the next word starts with a vowel - inside noun and verb groups. s/x → /z/, d → /t/, n → /n/.",
+    "columns": [
+     "✓ liaison",
+     "✗ no liaison"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "les‿amis · vous‿avez · nous‿allons · un‿homme",
+      "et aussi (never after et)"
+     ],
+     [
+      "ils‿ont /ilzɔ̃/ vs ils sont /ilsɔ̃/",
+      "les héros (h aspiré)"
+     ],
+     [
+      "très‿important · chez‿eux · deux‿heures · petit‿ami",
+      "mais oui · Paris est (subject noun)"
+     ],
+     [
+      "quand‿il /kɑ̃til/ · grand‿ami /gʁɑ̃tami/",
+      "un peu"
+     ]
+    ]
+   },
+   {
+    "id": "enchainement",
+    "title": "Enchaînement",
+    "note": "A pronounced final consonant attaches to the next vowel: il est → i-lɛ, elle arrive → ɛ-la-ʁiv. Words melt; syllables stay open.",
+    "columns": [
+     "Written",
+     "Heard"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "il est là",
+      "i-lɛ-la"
+     ],
+     [
+      "elle arrive demain",
+      "ɛ-la-ʁiv-də-mɛ̃"
+     ],
+     [
+      "une amie américaine",
+      "y-na-mi-a-me-ʁi-kɛn"
+     ],
+     [
+      "il y a quelque chose",
+      "i-lja-kɛl-kə-ʃoz"
+     ]
+    ]
+   },
+   {
+    "id": "schwa",
+    "title": "Schwa /ə/ drops",
+    "note": "The weak e disappears in ordinary speech when consonants allow it. Hear it, don't force it.",
+    "columns": [
+     "Careful",
+     "Everyday"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "samedi",
+      "sam'di"
+     ],
+     [
+      "je ne sais pas",
+      "j'sais pas · chais pas"
+     ],
+     [
+      "petit",
+      "p'tit"
+     ],
+     [
+      "maintenant",
+      "maint'nant"
+     ],
+     [
+      "ce que je veux",
+      "c'que j'veux"
+     ]
+    ]
+   },
+   {
+    "id": "rhythm",
+    "title": "Rhythm groups",
+    "note": "Even syllables, stress only the LAST syllable of each group. No word stress like English/Spanish.",
+    "columns": [
+     "Group",
+     "Stress"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "Je travaille demain.",
+      "de-MAIN"
+     ],
+     [
+      "Tu veux un café ?",
+      "ca-FÉ"
+     ],
+     [
+      "On va au restaurant ce soir.",
+      "res-tau-RANT · ce SOIR"
+     ],
+     [
+      "Il y a beaucoup de gens ici.",
+      "GENS · i-CI"
+     ]
+    ]
+   },
+   {
+    "id": "h",
+    "title": "h muet vs h aspiré",
+    "note": "h is always silent. h muet allows elision + liaison (l'homme, les‿hommes). h aspiré blocks them (le héros, les héros). Reference only.",
+    "columns": [
+     "h muet",
+     "h aspiré"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "l'homme · l'heure · l'hôtel · j'habite",
+      "le héros · le hasard · la haine · les haricots"
+     ]
+    ]
+   },
+   {
+    "id": "es-traps",
+    "title": "Spanish-speaker traps",
+    "note": "",
+    "columns": [
+     "Trap",
+     "Fix"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "u read as /u/ (tu → 'tú')",
+      "u = /y/ always; ou = /u/"
+     ],
+     [
+      "rolled r",
+      "uvular /ʁ/"
+     ],
+     [
+      "pronouncing final consonants (petit, grand, vous)",
+      "silent unless CaReFuL"
+     ],
+     [
+      "-ent on verbs read as /ɑ̃/",
+      "silent: ils parlent = /paʁl/"
+     ],
+     [
+      "nasal + n (bon → 'bon' with n)",
+      "no n: /bɔ̃/"
+     ],
+     [
+      "j / ge as jota /x/",
+      "/ʒ/ voiced sh"
+     ],
+     [
+      "ch as /tʃ/",
+      "/ʃ/"
+     ],
+     [
+      "word stress on the penultimate",
+      "group-final stress only"
+     ],
+     [
+      "-er read as /er/",
+      "-er = /e/: parler /paʁle/"
+     ],
+     [
+      "ai read as /ai/",
+      "ai = /ɛ/: mais /mɛ/"
+     ],
+     [
+      "eau read as three vowels",
+      "eau = /o/"
+     ],
+     [
+      "oi read as /oi/",
+      "oi = /wa/"
+     ]
+    ]
+   },
+   {
+    "id": "le-vs-les",
+    "title": "le /lə/ vs les /le/",
+    "note": "Often the only audible singular/plural mark.",
+    "columns": [
+     "singular",
+     "plural"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "le livre",
+      "les livres"
+     ],
+     [
+      "ce livre",
+      "ces livres"
+     ],
+     [
+      "mon ami",
+      "mes amis"
+     ]
+    ]
+   },
+   {
+    "id": "consonants",
+    "title": "Consonant pairs",
+    "note": "",
+    "columns": [
+     "/ʃ/ ch",
+     "/ʒ/ j · ge",
+     "/s/ ss · c · ç",
+     "/z/ s between vowels"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "chou",
+      "joue",
+      "poisson",
+      "poison"
+     ],
+     [
+      "cache",
+      "cage",
+      "dessert",
+      "désert"
+     ],
+     [
+      "bouche",
+      "bouge",
+      "coussin",
+      "cousin"
+     ]
+    ]
+   },
+   {
+    "id": "minimal-pairs",
+    "title": "Minimal pairs",
+    "note": "Drill them from Dashboard → Activity bank → pronunciation, or study the Minimal pairs deck.",
+    "columns": [
+     "Pair",
+     "Contrast"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "tu / tout",
+      "/y/ /u/"
+     ],
+     [
+      "vin / vent / vont",
+      "nasals"
+     ],
+     [
+      "été / était",
+      "/e/ /ɛ/"
+     ],
+     [
+      "peu / peau",
+      "/ø/ /o/"
+     ],
+     [
+      "poisson / poison",
+      "/s/ /z/"
+     ],
+     [
+      "chou / joue",
+      "/ʃ/ /ʒ/"
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "id": "spelling",
+  "title": "Spelling → sound decoder",
+  "blurb": "Open this when you meet an unknown French word.",
+  "dynamic": null,
+  "sections": [
+   {
+    "id": "vowels",
+    "title": "Vowel spellings",
+    "note": "",
+    "columns": [
+     "Spelling",
+     "Sound",
+     "Hear",
+     "Note"
+    ],
+    "speak": 2,
+    "rows": [
+     [
+      "ou",
+      "/u/",
+      "vous · jour · tout",
+      "Spanish u"
+     ],
+     [
+      "u",
+      "/y/",
+      "tu · rue · lune",
+      "rounded /i/"
+     ],
+     [
+      "oi",
+      "/wa/",
+      "moi · voiture · trois",
+      "always"
+     ],
+     [
+      "eau · au",
+      "/o/",
+      "beau · eau · chaud",
+      "one sound"
+     ],
+     [
+      "ai · ais · ait · aie",
+      "/ɛ/",
+      "mais · français · était",
+      "never /ai/"
+     ],
+     [
+      "é",
+      "/e/",
+      "été · café",
+      ""
+     ],
+     [
+      "-er (infinitive)",
+      "/e/",
+      "parler · manger",
+      "r silent"
+     ],
+     [
+      "-ez",
+      "/e/",
+      "chez · vous parlez",
+      "z silent"
+     ],
+     [
+      "è · ê",
+      "/ɛ/",
+      "mère · fête · être",
+      ""
+     ],
+     [
+      "eu · œu",
+      "/ø/ /œ/",
+      "peu · deux · sœur",
+      ""
+     ],
+     [
+      "e (open syllable)",
+      "/ə/",
+      "le · petit · samedi",
+      "often dropped"
+     ],
+     [
+      "e + double consonant · e + t",
+      "/ɛ/",
+      "elle · belle · cette",
+      ""
+     ],
+     [
+      "i · y",
+      "/i/",
+      "vie · stylo",
+      ""
+     ],
+     [
+      "o",
+      "/o/ /ɔ/",
+      "mot · porte",
+      ""
+     ],
+     [
+      "an · am · en · em",
+      "/ɑ̃/",
+      "dans · chambre · vent · temps",
+      "nasal"
+     ],
+     [
+      "on · om",
+      "/ɔ̃/",
+      "bon · nom",
+      "nasal"
+     ],
+     [
+      "in · im · ain · ein · un",
+      "/ɛ̃/",
+      "vin · pain · plein · un",
+      "nasal"
+     ],
+     [
+      "ien",
+      "/jɛ̃/",
+      "bien · rien · chien",
+      ""
+     ],
+     [
+      "oin",
+      "/wɛ̃/",
+      "loin · besoin · moins",
+      ""
+     ],
+     [
+      "ui",
+      "/ɥi/",
+      "huit · lui · nuit",
+      ""
+     ]
+    ]
+   },
+   {
+    "id": "consonants",
+    "title": "Consonant spellings",
+    "note": "",
+    "columns": [
+     "Spelling",
+     "Sound",
+     "Hear",
+     "Note"
+    ],
+    "speak": 2,
+    "rows": [
+     [
+      "ch",
+      "/ʃ/",
+      "chat · chercher",
+      "not /tʃ/"
+     ],
+     [
+      "j · g + e/i",
+      "/ʒ/",
+      "jour · genou · manger",
+      ""
+     ],
+     [
+      "g + a/o/u · gu",
+      "/ɡ/",
+      "gare · guerre",
+      ""
+     ],
+     [
+      "gn",
+      "/ɲ/",
+      "montagne · espagnol",
+      "= ñ"
+     ],
+     [
+      "ill · -il",
+      "/j/",
+      "fille · travail · soleil",
+      "ville · mille · tranquille = /l/"
+     ],
+     [
+      "qu",
+      "/k/",
+      "qui · musique · quand",
+      "never /kw/"
+     ],
+     [
+      "c + e/i · ç",
+      "/s/",
+      "ce · merci · ça",
+      ""
+     ],
+     [
+      "c + a/o/u",
+      "/k/",
+      "café · comment",
+      ""
+     ],
+     [
+      "s between vowels",
+      "/z/",
+      "maison · poison",
+      ""
+     ],
+     [
+      "ss · s elsewhere",
+      "/s/",
+      "poisson · sur",
+      ""
+     ],
+     [
+      "th",
+      "/t/",
+      "thé · théâtre",
+      ""
+     ],
+     [
+      "ph",
+      "/f/",
+      "photo · téléphone",
+      ""
+     ],
+     [
+      "h",
+      "silent",
+      "homme · heure",
+      "elision / liaison unless h aspiré"
+     ],
+     [
+      "x",
+      "/ks/ /gz/ /z/",
+      "taxi · exemple · six‿heures",
+      ""
+     ],
+     [
+      "w",
+      "/w/ /v/",
+      "week-end · wagon",
+      ""
+     ]
+    ]
+   },
+   {
+    "id": "accents",
+    "title": "Accents - names and jobs",
+    "note": "An accent is part of the spelling: été ≠ ete. Only é/è/ê change the sound; the rest tell words apart or mark a lost letter.",
+    "columns": [
+     "Mark",
+     "Name",
+     "On",
+     "Sound",
+     "Job",
+     "Hear"
+    ],
+    "speak": 5,
+    "rows": [
+     [
+      "´",
+      "accent aigu",
+      "é",
+      "/e/",
+      "closed e (Spanish 'café')",
+      "été · café · parlé"
+     ],
+     [
+      "`",
+      "accent grave",
+      "è · à · ù",
+      "è = /ɛ/",
+      "open e; on a/u only distinguishes words (a/à, ou/où)",
+      "mère · très · où"
+     ],
+     [
+      "^",
+      "accent circonflexe",
+      "â ê î ô û",
+      "ê /ɛ/ · ô /o/",
+      "a lost s: forêt ← forest, hôpital ← hospital",
+      "être · fête · hôtel"
+     ],
+     [
+      "¨",
+      "tréma",
+      "ë · ï · ü",
+      "split",
+      "read the vowels apart: na-ïf",
+      "naïf · Noël · maïs"
+     ],
+     [
+      "¸",
+      "cédille",
+      "ç",
+      "/s/",
+      "soft c before a / o / u",
+      "ça · français · garçon"
+     ],
+     [
+      "œ",
+      "e dans l'o",
+      "œ",
+      "/ø/ /œ/",
+      "one letter, sounds like eu",
+      "œuf · sœur · cœur"
+     ],
+     [
+      "'",
+      "apostrophe (élision)",
+      "l' j' n' qu'",
+      "-",
+      "vowel dropped before a vowel: le ami → l'ami",
+      "l'eau · j'ai"
+     ]
+    ]
+   },
+   {
+    "id": "endings",
+    "title": "Endings",
+    "note": "",
+    "columns": [
+     "Ending",
+     "Sound",
+     "Hear"
+    ],
+    "speak": 2,
+    "rows": [
+     [
+      "-tion",
+      "/sjɔ̃/",
+      "question · situation"
+     ],
+     [
+      "-ment (adverb / noun)",
+      "/mɑ̃/",
+      "vraiment · moment"
+     ],
+     [
+      "-ent (verb)",
+      "silent",
+      "ils parlent"
+     ],
+     [
+      "-eur",
+      "/œʁ/",
+      "heure · ingénieur"
+     ],
+     [
+      "-eux · -euse",
+      "/ø/ /øz/",
+      "heureux · heureuse"
+     ],
+     [
+      "-eau",
+      "/o/",
+      "bureau · nouveau"
+     ],
+     [
+      "-ail · -aille",
+      "/aj/",
+      "travail · travaille"
+     ],
+     [
+      "-ille",
+      "/ij/",
+      "famille · fille"
+     ],
+     [
+      "-oir",
+      "/waʁ/",
+      "voir · devoir · soir"
+     ],
+     [
+      "final -e",
+      "silent (consonant before it sounds)",
+      "petite · grande · française"
+     ],
+     [
+      "final -s · -t · -d · -x · -p",
+      "silent",
+      "vous · petit · grand · prix · trop"
+     ],
+     [
+      "final -c · -r · -f · -l",
+      "sounds",
+      "avec · pour · chef · mal"
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "id": "transfer",
+  "title": "Spanish → French transfer map",
+  "blurb": "What carries over, what betrays you.",
+  "dynamic": null,
+  "sections": [
+   {
+    "id": "structural",
+    "title": "Structural parallels",
+    "note": "",
+    "columns": [
+     "Spanish",
+     "French",
+     "Note"
+    ],
+    "speak": 1,
+    "rows": [
+     [
+      "ir a + infinitivo",
+      "aller + infinitif",
+      "no 'à': je vais manger"
+     ],
+     [
+      "acabar de + infinitivo",
+      "venir de + infinitif",
+      "je viens de manger"
+     ],
+     [
+      "querer / poder / tener que + inf",
+      "vouloir / pouvoir / devoir + inf",
+      "no preposition"
+     ],
+     [
+      "he trabajado / trabajé",
+      "j'ai travaillé",
+      "one past for both"
+     ],
+     [
+      "tener + N + años",
+      "avoir + N + ans",
+      "j'ai 30 ans"
+     ],
+     [
+      "tener hambre / sed / razón",
+      "avoir faim / soif / raison",
+      "same verb"
+     ],
+     [
+      "hay",
+      "il y a",
+      "invariable"
+     ],
+     [
+      "hay que + inf",
+      "il faut + inf",
+      "invariable"
+     ],
+     [
+      "pensar que · creer que",
+      "penser que · croire que",
+      "never 'de que'"
+     ],
+     [
+      "me parece que",
+      "je trouve que",
+      ""
+     ],
+     [
+      "desde hace + presente",
+      "depuis + présent",
+      "j'habite ici depuis 5 ans"
+     ],
+     [
+      "hace + tiempo",
+      "il y a + temps",
+      "il y a deux jours"
+     ],
+     [
+      "el / la / los / las",
+      "le / la / les",
+      "l' before a vowel"
+     ],
+     [
+      "un / una / (nada)",
+      "un / une / des",
+      "des is mandatory: j'ai des amis"
+     ],
+     [
+      "adjetivo después del nombre",
+      "adjectif après le nom",
+      "except petit · grand · bon · nouveau · beau · jeune · vieux"
+     ],
+     [
+      "género concuerda",
+      "genre s'accorde",
+      "but genders differ: le problème · la voiture"
+     ]
+    ]
+   },
+   {
+    "id": "aimer-gustar",
+    "title": "aimer ≠ gustar",
+    "note": "Subject flips: the person who likes is the subject. Always the definite article after aimer.",
+    "columns": [
+     "Spanish",
+     "French"
+    ],
+    "speak": 1,
+    "rows": [
+     [
+      "Me gusta el café.",
+      "J'aime le café."
+     ],
+     [
+      "¿Te gusta viajar?",
+      "Tu aimes voyager ?"
+     ],
+     [
+      "No me gusta la música.",
+      "Je n'aime pas la musique."
+     ],
+     [
+      "Me encanta París.",
+      "J'adore Paris."
+     ],
+     [
+      "Me cae bien Marc.",
+      "J'aime bien Marc."
+     ]
+    ]
+   },
+   {
+    "id": "cognates",
+    "title": "Cognate patterns (tendencies, not rules)",
+    "note": "",
+    "columns": [
+     "Spanish",
+     "French",
+     "Examples"
+    ],
+    "speak": 2,
+    "rows": [
+     [
+      "-ción",
+      "-tion /sjɔ̃/",
+      "situation · nation · question"
+     ],
+     [
+      "-dad",
+      "-té /te/",
+      "université · liberté · qualité"
+     ],
+     [
+      "-mente",
+      "-ment /mɑ̃/",
+      "vraiment · lentement · exactement"
+     ],
+     [
+      "-oso / -osa",
+      "-eux / -euse",
+      "dangereux · sérieux · heureuse"
+     ],
+     [
+      "-ico / -ica",
+      "-ique /ik/",
+      "musique · politique · économique"
+     ],
+     [
+      "-or (agente)",
+      "-eur",
+      "professeur · directeur · ordinateur"
+     ],
+     [
+      "es- inicial",
+      "é- / e-",
+      "école · étude · espace · état"
+     ],
+     [
+      "-ar / -er / -ir",
+      "-er / -ir / -re",
+      "parler · finir · vendre"
+     ],
+     [
+      "-al",
+      "-al / -el",
+      "normal · national · essentiel"
+     ],
+     [
+      "-ista",
+      "-iste",
+      "artiste · journaliste"
+     ],
+     [
+      "ñ",
+      "gn",
+      "espagnol · montagne · signe"
+     ],
+     [
+      "-ero / -era",
+      "-ier / -ière",
+      "cuisinier · première"
+     ]
+    ]
+   },
+   {
+    "id": "traps",
+    "title": "Pronunciation traps (looks obvious, sounds different)",
+    "note": "",
+    "columns": [
+     "Word",
+     "Not",
+     "Actually"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "restaurant",
+      "res-tau-rant",
+      "/ʁɛstoʁɑ̃/ - final t silent, nasal"
+     ],
+     [
+      "temps",
+      "temps",
+      "/tɑ̃/ - ps silent"
+     ],
+     [
+      "comment",
+      "co-ment",
+      "/kɔmɑ̃/"
+     ],
+     [
+      "université",
+      "u-ni-ver-si-dad",
+      "/ynivɛʁsite/ - /y/, /e/"
+     ],
+     [
+      "bureau",
+      "bu-re-au",
+      "/byʁo/"
+     ],
+     [
+      "important",
+      "im-por-tant",
+      "/ɛ̃pɔʁtɑ̃/ - two nasals"
+     ],
+     [
+      "musique",
+      "mu-si-que",
+      "/myzik/"
+     ],
+     [
+      "famille",
+      "fa-mil-le",
+      "/famij/"
+     ],
+     [
+      "Paris",
+      "Pa-ris",
+      "/paʁi/ - s silent"
+     ],
+     [
+      "vous",
+      "vus",
+      "/vu/"
+     ]
+    ]
+   },
+   {
+    "id": "false-friends",
+    "title": "False friends that matter",
+    "note": "",
+    "columns": [
+     "French",
+     "means",
+     "Spanish look-alike means"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "demander",
+      "preguntar / pedir",
+      "demandar = poursuivre"
+     ],
+     [
+      "rester",
+      "quedarse",
+      "restar = soustraire"
+     ],
+     [
+      "attendre",
+      "esperar (aguardar)",
+      "atender = s'occuper de"
+     ],
+     [
+      "entendre",
+      "oír",
+      "entender = comprendre"
+     ],
+     [
+      "salir",
+      "ensuciar",
+      "salir = sortir"
+     ],
+     [
+      "subir",
+      "sufrir / padecer",
+      "subir = monter"
+     ],
+     [
+      "quitter",
+      "dejar / irse de",
+      "quitar = enlever"
+     ],
+     [
+      "nombre",
+      "número",
+      "nombre = nom"
+     ],
+     [
+      "large",
+      "ancho",
+      "largo = long"
+     ],
+     [
+      "embarrassé",
+      "avergonzado / incómodo",
+      "embarazada = enceinte"
+     ],
+     [
+      "constipé",
+      "estreñido",
+      "constipado = enrhumé"
+     ],
+     [
+      "carte",
+      "tarjeta / mapa / menú",
+      "carta = lettre"
+     ],
+     [
+      "sol",
+      "suelo",
+      "sol = soleil"
+     ],
+     [
+      "dos",
+      "espalda",
+      "dos = deux"
+     ],
+     [
+      "pourtant",
+      "sin embargo",
+      "por lo tanto = donc"
+     ],
+     [
+      "discuter",
+      "charlar / hablar",
+      "discutir = se disputer"
+     ],
+     [
+      "sombre",
+      "oscuro",
+      "sombra = ombre"
+     ],
+     [
+      "figure",
+      "cara",
+      "figura = forme"
+     ]
+    ]
+   },
+   {
+    "id": "different-structure",
+    "title": "Same idea, different structure",
+    "note": "",
+    "columns": [
+     "Spanish",
+     "French",
+     "Watch"
+    ],
+    "speak": 1,
+    "rows": [
+     [
+      "Soy ingeniero.",
+      "Je suis ingénieur.",
+      "no article - like Spanish, unlike English"
+     ],
+     [
+      "(Yo) trabajo.",
+      "Je travaille.",
+      "subject never dropped"
+     ],
+     [
+      "No tengo coche.",
+      "Je n'ai pas de voiture.",
+      "un/une/des → de after negation"
+     ],
+     [
+      "Vivo en Chicago.",
+      "J'habite à Chicago.",
+      "à + city, en + feminine country, au + masculine"
+     ],
+     [
+      "Estoy en casa de Marc.",
+      "Je suis chez Marc.",
+      "chez + person"
+     ],
+     [
+      "Lo quiero ver.",
+      "Je veux le voir.",
+      "pronoun before the infinitive, never attached"
+     ],
+     [
+      "Nos vemos.",
+      "On se voit.",
+      "on = spoken nosotros"
+     ],
+     [
+      "Está cansado.",
+      "Il est fatigué.",
+      "one verb être for ser/estar"
+     ],
+     [
+      "Hace calor.",
+      "Il fait chaud.",
+      "weather with faire + il"
+     ],
+     [
+      "¿Qué hora es?",
+      "Il est quelle heure ?",
+      "il est + heure"
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "id": "core-verbs",
+  "title": "Core verb atlas",
+  "blurb": "32 Month-1 verbs as usable systems: forms, Spanish, constructions, sound.",
+  "dynamic": "core-verbs",
+  "sections": []
+ },
+ {
+  "id": "sentence-architecture",
+  "title": "Sentence architecture",
+  "blurb": "Blocks and arrows, not prose.",
+  "dynamic": null,
+  "sections": [
+   {
+    "id": "svo",
+    "title": "Base order",
+    "note": "",
+    "columns": [
+     "Pattern",
+     "Example"
+    ],
+    "speak": 1,
+    "rows": [
+     [
+      "S + V + (O) + (time)",
+      "Je regarde un film ce soir."
+     ],
+     [
+      "S + V + à/de/chez + place",
+      "Je vais au bureau."
+     ],
+     [
+      "S + adverb after verb",
+      "Je parle souvent français."
+     ]
+    ]
+   },
+   {
+    "id": "cest",
+    "title": "c'est …",
+    "note": "",
+    "columns": [
+     "Use",
+     "Example",
+     "ES"
+    ],
+    "speak": 1,
+    "rows": [
+     [
+      "identify",
+      "C'est mon ami.",
+      "Es mi amigo."
+     ],
+     [
+      "comment",
+      "C'est difficile.",
+      "Es difícil."
+     ],
+     [
+      "plural",
+      "Ce sont mes amis. (speech: c'est)",
+      "Son mis amigos."
+     ],
+     [
+      "negation",
+      "Ce n'est pas grave.",
+      "No pasa nada."
+     ],
+     [
+      "question",
+      "C'est qui ? · Qu'est-ce que c'est ?",
+      "¿Quién es? · ¿Qué es?"
+     ]
+    ]
+   },
+   {
+    "id": "il-y-a",
+    "title": "il y a",
+    "note": "",
+    "columns": [
+     "Form",
+     "Example"
+    ],
+    "speak": 1,
+    "rows": [
+     [
+      "il y a + noun",
+      "Il y a un problème."
+     ],
+     [
+      "negative",
+      "Il n'y a pas de problème."
+     ],
+     [
+      "question",
+      "Il y a un café ici ? · Est-ce qu'il y a … ?"
+     ],
+     [
+      "past",
+      "Il y avait beaucoup de gens."
+     ],
+     [
+      "time ago",
+      "Il y a deux jours."
+     ]
+    ]
+   },
+   {
+    "id": "negation",
+    "title": "Negation",
+    "note": "ne + conjugated verb + pas. The negative word replaces pas: jamais, rien, plus, personne. Speech drops ne.",
+    "columns": [
+     "Frame",
+     "Example",
+     "ES"
+    ],
+    "speak": 1,
+    "rows": [
+     [
+      "ne V pas",
+      "Je ne sais pas.",
+      "No sé."
+     ],
+     [
+      "ne AUX pas PP",
+      "Je n'ai pas compris.",
+      "No he entendido."
+     ],
+     [
+      "ne MODAL pas INF",
+      "Je ne peux pas venir.",
+      "No puedo venir."
+     ],
+     [
+      "ne V jamais",
+      "Je ne fume jamais.",
+      "Nunca fumo."
+     ],
+     [
+      "ne V rien",
+      "Je ne veux rien.",
+      "No quiero nada."
+     ],
+     [
+      "ne V plus",
+      "Je n'habite plus ici.",
+      "Ya no vivo aquí."
+     ],
+     [
+      "ne V personne",
+      "Je ne connais personne.",
+      "No conozco a nadie."
+     ],
+     [
+      "pas de + noun",
+      "Je n'ai pas de voiture.",
+      "No tengo coche."
+     ]
+    ]
+   },
+   {
+    "id": "questions",
+    "title": "Questions",
+    "note": "",
+    "columns": [
+     "Form",
+     "Example"
+    ],
+    "speak": 1,
+    "rows": [
+     [
+      "intonation (speech)",
+      "Tu viens ?"
+     ],
+     [
+      "est-ce que + statement",
+      "Est-ce que tu viens ?"
+     ],
+     [
+      "question word at end (speech)",
+      "Tu habites où ? · Tu fais quoi ?"
+     ],
+     [
+      "question word + est-ce que",
+      "Où est-ce que tu habites ?"
+     ],
+     [
+      "qu'est-ce que",
+      "Qu'est-ce que tu fais ?"
+     ],
+     [
+      "inversion (formal - recognize)",
+      "Voulez-vous un café ?"
+     ]
+    ]
+   },
+   {
+    "id": "modal",
+    "title": "Modal + infinitive",
+    "note": "",
+    "columns": [
+     "Frame",
+     "Example",
+     "ES"
+    ],
+    "speak": 1,
+    "rows": [
+     [
+      "vouloir + inf",
+      "Je veux partir.",
+      "Quiero irme."
+     ],
+     [
+      "pouvoir + inf",
+      "Tu peux venir ?",
+      "¿Puedes venir?"
+     ],
+     [
+      "devoir + inf",
+      "On doit finir.",
+      "Tenemos que terminar."
+     ],
+     [
+      "savoir + inf",
+      "Je sais nager.",
+      "Sé nadar."
+     ],
+     [
+      "aimer + inf",
+      "J'aime voyager.",
+      "Me gusta viajar."
+     ],
+     [
+      "negation",
+      "Je ne veux pas partir.",
+      "No quiero irme."
+     ],
+     [
+      "pronoun",
+      "Je veux le voir.",
+      "Quiero verlo."
+     ]
+    ]
+   },
+   {
+    "id": "near-future",
+    "title": "Futur proche",
+    "note": "",
+    "columns": [
+     "Frame",
+     "Example"
+    ],
+    "speak": 1,
+    "rows": [
+     [
+      "aller (présent) + infinitif",
+      "Je vais travailler demain."
+     ],
+     [
+      "negation",
+      "Je ne vais pas sortir."
+     ],
+     [
+      "question",
+      "Tu vas faire quoi ? · Est-ce que tu vas venir ?"
+     ],
+     [
+      "with modal",
+      "Je vais devoir partir."
+     ]
+    ]
+   },
+   {
+    "id": "passe-compose",
+    "title": "Passé composé",
+    "note": "",
+    "columns": [
+     "Frame",
+     "Example",
+     "ES"
+    ],
+    "speak": 1,
+    "rows": [
+     [
+      "avoir + participe",
+      "J'ai travaillé.",
+      "He trabajado / trabajé."
+     ],
+     [
+      "être + participe (movement / change)",
+      "Je suis allé. Elle est partie.",
+      "Fui. Se fue."
+     ],
+     [
+      "negation",
+      "Je n'ai pas vu. Je ne suis pas allé.",
+      "No vi. No fui."
+     ],
+     [
+      "question",
+      "Tu as fini ? · Est-ce que tu as fini ?",
+      "¿Terminaste?"
+     ],
+     [
+      "participles -er → é",
+      "parlé · mangé · travaillé",
+      ""
+     ],
+     [
+      "irregular",
+      "eu · été · fait · vu · pris · mis · dit · venu · compris · voulu · pu · dû · su",
+      ""
+     ]
+    ]
+   },
+   {
+    "id": "object-pronouns",
+    "title": "Object pronoun position",
+    "note": "",
+    "columns": [
+     "Position",
+     "Example",
+     "ES"
+    ],
+    "speak": 1,
+    "rows": [
+     [
+      "before conjugated verb",
+      "Je le vois. Je la connais. Je les aime.",
+      "Lo veo. La conozco. Los quiero."
+     ],
+     [
+      "before the infinitive",
+      "Je veux le voir. Je vais les appeler.",
+      "Quiero verlo."
+     ],
+     [
+      "passé composé: before avoir",
+      "Je l'ai vu. Je les ai vus.",
+      "Lo vi. Los vi."
+     ],
+     [
+      "negation around",
+      "Je ne le vois pas. Je ne l'ai pas vu.",
+      "No lo veo."
+     ]
+    ]
+   },
+   {
+    "id": "adjectives",
+    "title": "Adjective position & agreement",
+    "note": "After the noun by default. Before: petit · grand · bon · mauvais · nouveau · beau · jeune · vieux · autre.",
+    "columns": [
+     "Pattern",
+     "Example"
+    ],
+    "speak": 1,
+    "rows": [
+     [
+      "noun + adj",
+      "un film intéressant · une voiture française"
+     ],
+     [
+      "adj + noun (BAGS)",
+      "une grande maison · un bon café · un nouveau travail"
+     ],
+     [
+      "feminine +e",
+      "fatigué → fatiguée · content → contente · français → française"
+     ],
+     [
+      "plural +s",
+      "petits · grandes"
+     ],
+     [
+      "irregular",
+      "beau/belle · nouveau/nouvelle · vieux/vieille"
+     ]
+    ]
+   },
+   {
+    "id": "adverbs",
+    "title": "Adverb placement",
+    "note": "",
+    "columns": [
+     "Rule",
+     "Example"
+    ],
+    "speak": 1,
+    "rows": [
+     [
+      "after the conjugated verb",
+      "Je parle souvent français. Je travaille beaucoup."
+     ],
+     [
+      "passé composé: between aux and pp",
+      "J'ai beaucoup travaillé. J'ai déjà mangé."
+     ],
+     [
+      "time expressions at start or end",
+      "Demain, je travaille. Je travaille demain."
+     ]
+    ]
+   },
+   {
+    "id": "que-clauses",
+    "title": "que-clauses (opinions, reasons)",
+    "note": "",
+    "columns": [
+     "Frame",
+     "Example",
+     "ES"
+    ],
+    "speak": 1,
+    "rows": [
+     [
+      "je pense que",
+      "Je pense que c'est bien.",
+      "Pienso que está bien."
+     ],
+     [
+      "je crois que",
+      "Je crois que oui.",
+      "Creo que sí."
+     ],
+     [
+      "je trouve que",
+      "Je trouve que c'est cher.",
+      "Me parece caro."
+     ],
+     [
+      "parce que",
+      "Je reste parce que je suis fatigué.",
+      "Me quedo porque estoy cansado."
+     ],
+     [
+      "je sais que",
+      "Je sais que tu es occupé.",
+      "Sé que estás ocupado."
+     ]
+    ]
+   },
+   {
+    "id": "connectors",
+    "title": "Connectors",
+    "note": "",
+    "columns": [
+     "FR",
+     "ES"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "et · mais · ou",
+      "y · pero · o"
+     ],
+     [
+      "parce que · donc · alors",
+      "porque · así que · entonces"
+     ],
+     [
+      "d'abord · puis · ensuite · après · enfin",
+      "primero · luego · después · finalmente"
+     ],
+     [
+      "en fait · par exemple · surtout",
+      "de hecho · por ejemplo · sobre todo"
+     ],
+     [
+      "si · sinon · comme",
+      "si · si no · como"
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "id": "questions",
+  "title": "Questions & conversation repair",
+  "blurb": "Ask, and keep the conversation alive when it breaks.",
+  "dynamic": null,
+  "sections": [
+   {
+    "id": "words",
+    "title": "Question words",
+    "note": "",
+    "columns": [
+     "FR",
+     "ES",
+     "Example"
+    ],
+    "speak": 2,
+    "rows": [
+     [
+      "qui",
+      "quién",
+      "Qui est-ce ? · C'est qui ?"
+     ],
+     [
+      "quoi",
+      "qué",
+      "Tu fais quoi ?"
+     ],
+     [
+      "qu'est-ce que",
+      "qué",
+      "Qu'est-ce que tu veux ?"
+     ],
+     [
+      "où",
+      "dónde",
+      "Tu habites où ?"
+     ],
+     [
+      "quand",
+      "cuándo",
+      "Tu pars quand ?"
+     ],
+     [
+      "pourquoi",
+      "por qué",
+      "Pourquoi tu es fatigué ?"
+     ],
+     [
+      "comment",
+      "cómo",
+      "Comment ça va ? · Comment on dit … ?"
+     ],
+     [
+      "combien",
+      "cuánto",
+      "C'est combien ? · Combien de temps ?"
+     ],
+     [
+      "quel / quelle",
+      "qué / cuál",
+      "Quelle heure est-il ? · Quel jour ?"
+     ]
+    ]
+   },
+   {
+    "id": "quel",
+    "title": "quel agrees",
+    "note": "",
+    "columns": [
+     "Form",
+     "Example"
+    ],
+    "speak": 1,
+    "rows": [
+     [
+      "quel (m)",
+      "Quel jour ? Quel âge tu as ?"
+     ],
+     [
+      "quelle (f)",
+      "Quelle heure ? Quelle ville ?"
+     ],
+     [
+      "quels / quelles",
+      "Quels films ? Quelles langues tu parles ?"
+     ]
+    ]
+   },
+   {
+    "id": "est-ce-que",
+    "title": "est-ce que / qu'est-ce que",
+    "note": "Hear them as chunks: /ɛskə/ and /kɛskə/. They never change.",
+    "columns": [
+     "Chunk",
+     "Example"
+    ],
+    "speak": 1,
+    "rows": [
+     [
+      "est-ce que + statement",
+      "Est-ce que tu viens ?"
+     ],
+     [
+      "est-ce qu' + vowel",
+      "Est-ce qu'il vient ?"
+     ],
+     [
+      "qu'est-ce que + S + V",
+      "Qu'est-ce que tu fais ?"
+     ],
+     [
+      "qu'est-ce que c'est ?",
+      "Qu'est-ce que c'est ?"
+     ],
+     [
+      "où / quand / pourquoi est-ce que",
+      "Où est-ce que tu vas ?"
+     ]
+    ]
+   },
+   {
+    "id": "intonation",
+    "title": "Intonation questions (speech default)",
+    "note": "",
+    "columns": [
+     "Statement",
+     "Question"
+    ],
+    "speak": 1,
+    "rows": [
+     [
+      "Tu viens.",
+      "Tu viens ?"
+     ],
+     [
+      "Il est là.",
+      "Il est là ?"
+     ],
+     [
+      "Tu as le temps.",
+      "Tu as le temps ?"
+     ],
+     [
+      "C'est loin.",
+      "C'est loin ?"
+     ]
+    ]
+   },
+   {
+    "id": "repair",
+    "title": "Repair phrases (memorize early)",
+    "note": "",
+    "columns": [
+     "FR",
+     "ES"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "Pardon ?",
+      "¿Perdón? / ¿Cómo?"
+     ],
+     [
+      "Tu peux répéter, s'il te plaît ?",
+      "¿Puedes repetir, por favor?"
+     ],
+     [
+      "Vous pouvez répéter ?",
+      "¿Puede repetir?"
+     ],
+     [
+      "Plus lentement, s'il te plaît.",
+      "Más despacio, por favor."
+     ],
+     [
+      "Qu'est-ce que ça veut dire ?",
+      "¿Qué significa?"
+     ],
+     [
+      "Comment on dit ___ en français ?",
+      "¿Cómo se dice ___ en francés?"
+     ],
+     [
+      "Je ne comprends pas.",
+      "No entiendo."
+     ],
+     [
+      "Je veux dire…",
+      "Quiero decir…"
+     ],
+     [
+      "Je ne sais pas encore.",
+      "Todavía no sé."
+     ],
+     [
+      "Attends… / Attendez…",
+      "Espera… / Espere…"
+     ],
+     [
+      "Comment ça s'écrit ?",
+      "¿Cómo se escribe?"
+     ],
+     [
+      "C'est ça ?",
+      "¿Es eso? / ¿Así?"
+     ]
+    ]
+   },
+   {
+    "id": "answers",
+    "title": "Short answers",
+    "note": "",
+    "columns": [
+     "FR",
+     "ES"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "Oui. / Non. / Si !",
+      "Sí. / No. / ¡Sí! (contradicting a negative)"
+     ],
+     [
+      "Moi aussi. / Moi non plus.",
+      "Yo también. / Yo tampoco."
+     ],
+     [
+      "Ça dépend.",
+      "Depende."
+     ],
+     [
+      "Bien sûr. / Pas du tout.",
+      "Claro. / Para nada."
+     ],
+     [
+      "D'accord. / Ça marche.",
+      "Vale."
+     ],
+     [
+      "Pas encore. / Déjà ?",
+      "Todavía no. / ¿Ya?"
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "id": "articles",
+  "title": "Articles, gender & prepositions",
+  "blurb": "le/la/les · un/une/des · à/de contractions · places · chez.",
+  "dynamic": null,
+  "sections": [
+   {
+    "id": "definite",
+    "title": "Definite",
+    "note": "",
+    "columns": [
+     "Form",
+     "Use",
+     "Example"
+    ],
+    "speak": 2,
+    "rows": [
+     [
+      "le",
+      "m. sing.",
+      "le travail · le café"
+     ],
+     [
+      "la",
+      "f. sing.",
+      "la maison · la musique"
+     ],
+     [
+      "l'",
+      "before vowel / h muet",
+      "l'ami · l'heure · l'homme"
+     ],
+     [
+      "les",
+      "plural",
+      "les amis · les gens"
+     ],
+     [
+      "with aimer",
+      "always",
+      "J'aime le café."
+     ],
+     [
+      "general statements",
+      "",
+      "Le français est difficile."
+     ]
+    ]
+   },
+   {
+    "id": "indefinite",
+    "title": "Indefinite",
+    "note": "",
+    "columns": [
+     "Form",
+     "Example",
+     "ES"
+    ],
+    "speak": 1,
+    "rows": [
+     [
+      "un",
+      "un problème · un ami",
+      "un"
+     ],
+     [
+      "une",
+      "une question · une voiture",
+      "una"
+     ],
+     [
+      "des",
+      "des amis · des questions",
+      "(nothing) - mandatory in French"
+     ]
+    ]
+   },
+   {
+    "id": "negation-de",
+    "title": "Negation → de",
+    "note": "",
+    "columns": [
+     "Affirmative",
+     "Negative"
+    ],
+    "speak": 1,
+    "rows": [
+     [
+      "J'ai une voiture.",
+      "Je n'ai pas de voiture."
+     ],
+     [
+      "Il y a des gens.",
+      "Il n'y a pas de gens."
+     ],
+     [
+      "J'ai du temps.",
+      "Je n'ai pas de temps."
+     ],
+     [
+      "exception: être",
+      "Ce n'est pas un problème."
+     ]
+    ]
+   },
+   {
+    "id": "contractions",
+    "title": "à / de + le / les",
+    "note": "",
+    "columns": [
+     "Combination",
+     "Becomes",
+     "Example"
+    ],
+    "speak": 2,
+    "rows": [
+     [
+      "à + le",
+      "au",
+      "Je vais au bureau."
+     ],
+     [
+      "à + les",
+      "aux",
+      "Je parle aux enfants."
+     ],
+     [
+      "de + le",
+      "du",
+      "Je fais du sport. · le bureau du chef"
+     ],
+     [
+      "de + les",
+      "des",
+      "Je parle des vacances."
+     ],
+     [
+      "à la / à l' / de la / de l'",
+      "no change",
+      "à la maison · de l'eau"
+     ]
+    ]
+   },
+   {
+    "id": "partitive",
+    "title": "Partitive (some)",
+    "note": "",
+    "columns": [
+     "Form",
+     "Example",
+     "ES"
+    ],
+    "speak": 1,
+    "rows": [
+     [
+      "du",
+      "du pain · du café · du sport",
+      "pan · café · deporte (sin artículo)"
+     ],
+     [
+      "de la",
+      "de la musique · de la chance",
+      "música"
+     ],
+     [
+      "de l'",
+      "de l'eau · de l'argent",
+      "agua · dinero"
+     ],
+     [
+      "negative",
+      "pas de pain · pas d'eau",
+      "no … pan"
+     ]
+    ]
+   },
+   {
+    "id": "gender",
+    "title": "Gender heuristics (heuristics!)",
+    "note": "",
+    "columns": [
+     "Usually masculine",
+     "Usually feminine"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "-age · -ment · -eau · -isme · -oir",
+      "-tion · -sion · -té · -ure · -ette · -ence · -ance"
+     ],
+     [
+      "voyage · appartement · bureau",
+      "question · université · voiture · semaine"
+     ],
+     [
+      "days · months · languages · metals",
+      "sciences: la physique · la chimie"
+     ],
+     [
+      "traps: le problème · le système",
+      "traps: la personne (any gender) · la victime"
+     ]
+    ]
+   },
+   {
+    "id": "places",
+    "title": "Places: à / en / au / aux / chez",
+    "note": "",
+    "columns": [
+     "Use",
+     "Example"
+    ],
+    "speak": 1,
+    "rows": [
+     [
+      "à + city",
+      "à Paris · à Chicago"
+     ],
+     [
+      "en + feminine country / continent",
+      "en France · en Espagne · en Europe"
+     ],
+     [
+      "au + masculine country",
+      "au Mexique · au Canada · au Japon"
+     ],
+     [
+      "aux + plural",
+      "aux États-Unis"
+     ],
+     [
+      "à la / au + place",
+      "à la maison · au bureau · au restaurant"
+     ],
+     [
+      "chez + person / profession",
+      "chez moi · chez Marc · chez le médecin"
+     ],
+     [
+      "dans + enclosed",
+      "dans la voiture · dans le métro"
+     ],
+     [
+      "sur / sous",
+      "sur la table · sous le lit"
+     ]
+    ]
+   },
+   {
+    "id": "professions",
+    "title": "Professions & nationality",
+    "note": "",
+    "columns": [
+     "Rule",
+     "Example"
+    ],
+    "speak": 1,
+    "rows": [
+     [
+      "no article after être",
+      "Je suis ingénieur. Elle est professeure."
+     ],
+     [
+      "article with c'est",
+      "C'est un ingénieur."
+     ],
+     [
+      "nationality agrees, lowercase",
+      "Je suis américain. Elle est française."
+     ]
+    ]
+   },
+   {
+    "id": "chez",
+    "title": "chez",
+    "note": "",
+    "columns": [
+     "Meaning",
+     "Example",
+     "ES"
+    ],
+    "speak": 1,
+    "rows": [
+     [
+      "at someone's home",
+      "On mange chez moi ?",
+      "¿Comemos en mi casa?"
+     ],
+     [
+      "at a shop / professional",
+      "chez le médecin · chez le coiffeur",
+      "al médico · a la peluquería"
+     ],
+     [
+      "in a company",
+      "Je travaille chez Google.",
+      "Trabajo en Google."
+     ],
+     [
+      "among",
+      "chez les Français",
+      "entre los franceses"
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "id": "tense-map",
+  "title": "Tense / time map",
+  "blurb": "Conceptual orientation FR ↔ ES, not full conjugation.",
+  "dynamic": null,
+  "sections": [
+   {
+    "id": "present",
+    "title": "Présent",
+    "note": "",
+    "columns": [
+     "FR",
+     "ES",
+     "Note"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "je travaille",
+      "trabajo",
+      "also 'estoy trabajando' - no progressive needed"
+     ],
+     [
+      "je travaille depuis un mois",
+      "llevo un mes trabajando",
+      "depuis + présent"
+     ],
+     [
+      "je travaille demain",
+      "trabajo mañana",
+      "present for near plans works too"
+     ]
+    ]
+   },
+   {
+    "id": "near-future",
+    "title": "Futur proche",
+    "note": "",
+    "columns": [
+     "FR",
+     "ES"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "je vais travailler",
+      "voy a trabajar"
+     ],
+     [
+      "on va manger",
+      "vamos a comer"
+     ],
+     [
+      "ils vont partir",
+      "van a irse"
+     ],
+     [
+      "je ne vais pas sortir",
+      "no voy a salir"
+     ]
+    ]
+   },
+   {
+    "id": "passe-compose",
+    "title": "Passé composé (avoir)",
+    "note": "",
+    "columns": [
+     "FR",
+     "ES",
+     "Participle"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "j'ai travaillé",
+      "he trabajado / trabajé",
+      "-er → -é"
+     ],
+     [
+      "j'ai fini",
+      "he terminado / terminé",
+      "-ir → -i"
+     ],
+     [
+      "j'ai vu",
+      "he visto / vi",
+      "voir → vu"
+     ],
+     [
+      "j'ai fait",
+      "he hecho / hice",
+      "faire → fait"
+     ],
+     [
+      "j'ai pris",
+      "he tomado / tomé",
+      "prendre → pris"
+     ],
+     [
+      "j'ai eu",
+      "he tenido / tuve",
+      "avoir → eu"
+     ],
+     [
+      "j'ai été",
+      "he sido / fui",
+      "être → été"
+     ],
+     [
+      "j'ai dit",
+      "he dicho / dije",
+      "dire → dit"
+     ],
+     [
+      "j'ai voulu / pu / dû / su",
+      "quise / pude / debí / supe",
+      "modals"
+     ],
+     [
+      "j'ai compris · mis · lu · écrit",
+      "entendí · puse · leí · escribí",
+      ""
+     ]
+    ]
+   },
+   {
+    "id": "passe-compose-etre",
+    "title": "Passé composé (être)",
+    "note": "Movement / change verbs: aller · venir · partir · arriver · rester · rentrer · sortir · entrer · monter · descendre · naître · mourir · tomber · devenir. Participle agrees with the subject.",
+    "columns": [
+     "FR",
+     "ES"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "je suis allé(e)",
+      "fui"
+     ],
+     [
+      "elle est partie",
+      "se fue"
+     ],
+     [
+      "ils sont arrivés",
+      "llegaron"
+     ],
+     [
+      "on est rentrés",
+      "volvimos"
+     ],
+     [
+      "nous sommes restés",
+      "nos quedamos"
+     ],
+     [
+      "je suis venu(e)",
+      "vine"
+     ]
+    ]
+   },
+   {
+    "id": "recent-past",
+    "title": "Passé récent",
+    "note": "",
+    "columns": [
+     "FR",
+     "ES"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "je viens de manger",
+      "acabo de comer"
+     ],
+     [
+      "il vient de partir",
+      "acaba de irse"
+     ],
+     [
+      "on vient de finir",
+      "acabamos de terminar"
+     ]
+    ]
+   },
+   {
+    "id": "imparfait",
+    "title": "Imparfait (recognition only in Month 1)",
+    "note": "",
+    "columns": [
+     "FR",
+     "ES",
+     "Use"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "c'était",
+      "era / estaba",
+      "evaluating the past: C'était bien."
+     ],
+     [
+      "il y avait",
+      "había",
+      "setting: Il y avait beaucoup de gens."
+     ],
+     [
+      "j'habitais",
+      "vivía",
+      "background / habit"
+     ],
+     [
+      "je voulais",
+      "quería",
+      "politeness / past wish"
+     ]
+    ]
+   },
+   {
+    "id": "ago",
+    "title": "Time reference",
+    "note": "",
+    "columns": [
+     "FR",
+     "ES"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "hier · hier soir · ce matin",
+      "ayer · anoche · esta mañana"
+     ],
+     [
+      "la semaine dernière · le mois dernier · l'année dernière",
+      "la semana pasada · el mes pasado · el año pasado"
+     ],
+     [
+      "il y a deux jours",
+      "hace dos días"
+     ],
+     [
+      "demain · ce soir · ce week-end",
+      "mañana · esta noche · este finde"
+     ],
+     [
+      "la semaine prochaine",
+      "la semana que viene"
+     ],
+     [
+      "aujourd'hui · maintenant",
+      "hoy · ahora"
+     ]
+    ]
+   },
+   {
+    "id": "depuis",
+    "title": "depuis · pendant · il y a",
+    "note": "",
+    "columns": [
+     "FR",
+     "ES",
+     "Tense"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "depuis + duration/date",
+      "desde hace / desde",
+      "présent: J'habite ici depuis 5 ans."
+     ],
+     [
+      "pendant + duration",
+      "durante",
+      "passé composé: J'ai travaillé pendant deux heures."
+     ],
+     [
+      "il y a + duration",
+      "hace",
+      "passé composé: Je suis arrivé il y a deux jours."
+     ],
+     [
+      "ça fait … que",
+      "hace … que / llevo …",
+      "Ça fait un mois que j'apprends."
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "id": "pronouns",
+  "title": "Pronoun map",
+  "blurb": "Month 1 layer: subject, on, tonic, possessive, me/te/le/la/les.",
+  "dynamic": null,
+  "sections": [
+   {
+    "id": "subject",
+    "title": "Subject pronouns (never dropped)",
+    "note": "",
+    "columns": [
+     "FR",
+     "ES",
+     "Hear"
+    ],
+    "speak": 2,
+    "rows": [
+     [
+      "je / j'",
+      "yo",
+      "je suis · j'ai"
+     ],
+     [
+      "tu",
+      "tú",
+      "tu es"
+     ],
+     [
+      "il / elle",
+      "él / ella",
+      "il est · elle est"
+     ],
+     [
+      "on",
+      "nosotros (hablado) · uno",
+      "on est"
+     ],
+     [
+      "nous",
+      "nosotros",
+      "nous sommes"
+     ],
+     [
+      "vous",
+      "usted · ustedes · vosotros",
+      "vous êtes"
+     ],
+     [
+      "ils / elles",
+      "ellos / ellas",
+      "ils sont · elles sont"
+     ]
+    ]
+   },
+   {
+    "id": "on",
+    "title": "on",
+    "note": "Conjugates like il/elle, means nous in speech. Also impersonal (se dice → on dit).",
+    "columns": [
+     "FR",
+     "ES"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "On va au restaurant ?",
+      "¿Vamos al restaurante?"
+     ],
+     [
+      "On est en retard.",
+      "Llegamos tarde."
+     ],
+     [
+      "On dit ça en français ?",
+      "¿Se dice eso en francés?"
+     ],
+     [
+      "Nous, on habite ici.",
+      "Nosotros vivimos aquí."
+     ]
+    ]
+   },
+   {
+    "id": "tonic",
+    "title": "Tonic pronouns",
+    "note": "After prepositions, alone, for emphasis, after c'est.",
+    "columns": [
+     "FR",
+     "ES",
+     "Example"
+    ],
+    "speak": 2,
+    "rows": [
+     [
+      "moi",
+      "yo / mí",
+      "Et toi ? - Moi, ça va. · avec moi · chez moi"
+     ],
+     [
+      "toi",
+      "tú / ti",
+      "C'est pour toi."
+     ],
+     [
+      "lui / elle",
+      "él / ella",
+      "avec lui · chez elle"
+     ],
+     [
+      "nous / vous",
+      "nosotros / usted(es)",
+      "chez nous · avec vous"
+     ],
+     [
+      "eux / elles",
+      "ellos / ellas",
+      "chez eux"
+     ]
+    ]
+   },
+   {
+    "id": "possessive",
+    "title": "Possessive determiners",
+    "note": "Agree with the thing owned. son/sa = his OR her. Before a vowel: mon amie (not ma).",
+    "columns": [
+     "m.",
+     "f.",
+     "pl.",
+     "ES"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "mon",
+      "ma",
+      "mes",
+      "mi / mis"
+     ],
+     [
+      "ton",
+      "ta",
+      "tes",
+      "tu / tus"
+     ],
+     [
+      "son",
+      "sa",
+      "ses",
+      "su / sus"
+     ],
+     [
+      "notre",
+      "notre",
+      "nos",
+      "nuestro/a(s)"
+     ],
+     [
+      "votre",
+      "votre",
+      "vos",
+      "su(s) / vuestro"
+     ],
+     [
+      "leur",
+      "leur",
+      "leurs",
+      "su(s)"
+     ]
+    ]
+   },
+   {
+    "id": "object",
+    "title": "Direct object: me · te · le · la · les",
+    "note": "Before the conjugated verb (or before the infinitive). le/la → l' before a vowel.",
+    "columns": [
+     "FR",
+     "ES"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "Tu me comprends ?",
+      "¿Me entiendes?"
+     ],
+     [
+      "Je te vois demain.",
+      "Te veo mañana."
+     ],
+     [
+      "Je le prends.",
+      "Lo tomo."
+     ],
+     [
+      "Je la connais.",
+      "La conozco."
+     ],
+     [
+      "Je les aime.",
+      "Los quiero."
+     ],
+     [
+      "Je l'ai vu.",
+      "Lo vi."
+     ],
+     [
+      "Je veux le voir.",
+      "Quiero verlo."
+     ],
+     [
+      "Je ne les ai pas vus.",
+      "No los vi."
+     ]
+    ]
+   },
+   {
+    "id": "later",
+    "title": "Later layers (recognize for now)",
+    "note": "",
+    "columns": [
+     "FR",
+     "ES",
+     "Example"
+    ],
+    "speak": 2,
+    "rows": [
+     [
+      "lui / leur (indirect)",
+      "le / les",
+      "Je lui parle. · Je leur donne ça."
+     ],
+     [
+      "y (there / à + thing)",
+      "allí / ello",
+      "J'y vais. · On y va !"
+     ],
+     [
+      "en (of it / some)",
+      "de ello / lo",
+      "J'en veux. · Il y en a."
+     ],
+     [
+      "reflexive me/te/se/nous/vous/se",
+      "me/te/se",
+      "Je me lève. · On se voit."
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "id": "spoken-french",
+  "title": "Spoken French decoder",
+  "blurb": "Why what you hear ≠ what you read.",
+  "dynamic": null,
+  "sections": [
+   {
+    "id": "ne-drop",
+    "title": "ne disappears",
+    "note": "",
+    "columns": [
+     "Written",
+     "Heard"
+    ],
+    "speak": 1,
+    "rows": [
+     [
+      "Je ne sais pas.",
+      "Je sais pas. · J'sais pas. · Chais pas."
+     ],
+     [
+      "Il n'est pas là.",
+      "Il est pas là."
+     ],
+     [
+      "Je n'ai pas faim.",
+      "J'ai pas faim."
+     ],
+     [
+      "Ce n'est pas grave.",
+      "C'est pas grave."
+     ]
+    ]
+   },
+   {
+    "id": "il-y-a",
+    "title": "il y a → y a",
+    "note": "",
+    "columns": [
+     "Written",
+     "Heard"
+    ],
+    "speak": 1,
+    "rows": [
+     [
+      "Il y a un problème.",
+      "Y a un problème."
+     ],
+     [
+      "Il n'y a pas de souci.",
+      "Y a pas de souci."
+     ],
+     [
+      "Il y a du monde.",
+      "Y a du monde."
+     ],
+     [
+      "Qu'est-ce qu'il y a ?",
+      "Qu'est-ce qu'y a ?"
+     ]
+    ]
+   },
+   {
+    "id": "contractions",
+    "title": "Common reductions",
+    "note": "",
+    "columns": [
+     "Written",
+     "Heard"
+    ],
+    "speak": 1,
+    "rows": [
+     [
+      "tu as · tu es",
+      "t'as · t'es"
+     ],
+     [
+      "je suis",
+      "j'suis · chuis"
+     ],
+     [
+      "je ne sais pas",
+      "chais pas"
+     ],
+     [
+      "il y a",
+      "y a"
+     ],
+     [
+      "petit",
+      "p'tit"
+     ],
+     [
+      "ce que",
+      "c'que"
+     ],
+     [
+      "parce que",
+      "pasque"
+     ],
+     [
+      "il / ils (before consonant)",
+      "i · i'"
+     ]
+    ]
+   },
+   {
+    "id": "on-vs-nous",
+    "title": "on vs nous",
+    "note": "",
+    "columns": [
+     "Speech",
+     "Writing / formal"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "On va manger.",
+      "Nous allons manger."
+     ],
+     [
+      "On est prêts.",
+      "Nous sommes prêts."
+     ],
+     [
+      "Nous, on habite ici.",
+      "Nous habitons ici."
+     ]
+    ]
+   },
+   {
+    "id": "liaison",
+    "title": "Liaison changes the word you hear",
+    "note": "",
+    "columns": [
+     "Written",
+     "Heard",
+     "Trap"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "les amis",
+      "lé-za-mi",
+      "sounds like 'zamis'"
+     ],
+     [
+      "vous avez",
+      "vou-za-vé",
+      ""
+     ],
+     [
+      "un homme",
+      "œ̃-nɔm",
+      "'nomme'"
+     ],
+     [
+      "ils ont / ils sont",
+      "il-zɔ̃ / il-sɔ̃",
+      "z vs s = have vs are"
+     ],
+     [
+      "deux heures",
+      "dø-zœʁ",
+      ""
+     ]
+    ]
+   },
+   {
+    "id": "register",
+    "title": "Register",
+    "note": "",
+    "columns": [
+     "Casual",
+     "Neutral",
+     "Formal"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "Salut, ça va ?",
+      "Bonjour, ça va ?",
+      "Bonjour, comment allez-vous ?"
+     ],
+     [
+      "Tu veux un café ?",
+      "Est-ce que tu veux un café ?",
+      "Voulez-vous un café ?"
+     ],
+     [
+      "ouais · nan",
+      "oui · non",
+      "oui · non"
+     ],
+     [
+      "un truc · un mec",
+      "une chose · un homme",
+      "une chose · un homme"
+     ],
+     [
+      "c'est nul",
+      "ce n'est pas bien",
+      "c'est décevant"
+     ]
+    ]
+   },
+   {
+    "id": "fillers",
+    "title": "Fillers you'll hear",
+    "note": "",
+    "columns": [
+     "FR",
+     "≈ ES"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "euh…",
+      "eh…"
+     ],
+     [
+      "bon · ben · bah",
+      "bueno · pues"
+     ],
+     [
+      "en fait",
+      "de hecho / o sea"
+     ],
+     [
+      "quoi (end of sentence)",
+      "¿sabes? / vaya"
+     ],
+     [
+      "tu vois · tu sais",
+      "¿ves? · ¿sabes?"
+     ],
+     [
+      "voilà",
+      "eso es / ya está"
+     ],
+     [
+      "du coup",
+      "así que / entonces"
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "id": "numbers",
+  "title": "Numbers, time & dates",
+  "blurb": "Reusable, not a one-session chore.",
+  "dynamic": null,
+  "sections": [
+   {
+    "id": "0-20",
+    "title": "0–20",
+    "note": "",
+    "columns": [
+     "n",
+     "FR",
+     "Hear"
+    ],
+    "speak": 1,
+    "rows": [
+     [
+      "0–5",
+      "zéro · un · deux · trois · quatre · cinq",
+      "zéro un deux trois quatre cinq"
+     ],
+     [
+      "6–10",
+      "six · sept · huit · neuf · dix",
+      "six sept huit neuf dix"
+     ],
+     [
+      "11–15",
+      "onze · douze · treize · quatorze · quinze",
+      "onze douze treize quatorze quinze"
+     ],
+     [
+      "16–20",
+      "seize · dix-sept · dix-huit · dix-neuf · vingt",
+      "seize dix-sept dix-huit dix-neuf vingt"
+     ]
+    ]
+   },
+   {
+    "id": "tens",
+    "title": "Tens",
+    "note": "70 = 60+10, 80 = 4×20, 90 = 4×20+10. 21/31/41/51/61/71 use 'et un'.",
+    "columns": [
+     "n",
+     "FR"
+    ],
+    "speak": 1,
+    "rows": [
+     [
+      "20 · 30 · 40 · 50 · 60",
+      "vingt · trente · quarante · cinquante · soixante"
+     ],
+     [
+      "70 · 71 · 75",
+      "soixante-dix · soixante et onze · soixante-quinze"
+     ],
+     [
+      "80 · 81 · 85",
+      "quatre-vingts · quatre-vingt-un · quatre-vingt-cinq"
+     ],
+     [
+      "90 · 91 · 99",
+      "quatre-vingt-dix · quatre-vingt-onze · quatre-vingt-dix-neuf"
+     ],
+     [
+      "21 · 22 · 31",
+      "vingt et un · vingt-deux · trente et un"
+     ]
+    ]
+   },
+   {
+    "id": "big",
+    "title": "100+",
+    "note": "",
+    "columns": [
+     "n",
+     "FR"
+    ],
+    "speak": 1,
+    "rows": [
+     [
+      "100 · 101 · 200",
+      "cent · cent un · deux cents"
+     ],
+     [
+      "1 000 · 2 000",
+      "mille · deux mille"
+     ],
+     [
+      "1 000 000",
+      "un million"
+     ],
+     [
+      "2026",
+      "deux mille vingt-six"
+     ],
+     [
+      "1er · 2e · 3e",
+      "premier · deuxième · troisième"
+     ]
+    ]
+   },
+   {
+    "id": "time",
+    "title": "Clock time",
+    "note": "Il est + hour. 24-hour clock is normal in France.",
+    "columns": [
+     "FR",
+     "ES"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "Il est quelle heure ? · Quelle heure est-il ?",
+      "¿Qué hora es?"
+     ],
+     [
+      "Il est une heure. · Il est deux heures.",
+      "Es la una. · Son las dos."
+     ],
+     [
+      "Il est 9 h 30 · neuf heures et demie",
+      "Son las nueve y media."
+     ],
+     [
+      "Il est 10 h 15 · dix heures et quart",
+      "Diez y cuarto."
+     ],
+     [
+      "Il est 10 h 45 · onze heures moins le quart",
+      "Once menos cuarto."
+     ],
+     [
+      "Il est midi · minuit",
+      "Mediodía · medianoche."
+     ],
+     [
+      "à 18 h · vers 18 h",
+      "a las 6 · sobre las 6"
+     ],
+     [
+      "du matin · de l'après-midi · du soir",
+      "de la mañana · de la tarde · de la noche"
+     ]
+    ]
+   },
+   {
+    "id": "days",
+    "title": "Days & parts of the day",
+    "note": "le + day = every (that day). Lowercase.",
+    "columns": [
+     "FR",
+     "ES"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "lundi · mardi · mercredi · jeudi · vendredi · samedi · dimanche",
+      "lunes … domingo"
+     ],
+     [
+      "le lundi (every Monday) · lundi (this Monday)",
+      "los lunes · el lunes"
+     ],
+     [
+      "le matin · l'après-midi · le soir · la nuit",
+      "por la mañana · por la tarde · por la noche · de noche"
+     ],
+     [
+      "aujourd'hui · demain · hier · après-demain · avant-hier",
+      "hoy · mañana · ayer · pasado mañana · anteayer"
+     ],
+     [
+      "le week-end · la semaine · le mois · l'année",
+      "el finde · la semana · el mes · el año"
+     ]
+    ]
+   },
+   {
+    "id": "months",
+    "title": "Months & dates",
+    "note": "",
+    "columns": [
+     "FR",
+     "ES"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "janvier · février · mars · avril · mai · juin",
+      "enero … junio"
+     ],
+     [
+      "juillet · août · septembre · octobre · novembre · décembre",
+      "julio … diciembre"
+     ],
+     [
+      "le 14 juillet · le premier mai",
+      "el 14 de julio · el primero de mayo"
+     ],
+     [
+      "en janvier · au mois de janvier",
+      "en enero"
+     ],
+     [
+      "en 2026 · en été · en hiver · au printemps",
+      "en 2026 · en verano · en invierno · en primavera"
+     ]
+    ]
+   },
+   {
+    "id": "frequency",
+    "title": "Frequency & duration",
+    "note": "",
+    "columns": [
+     "FR",
+     "ES"
+    ],
+    "speak": 0,
+    "rows": [
+     [
+      "toujours · souvent · parfois · rarement · jamais",
+      "siempre · a menudo · a veces · rara vez · nunca"
+     ],
+     [
+      "tous les jours · une fois par semaine · deux fois par mois",
+      "todos los días · una vez a la semana · dos veces al mes"
+     ],
+     [
+      "pendant deux heures · depuis un mois · il y a deux jours",
+      "durante dos horas · desde hace un mes · hace dos días"
+     ],
+     [
+      "tôt · tard · en retard · à l'heure",
+      "temprano · tarde · con retraso · a tiempo"
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "id": "interference",
+  "title": "Personal interference log",
+  "blurb": "Your recurring Spanish-driven errors, recycled into drills.",
+  "dynamic": "interference",
+  "sections": []
+ }
+]

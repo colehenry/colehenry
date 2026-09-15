@@ -2,6 +2,7 @@
 
 import random
 
+from app.curriculum.articles import noun_accepted, noun_display, wrong_article
 from app.curriculum.pronunciation import PRON_TARGETS
 from app.curriculum.sentences import FRAMES, FRAMES_BY_ID, REPAIRS
 from app.curriculum.sprints import ALL_ACTIVITIES, ALL_GRAMMAR, SPRINTS
@@ -10,8 +11,10 @@ from app.curriculum.vocab import VOCAB, items_for_sprint
 from app.services.learning import drills
 from app.services.learning.context import allowed_vocabulary, unknown_ratio
 from app.services.learning.grammar import SentenceSpec, accepted_fr, render_es, render_fr, verb_info
+from app.services.learning import llm_learning
 from app.services.learning.llm_learning import _params_hash
-from app.services.learning.text import check_typed, dictation_score, drop_ne, normalize
+from app.services.learning.mastery import KNOWN_THRESHOLD, PRODUCTIVE_THRESHOLD, ema
+from app.services.learning.text import article_issue, check_typed, dictation_score, drop_ne, normalize
 
 
 def spec(fid, **kw):
@@ -143,7 +146,7 @@ def test_builders_produce_valid_shapes():
     for batch in batches:
         assert batch, "empty batch"
         for ex in batch:
-            assert ex["kind"] in ("mc", "typed", "self")
+            assert ex["kind"] in ("mc", "typed", "self", "intro")
             assert ex["prompt"] or ex["audio"]
             if ex["kind"] == "mc":
                 ids = [o["id"] for o in ex["options"]]
@@ -151,6 +154,37 @@ def test_builders_produce_valid_shapes():
             if ex["kind"] == "typed":
                 assert ex["accepted"] and all(a.strip() for a in ex["accepted"])
             assert ex["target_ids"]
+
+
+def test_verb_intro_teaches_before_testing_and_gates_the_drill():
+    rng = random.Random(4)
+    lesson = drills.verb_intro(rng, 1, 4)
+    intros = [e for e in lesson if e["kind"] == "intro"]
+    assert [e["prompt"] for e in intros] == ["être", "avoir", "aller", "faire"]
+    table = intros[0]["meta"]["conjugation"]
+    assert table["fr"][0] == "je suis" and table["es"][0] == "yo soy" and len(table["persons"]) == 6
+    kinds = [e["kind"] for e in lesson]
+    assert kinds[:4] == ["intro"] * 4 and "mc" in kinds and "typed" in kinds
+    assert kinds.index("typed") > max(i for i, k in enumerate(kinds) if k == "mc")  # recognise before produce
+    typed = [e for e in lesson if e["kind"] == "typed"]
+    assert all(e["accepted"] and "___" in e["prompt"] for e in typed)
+    for s in SPRINTS:
+        intro = ALL_ACTIVITIES[f"s{s.number}_verb_intro"]
+        drills_gated = [a for a in s.activities if a.format == "verb_drill"]
+        assert drills_gated and all(a.requires == intro.id for a in drills_gated), s.number
+
+
+def test_sound_drills_open_with_glossed_warmup():
+    rng = random.Random(3)
+    ex = drills.pronunciation_for(rng, "y_vs_u", 1, 6)
+    warm = [e for e in ex if e["kind"] == "intro"]
+    quiz = [e for e in ex if e["kind"] == "mc"]
+    assert len(warm) == drills.WARMUP_ITEMS and len(quiz) == 6
+    assert all(e["meta"]["warmup"] and " / " in e["audio"]["text"] for e in warm)
+    assert all("=" in e["explanation"] for e in warm + quiz)  # every word carries its meaning
+    assert all(o["audio"] for e in quiz for o in e["options"])
+    # held-back test banks stay unglossed-by-warmup: no intros in unseen mode
+    assert all(e["kind"] == "mc" for e in drills.pronunciation_for(rng, "y_vs_u", 1, 4, unseen=True))
 
 
 def test_transform_targets_mark_grammar_and_verbs():
@@ -208,9 +242,153 @@ def test_vocabulary_lesson_delays_production_and_keeps_one_word_batch():
     assert [exercise["kind"] for exercise in lesson[:8]] == ["intro"] * 8
     assert all(exercise["format"] != "es_to_fr" for exercise in lesson[:-8])
     assert lesson[-1]["format"] == "es_to_fr"
-    targets = {target for exercise in lesson for target in exercise["target_ids"]}
+    targets = {target for exercise in lesson for target in exercise["target_ids"] if target.startswith("fr_")}
     assert len(targets) == 8
     assert all(exercise["meta"]["retry_missed"] for exercise in lesson[8:])
+
+
+def test_every_productive_grammar_pattern_has_a_drill_that_evidences_it():
+    """Progress bars only move on accuracy for patterns some drill tags; a pattern
+    nothing emits is a bar that can never fill."""
+    from app.curriculum.sentences import REPAIRS
+    from app.services.learning.drills import PoolItem
+
+    rng = random.Random(9)
+    for s in SPRINTS:
+        n = s.number
+        pool = drills.pool_from_curriculum(n)
+        emitted: set[str] = set()
+        for _ in range(40):
+            for exercises in (
+                drills.sentence_transform(rng, n, 12), drills.translation_ladder(rng, n, 3, family="venir_de" if n == 3 else None),
+                drills.error_repair(rng, n, len(REPAIRS)), drills.verb_drill(rng, n, 10), drills.cloze(rng, pool, n, 40),
+                drills.timed_fluency(rng, n, 12, pool=pool),
+            ):
+                for exercise in exercises:
+                    emitted.update(exercise["target_ids"])
+        expected = {g.id for g in s.grammar if not g.recognition_only} - {"adjective_position"}
+        missing = sorted(expected - emitted)
+        assert not missing, f"S{n}: {missing}"
+    # S1 pronunciation target folded into another activity still gets its own evidence
+    ex = drills.pronunciation_for(rng, "silent_finals", 1, 40, extra=["final_ent"])
+    assert {"pron:silent_finals", "pron:final_ent"} <= {t for e in ex for t in e["target_ids"]}
+
+
+def test_recently_seen_words_are_damped():
+    from dataclasses import replace as dc_replace
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime(2026, 9, 15, 12, tzinfo=timezone.utc)
+    pool = drills.pool_from_curriculum(1, only_sprint=True)[:2]
+    fresh = dc_replace(pool[0], mastery={"recognition": 0.5}, attempts=3, last_seen_at=now - timedelta(hours=1))
+    rested = dc_replace(pool[1], mastery={"recognition": 0.5}, attempts=3, last_seen_at=now - timedelta(days=1))
+    picks = [drills._weighted_sample(random.Random(i), [fresh, rested], 1, "recognition", now)[0].id for i in range(200)]
+    assert picks.count(rested.id) > picks.count(fresh.id) * 2
+
+
+def test_vocabulary_lesson_rounds_alternate_mc_and_typed():
+    rng = random.Random(5)
+    pool = drills.pool_from_curriculum(2, statuses=("core",), only_sprint=True)
+    lesson = drills.vocabulary_lesson(rng, pool, 2, 8)
+    rounds = [exercise for exercise in lesson if exercise["kind"] != "intro"]
+    by_stage: dict[str, set[str]] = {}
+    for exercise in rounds:
+        by_stage.setdefault(exercise["meta"]["lesson_stage"], set()).add(exercise["kind"])
+    assert by_stage == {
+        "1 / 4 · Recognize": {"mc"},
+        "2 / 4 · Listen & write": {"typed"},
+        "3 / 4 · Use in context": {"mc"},
+        "4 / 4 · Produce": {"typed"},
+    }
+    listen = [exercise for exercise in rounds if exercise["meta"]["lesson_stage"].startswith("2")]
+    for exercise in listen:
+        # the audio is the bare word; the article must come from memory
+        assert not any(exercise["audio"]["text"].startswith(f"{article} ") for article in ("le", "la", "un", "une", "les"))
+        if exercise["meta"]["article_required"]:
+            assert all(a.split()[0] in ("le", "la", "un", "une", "les", "des", "l'eau", "l'argent") for a in exercise["accepted"])
+
+
+def test_nouns_always_carry_a_gendered_article():
+    assert noun_display("maison", "f", "noun") == "la maison"
+    assert noun_display("travail", "m", "noun") == "le travail"
+    assert noun_display("heure", "f", "noun") == "une heure"
+    assert noun_display("homme", "m", "noun") == "un homme"
+    assert noun_display("ami / amie", "m", "noun") == "un ami / une amie"
+    assert noun_display("gens", "m", "noun") == "les gens"
+    assert noun_display("dimanche / samedi", "m", "noun") == "le dimanche / le samedi"
+    assert noun_display("bonjour", "", "interj") == "bonjour"
+    assert noun_accepted("maison", "f", "noun") == ["la maison", "une maison"]
+    assert noun_accepted("faim", "f", "noun") == ["la faim"]
+    for item in VOCAB:
+        if item.part_of_speech == "noun":
+            assert item.gender in ("m", "f"), item.id
+            assert noun_display(item.french, item.gender, item.part_of_speech) != item.french, item.id
+
+
+def test_article_grading_flags_missing_and_wrong_gender():
+    assert wrong_article("la maison", "maison") == "missing"
+    assert wrong_article("la maison", "le maison") == "genre"
+    assert wrong_article("la maison", "une maison") == ""
+    assert wrong_article("la maison", "la voiture") == ""
+    assert article_issue("Le Maison", ["la maison", "une maison"]) == "genre"
+    assert not check_typed("maison", ["la maison", "une maison"])["correct"]
+    assert not check_typed("le maison", ["la maison", "une maison"])["correct"]
+    assert check_typed("une maison", ["la maison", "une maison"])["correct"]
+
+
+def test_cloze_blank_swallows_article_and_offers_wrong_gender():
+    rng = random.Random(2)
+    pool = [item for item in drills.pool_from_curriculum(1, only_sprint=True) if item.id == "fr_maison"]
+    [exercise] = drills.cloze(rng, pool, 1, 1)
+    assert exercise["prompt"] == "Je suis à ___."
+    texts = {option["text"] for option in exercise["options"]}
+    assert "la maison" in texts
+    assert "le maison" in texts
+    assert exercise["meta"]["article_required"] is True
+
+
+def test_write_sentences_picks_known_unproductive_rested_words():
+    from dataclasses import replace as dc_replace
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime(2026, 9, 15, 12, tzinfo=timezone.utc)
+    pool = drills.pool_from_curriculum(1, only_sprint=True)
+    known_rested = dc_replace(pool[0], mastery={"recognition": 0.9, "written_production": 0.2}, last_seen_at=now - timedelta(days=2))
+    known_fresh = dc_replace(pool[1], mastery={"recognition": 0.9, "written_production": 0.2}, last_seen_at=now - timedelta(hours=2))
+    productive = dc_replace(pool[2], mastery={"recognition": 0.9, "written_production": 0.9}, last_seen_at=now - timedelta(days=5))
+    unknown = dc_replace(pool[3], mastery={"recognition": 0.3}, last_seen_at=None)
+    chosen = drills.writing_candidates([known_rested, known_fresh, productive, unknown], now)
+    assert [c.id for c in chosen] == [known_rested.id]
+    # nothing rested yet → the fresh known word is still offered rather than an empty activity
+    assert [c.id for c in drills.writing_candidates([known_fresh, productive, unknown], now)] == [known_fresh.id]
+    [exercise] = drills.write_sentences(random.Random(1), [known_rested], 1, 6, now)
+    assert exercise["format"] == "write_sentence" and exercise["kind"] == "typed"
+    assert exercise["meta"]["llm_graded"] and exercise["meta"]["lenient"]
+    assert exercise["prompt"] == known_rested.display
+    assert drills.write_sentences(random.Random(1), [unknown], 1, 6, now) == []
+
+
+def test_grade_sentence_clamps_hard_failures(monkeypatch):
+    monkeypatch.setattr(llm_learning, "available", lambda: True)
+    monkeypatch.setattr(llm_learning, "build_context", lambda db, sprint, purpose="drill": {})
+    monkeypatch.setattr(llm_learning, "chat_json", lambda *a, **k: ({
+        "score": 0.95, "correct": True, "corrected": "Je suis à la maison.", "explanation": "artículo",
+        "issues": [{"kind": "gender", "text": "le maison", "fix": "la maison"}],
+    }, "test-model"))
+    out = llm_learning.grade_sentence(None, sentence="Je suis à le maison.", target="la maison", sprint=1)
+    assert out["score"] == 0.5 and out["correct"] is False
+    assert out["issues"][0]["kind"] == "gender"
+    monkeypatch.setattr(llm_learning, "chat_json", lambda *a, **k: ({"score": 1.0, "correct": True, "corrected": "x", "explanation": "", "issues": []}, "m"))
+    assert llm_learning.grade_sentence(None, sentence="Je suis à la maison.", target="la maison", sprint=1)["correct"] is True
+    monkeypatch.setattr(llm_learning, "available", lambda: False)
+    assert llm_learning.grade_sentence(None, sentence="x", target="y", sprint=1) is None
+
+
+def test_first_evidence_sets_known_and_productive():
+    assert ema(0.0, 0, 1.0) >= KNOWN_THRESHOLD
+    assert ema(0.0, 0, 1.0) >= PRODUCTIVE_THRESHOLD
+    assert ema(0.0, 0, 0.5) < KNOWN_THRESHOLD
+    assert ema(0.7, 3, 1.0) > 0.7
 
 
 def test_generated_drill_cache_separates_selected_sentences():

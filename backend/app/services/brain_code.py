@@ -13,7 +13,7 @@ from urllib.parse import quote
 import httpx
 
 from app.config import get_settings
-from app.services.brain_tool_registry import BrainTool
+from app.services.tool_registry import BrainTool
 
 GITHUB_API = "https://api.github.com"
 MAX_TREE_ENTRIES = 300

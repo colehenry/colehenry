@@ -6,6 +6,8 @@ import difflib
 import re
 import unicodedata
 
+from app.curriculum.articles import wrong_article
+
 _APOSTROPHES = str.maketrans({"’": "'", "‘": "'", "`": "'", "´": "'"})
 _PUNCT = re.compile(r"[.,;:!?¿¡«»\"()\[\]]+")
 _SPACES = re.compile(r"\s+")
@@ -67,6 +69,16 @@ def check_typed(answer: str, accepted: list[str]) -> dict:
     if best_ratio >= 0.92:
         return {"correct": True, "score": 0.7, "exact": False, "accent_issue": False, "ne_dropped": False, "closest": best}
     return {"correct": False, "score": round(best_ratio * 0.5, 2), "exact": False, "accent_issue": False, "ne_dropped": False, "closest": best}
+
+
+def article_issue(answer: str, accepted: list[str]) -> str:
+    """"missing" / "genre" when the noun is right but its article is not, else ""."""
+    given = normalize(answer)
+    for variant in accepted:
+        issue = wrong_article(normalize(variant), given)
+        if issue:
+            return issue
+    return ""
 
 
 def word_diff(expected: str, given: str) -> list[dict]:

@@ -402,10 +402,11 @@ export function createCardFromAnnotation(
 export function fetchSpeechUrl(
   language: LanguageCode,
   text: string,
+  rate = 1,
 ): Promise<string> {
   return apiFetch("/language/speak", z.object({ audio_url: z.string() }), {
     method: "POST",
-    body: JSON.stringify({ language, text }),
+    body: JSON.stringify(rate === 1 ? { language, text } : { language, text, rate }),
   }).then((res) => res.audio_url);
 }
 

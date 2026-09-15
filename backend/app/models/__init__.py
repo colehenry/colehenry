@@ -29,12 +29,15 @@ from app.models.language import (
     WikiEntry,
 )
 from app.models.learning import (
+    LearningAttempt,
     LearningGenerated,
     LearningInterference,
     LearningResult,
     LearningSession,
     LearningState,
     LearningTest,
+    LearningTutorMessage,
+    LearningTutorThread,
     LearningVocab,
 )
 from app.models.project import Project, Visibility
@@ -74,12 +77,15 @@ __all__ = [
     "LanguageLexeme",
     "LanguageText",
     "LanguageTextAnnotation",
+    "LearningAttempt",
     "LearningGenerated",
     "LearningInterference",
     "LearningResult",
     "LearningSession",
     "LearningState",
     "LearningTest",
+    "LearningTutorMessage",
+    "LearningTutorThread",
     "LearningVocab",
     "LexiqueEntry",
     "Project",

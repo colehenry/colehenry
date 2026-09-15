@@ -13,7 +13,7 @@ from dataclasses import dataclass
 import httpx
 
 from app.config import get_settings
-from app.services.brain_tool_registry import BrainTool
+from app.services.tool_registry import BrainTool
 
 RAILWAY_GRAPHQL = "https://backboard.railway.com/graphql/v2"
 MAX_DEPLOYMENTS = 20

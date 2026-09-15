@@ -1,7 +1,7 @@
 """Pydantic shapes for /language/learning."""
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -14,6 +14,7 @@ class VocabOut(BaseModel):
     id: int
     curriculum_id: str | None
     french: str
+    display: str
     spanish: str
     english: str
     part_of_speech: str
@@ -111,6 +112,39 @@ class ResultsIn(BaseModel):
     completion: CompletionIn | None = None
 
 
+class AttemptIn(BaseModel):
+    activity_id: str
+    title: str = ""
+    format: str = ""
+    skill: str = "grammar"
+    sprint: int = Field(ge=1, le=4)
+    session_id: int | None = None
+    payload: dict[str, Any]
+
+
+class AttemptProgressIn(BaseModel):
+    index: int = Field(ge=0)
+    graded: list[dict[str, Any]]
+    payload: dict[str, Any] | None = None
+
+
+class AttemptOut(BaseModel):
+    id: int
+    activity_id: str
+    title: str
+    format: str
+    skill: str
+    sprint: int
+    session_id: int | None
+    payload: dict[str, Any]
+    index: int
+    total: int
+    graded: list[Any]
+    started_at: datetime
+    updated_at: datetime
+    finished_at: datetime | None
+
+
 class SessionIn(BaseModel):
     minutes: int = Field(ge=3, le=180)
     use_llm: bool = True
@@ -191,8 +225,48 @@ class InterferenceOut(BaseModel):
     created_at: datetime
 
 
-class ExplainIn(BaseModel):
-    text: str
-    mode: str = "explain"
-    context: str = ""
+class GradeIn(BaseModel):
+    sentence: str
+    target: str = ""
     sprint: int | None = None
+
+
+# ---------------------------------------------------------------------------
+# tutor chat
+# ---------------------------------------------------------------------------
+
+
+class TutorThreadIn(BaseModel):
+    focus: dict[str, Any] | None = None
+    title: str = ""
+
+
+class TutorThreadOut(BaseModel):
+    id: int
+    title: str
+    focus: dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class TutorMessageOut(BaseModel):
+    id: int
+    role: str
+    content: str
+    focus: dict[str, Any] | None = None
+    tool_calls: list[Any] | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class TutorThreadDetail(TutorThreadOut):
+    messages: list[TutorMessageOut]
+
+
+class TutorMessageIn(BaseModel):
+    content: str = Field(min_length=1, max_length=4000)
+    focus: dict[str, Any] | None = None
+    lang: Literal["es", "en"] = "es"  # explanation language; French examples + Spanish bridge regardless
