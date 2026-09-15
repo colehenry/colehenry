@@ -3,6 +3,8 @@
 import { useState } from "react";
 
 import { fetchSpeechUrl, type Card, type LanguageCode } from "@/lib/api/language";
+import { joinFrenchSubject } from "@/lib/conjugation";
+export { spokenConjugation } from "@/lib/conjugation";
 import { nounDisplay, splitArticle, splitForms } from "@/lib/french/articles";
 
 /** Shared helpers for the language tool. */
@@ -115,53 +117,9 @@ export function Fr({ text, className, say = false }: { text: string; className?:
   );
 }
 
-const FR_SUBJECTS: Record<string, string> = {
-  "1s": "je",
-  "2s": "tu",
-  "3s": "il",
-  "1p": "nous",
-  "2p": "vous",
-  "3p": "ils",
-};
-
 /** "je" + "aime" → "j'aime"; "il/elle" → "il" for speech. */
 export function joinSubject(person: string, form: string): string {
-  const personLabel = FR_SUBJECTS[person] ?? person;
-  const subject = personLabel.startsWith("ils") ? "ils" : personLabel.startsWith("il") ? "il" : personLabel;
-  if (subject === "je" && /^[aeiouyàâäéèêëîïôöùûüh]/i.test(form)) {
-    return `j'${form}`;
-  }
-  return `${subject} ${form}`;
-}
-
-const ES_SUBJECTS: Record<string, string> = {
-  "1s": "yo",
-  "2s": "tú",
-  "3s": "él",
-  "1p": "nosotros",
-  "2p": "vosotros",
-  "3p": "ellos",
-};
-
-/** Spoken form of a conjugation cell - FR mirrors the backend exactly. */
-export function spokenConjugation(
-  person: string,
-  form: string,
-  mood: string,
-  language: LanguageCode = "fr",
-): string {
-  if (!form || mood === "imperatif" || mood === "imperativo") return form;
-  if (language === "es") {
-    const subject = ES_SUBJECTS[person] ?? person;
-    const phrase = `${subject} ${form}`;
-    return mood === "subjuntivo" ? `que ${phrase}` : phrase;
-  }
-  const subject = FR_SUBJECTS[person] ?? person;
-  const phrase = joinSubject(subject, form);
-  if (mood === "subjonctif") {
-    return /^[iî]/i.test(phrase) ? `qu'${phrase}` : `que ${phrase}`;
-  }
-  return phrase;
+  return joinFrenchSubject(person, form);
 }
 
 /** A French noun card shows its article ("la maison"); other text passes through. */

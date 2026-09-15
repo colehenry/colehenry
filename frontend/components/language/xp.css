@@ -44,6 +44,12 @@
   --xp-ipa-font: "Lucida Sans Unicode", "Lucida Grande", sans-serif;
 }
 
+.xp-app {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: clip;
+}
+
 .dark [data-section="language"] {
   --fr-m: #7fb6f0;
   --fr-f: #f08ccb;
@@ -71,6 +77,8 @@
 /* --- desktop + window ---------------------------------------------------- */
 
 .xp-desktop {
+  width: 100%;
+  max-width: 100vw;
   min-height: calc(100vh - 3.5rem);
   padding: 8px 8px 16px;
   background: var(--xp-desktop);
@@ -89,6 +97,8 @@
 .xp-window {
   display: flex;
   flex-direction: column;
+  width: 100%;
+  min-width: 0;
   min-height: calc(100vh - 3.5rem - 28px);
   max-width: none;
   margin: 0 auto;
@@ -253,6 +263,7 @@
   min-height: 480px;
   align-items: stretch;
   gap: 8px;
+  min-width: 0;
   padding: 8px;
 }
 .xp-tree-panel {
@@ -268,6 +279,7 @@
 .xp-main {
   min-width: 0;
   flex: 1;
+  overflow-x: auto;
 }
 
 /* mobile section strip (tree replacement) */
@@ -1775,6 +1787,7 @@
 }
 .ref-layout {
   display: grid;
+  min-width: 0;
   grid-template-columns: minmax(0, 1fr);
   gap: 8px;
 }
@@ -1794,6 +1807,7 @@
   color: var(--xp-select-text);
 }
 .ref-section {
+  min-width: 0;
   scroll-margin-top: 8px;
 }
 .ref-section h3 {
@@ -1829,6 +1843,7 @@
   padding: 8px 10px;
   border: 1px solid var(--xp-face-lo);
   background: var(--xp-well);
+  overflow-wrap: anywhere;
 }
 @media (min-width: 900px) {
   .ref-verb {
@@ -1844,6 +1859,70 @@
 }
 .ref-verb td {
   padding: 0 8px 0 0;
+}
+.ref-verb > *,
+.ref-verb-details > * {
+  min-width: 0;
+}
+.ref-verb-jumps {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.ref-verb-jump-select {
+  display: none;
+}
+
+@media (max-width: 899px) {
+  .ref-list {
+    display: flex;
+    max-width: 100%;
+    align-items: stretch;
+    gap: 2px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+  .ref-list > .xp-input {
+    width: min(180px, 55vw);
+    flex: 0 0 min(180px, 55vw);
+  }
+  .ref-list button {
+    width: auto;
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 700px) {
+  .ref-verb-jumps {
+    display: none;
+  }
+  .ref-verb-jump-select {
+    display: block;
+    width: 100%;
+    flex: 1 0 100%;
+    margin-top: 2px;
+  }
+  .ref-section:not(.ref-verb) {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+  .ref-verb {
+    padding: 9px;
+  }
+  .ref-verb h4 {
+    font-size: 17px;
+  }
+  .ref-verb table {
+    width: 100%;
+    font-size: 13px;
+  }
+  .ref-verb td:first-child {
+    width: 40%;
+  }
+  .ref-verb-details {
+    font-size: 13px !important;
+    line-height: 1.5 !important;
+  }
 }
 
 
@@ -2435,11 +2514,80 @@
 }
 
 @media (max-width: 640px) {
+  .xp-desktop {
+    min-height: calc(100dvh - 3.5rem);
+    padding: 0;
+  }
+  .xp-window,
+  .xp-window.is-wide,
+  .xp-window.is-narrow {
+    min-height: calc(100dvh - 3.5rem);
+    max-width: 100%;
+    margin: 0;
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .xp-titlebar {
+    min-width: 0;
+    border-radius: 0;
+    padding-left: 7px;
+  }
+  .xp-menubar {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+  .xp-menubar-item {
+    flex: 0 0 auto;
+    padding-inline: 7px;
+  }
+  .xp-mobile-nav {
+    max-width: 100%;
+    padding: 5px 4px 0;
+    overscroll-behavior-x: contain;
+  }
+  .xp-mobile-nav .xp-tab {
+    flex: 0 0 auto;
+    padding: 4px 9px 5px;
+  }
+  .xp-body {
+    min-height: 0;
+    gap: 0;
+    padding: 5px;
+  }
+  .xp-main,
+  .xp-tab-panel {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .xp-main .xp-input,
+  .xp-main .xp-select,
+  .xp-main .xp-textarea,
+  .xp-main audio {
+    max-width: 100%;
+  }
+  .xp-tabs {
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+  .xp-tabs .xp-tab {
+    flex: 0 0 auto;
+  }
+  .xp-status-cell:not(.is-grow),
+  .xp-grip {
+    display: none;
+  }
   .tutor-dock {
-    right: 8px;
-    bottom: 8px;
-    width: calc(100vw - 16px);
-    height: min(70vh, 560px);
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    height: min(72dvh, 560px);
+    max-height: calc(100dvh - 8px);
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
   }
   .tutor-pill {
     right: 8px;

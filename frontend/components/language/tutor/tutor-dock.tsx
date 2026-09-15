@@ -221,7 +221,7 @@ export function TutorDock() {
     [busy, tutor, threadId, focus, lang, queryClient],
   );
 
-  // A prefilled question (from an inline trigger) lands in the box — or goes
+  // A prefilled question (from an inline trigger) lands in the box, or goes
   // straight out. prefillVersion also catches triggers while the dock is open.
   useEffect(() => {
     if (!isOpen || !tutor) return;

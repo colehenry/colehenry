@@ -88,7 +88,7 @@ export function TutorProvider({
   return <TutorContext.Provider value={value}>{children}</TutorContext.Provider>;
 }
 
-/** Null outside a provider (showcase / read-only) — callers must tolerate it. */
+/** Null outside a provider (showcase / read-only); callers must tolerate it. */
 export function useTutor(): TutorContextValue | null {
   return useContext(TutorContext);
 }

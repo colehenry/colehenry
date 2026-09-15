@@ -444,6 +444,7 @@ export function PracticeView({
             [dashboard]
           </button>
         </div>
+        <div className="xp-well overflow-x-auto">
         <table className="xp-listview">
           <thead>
             <tr>
@@ -479,6 +480,7 @@ export function PracticeView({
             })}
           </tbody>
         </table>
+        </div>
         {load.isPending && <p className="xp-muted">Building… ✦</p>}
         {error && <p className="xp-muted">{error}</p>}
         {plan.completed_at && <p>Session complete.</p>}

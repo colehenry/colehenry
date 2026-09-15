@@ -273,13 +273,28 @@ function VerbAtlas({ focus, onOpenVerb, onPractice }: { focus: string; onOpenVer
             {n === 0 ? "All 32" : `Sprint ${n}`}
           </button>
         ))}
-        <span className="ml-auto flex gap-1">
+        <span className="ref-verb-jumps ml-auto flex gap-1">
           {verbs.map((v) => (
             <a key={v.id} className="xp-link" href={`#ref/core-verbs/${v.infinitive}`} onClick={(e) => (e.preventDefault(), document.getElementById(`ref-core-verbs-${v.infinitive}`)?.scrollIntoView())}>
               {v.infinitive}
             </a>
           ))}
         </span>
+        <select
+          className="xp-select ref-verb-jump-select"
+          aria-label="Jump to a core verb"
+          defaultValue=""
+          onChange={(event) => {
+            const infinitive = event.currentTarget.value;
+            if (infinitive) document.getElementById(`ref-core-verbs-${infinitive}`)?.scrollIntoView();
+            event.currentTarget.value = "";
+          }}
+        >
+          <option value="">Jump to a verb…</option>
+          {verbs.map((v) => (
+            <option key={v.id} value={v.infinitive}>{v.infinitive}</option>
+          ))}
+        </select>
       </div>
       {verbs.map((v) => (
         <VerbCard key={v.id} v={v} highlight={focus === v.infinitive} onOpenVerb={onOpenVerb} onPractice={onPractice} />
@@ -334,7 +349,7 @@ function VerbCard({ v, highlight, onOpenVerb, onPractice }: { v: CoreVerb; highl
           </button>
         </div>
       </div>
-      <div style={{ fontSize: 12, lineHeight: 1.55 }}>
+      <div className="ref-verb-details" style={{ fontSize: 12, lineHeight: 1.55 }}>
         <div>
           <b>Constructions</b>
           {v.constructions.map((c) => (
@@ -389,6 +404,7 @@ function InterferenceLog({ onPractice }: { onPractice: (format: string, targets:
           Drill due
         </button>
       </div>
+      <div className="xp-well overflow-x-auto">
       <table className="xp-listview">
         <thead>
           <tr>
@@ -433,6 +449,7 @@ function InterferenceLog({ onPractice }: { onPractice: (format: string, targets:
           )}
         </tbody>
       </table>
+      </div>
       <fieldset className="xp-group">
         <legend>Add</legend>
         <div className="flex flex-wrap gap-2">

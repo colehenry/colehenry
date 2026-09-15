@@ -4,6 +4,8 @@ import test from "node:test";
 import {
   conjugationSoundKey,
   displayConjugation,
+  spokenConjugation,
+  verbPreviewLabel,
 } from "../lib/conjugation.ts";
 
 const FR = "fr";
@@ -63,4 +65,24 @@ test("uses exact spelling for Spanish", () => {
     conjugationSoundKey("amo", "1s", "es"),
     conjugationSoundKey("amas", "2s", "es"),
   );
+});
+
+test("speaks the subject and verb for every French present form", () => {
+  assert.equal(spokenConjugation("1s", "suis", "indicatif"), "je suis");
+  assert.equal(spokenConjugation("2s", "es", "indicatif"), "tu es");
+  assert.equal(spokenConjugation("1p", "sommes", "indicatif"), "nous sommes");
+  assert.equal(spokenConjugation("3p", "sont", "indicatif"), "ils sont");
+});
+
+test("elides je before a vowel in speech and popup labels", () => {
+  assert.equal(spokenConjugation("1s", "ai", "indicatif"), "j'ai");
+  assert.equal(spokenConjugation("1s", "aime", "indicatif"), "j'aime");
+  assert.equal(verbPreviewLabel("1s", "ai"), "j’ai");
+  assert.equal(verbPreviewLabel("1s", "aime"), "j’aime");
+});
+
+test("shows on with the singular form without speaking a slash-list", () => {
+  assert.equal(verbPreviewLabel("3s", "est"), "il / elle / on est");
+  assert.equal(spokenConjugation("3s", "est", "indicatif"), "il est");
+  assert.equal(verbPreviewLabel("3p", "sont"), "ils / elles sont");
 });

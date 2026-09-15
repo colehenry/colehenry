@@ -1,5 +1,5 @@
 /**
- * /language/tutor — the embedded French tutor. Threads are persisted server-side;
+ * /language/tutor: the embedded French tutor. Threads are persisted server-side;
  * a message streams back as SSE (token · reset · tool · error · done). See
  * context/tutor_plan.md for the context layers and the output tag contract.
  */
@@ -82,7 +82,7 @@ export type TutorEvent =
   | { type: "done"; content: string; model: string; cost: number; dropped: string[] };
 
 /** Send one message; yields the reply as it streams. The `done` event carries
- *  the server-validated final content — swap the buffer for it. */
+ *  the server-validated final content; swap the buffer for it. */
 export async function* streamTutorMessage(
   threadId: number,
   content: string,

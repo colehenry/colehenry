@@ -11,67 +11,9 @@ import { speakText } from "@/components/language/language-shared";
 import { useTutor } from "@/components/language/tutor/tutor-provider";
 import { VerbHover } from "@/components/language/verb-hover";
 import { listVerbs } from "@/lib/api/language";
+import { knownVerbsPlugin, tagsToLinks } from "@/lib/tutor-markdown";
 
-const TAG_RE = /\[\[(fr-slow|fr|ref|activity|vocab|new):([^\]|\n]+?)(?:\|([^\]\n]*))?\]\]/g;
-
-type MarkdownNode = {
-  type: string;
-  value?: string;
-  url?: string;
-  children?: MarkdownNode[];
-};
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-/** Turn untagged known infinitives in text nodes into tutor verb links. */
-function knownVerbsPlugin(infinitives: string[]) {
-  const alternatives = infinitives.filter(Boolean).sort((a, b) => b.length - a.length).map(escapeRegExp).join("|");
-  const pattern = alternatives ? new RegExp(`(^|[^\\p{L}\\p{M}-])(${alternatives})(?=$|[^\\p{L}\\p{M}-])`, "giu") : null;
-  return () => (tree: MarkdownNode) => {
-    if (!pattern) return;
-    const walk = (node: MarkdownNode, blocked = false) => {
-      const nextBlocked = blocked || node.type === "link" || node.type === "code" || node.type === "inlineCode";
-      if (!node.children || nextBlocked) return;
-      const next: MarkdownNode[] = [];
-      for (const child of node.children) {
-        if (child.type !== "text" || !child.value) {
-          walk(child, false);
-          next.push(child);
-          continue;
-        }
-        let cursor = 0;
-        pattern.lastIndex = 0;
-        for (const match of child.value.matchAll(pattern)) {
-          const boundary = match[1] ?? "";
-          const verb = match[2];
-          const start = (match.index ?? 0) + boundary.length;
-          if (start > cursor) next.push({ type: "text", value: child.value.slice(cursor, start) });
-          next.push({ type: "link", url: `tutor://verb/${encodeURIComponent(verb)}`, children: [{ type: "text", value: verb }] });
-          cursor = start + verb.length;
-        }
-        if (cursor < child.value.length) next.push({ type: "text", value: child.value.slice(cursor) });
-      }
-      node.children = next;
-    };
-    walk(tree);
-  };
-}
-
-function prettyRef(id: string) {
-  const [sheet, section] = id.split("#");
-  return section ? `${sheet.replace(/-/g, " ")} · ${section.replace(/-/g, " ")}` : sheet.replace(/-/g, " ");
-}
-
-/** `[[kind:id|label]]` → `[label](tutor://kind/<encoded id>)`. */
-export function tagsToLinks(markdown: string): string {
-  return markdown.replace(TAG_RE, (_match, kind: string, id: string, label?: string) => {
-    const text = (label && label.trim()) || (kind === "ref" ? prettyRef(id.trim()) : id.trim());
-    const safe = text.replace(/[[\]]/g, "");
-    return `[${safe}](tutor://${kind}/${encodeURIComponent(id.trim())})`;
-  });
-}
+export { tagsToLinks } from "@/lib/tutor-markdown";
 
 function FrSpan({ text, slow, children }: { text: string; slow: boolean; children: React.ReactNode }) {
   const [busy, setBusy] = useState(false);
