@@ -36,6 +36,7 @@ export type PracticeConfig = {
 };
 
 const FORMATS: { id: string; label: string; llm?: boolean; needsTarget?: string }[] = [
+  { id: "vocab_lesson", label: "Guided vocabulary lesson" },
   { id: "sentence_transform", label: "Sentence transformations", llm: true },
   { id: "translation_ladder", label: "Translation ladder", llm: true },
   { id: "es_to_fr", label: "Spanish → French", llm: true },
@@ -242,7 +243,7 @@ export function PracticeView({
               [back]
             </button>
           </div>
-          <StudyView decks={decks} initialLanguage="fr" />
+          <StudyView decks={decks} initialLanguage="fr" initialMode="review" />
         </div>
       );
     }
@@ -374,6 +375,7 @@ export function PracticeView({
         }}
         onOpenRef={onOpenRef}
         autoAdvanceMs={set.exercises[0]?.meta?.timed ? 600 : 0}
+        retryMissed={set.format === "vocab_lesson"}
       />
     );
   }
@@ -432,7 +434,14 @@ function Picker({
         <legend>Drill</legend>
         <div className="flex flex-wrap items-center gap-2">
           <label className="xp-label mb-0">Format</label>
-          <select className="xp-select" value={format} onChange={(e) => setFormat(e.target.value)}>
+          <select
+            className="xp-select"
+            value={format}
+            onChange={(e) => {
+              setFormat(e.target.value);
+              if (e.target.value === "vocab_lesson") setCount(8);
+            }}
+          >
             {FORMATS.map((f) => (
               <option key={f.id} value={f.id}>
                 {f.label}

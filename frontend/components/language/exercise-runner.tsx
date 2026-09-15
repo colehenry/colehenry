@@ -143,6 +143,7 @@ export function ExerciseRunner({
   onExit,
   onOpenRef,
   autoAdvanceMs = 0,
+  retryMissed = false,
 }: {
   exercises: Exercise[];
   title: string;
@@ -151,7 +152,10 @@ export function ExerciseRunner({
   onExit: () => void;
   onOpenRef?: (ref: string) => void;
   autoAdvanceMs?: number;
+  retryMissed?: boolean;
 }) {
+  const [queue, setQueue] = useState(exercises);
+  const [retryAdded, setRetryAdded] = useState(false);
   const [index, setIndex] = useState(0);
   const [graded, setGraded] = useState<GradedItem[]>([]);
   const [typed, setTyped] = useState("");
@@ -163,8 +167,8 @@ export function ExerciseRunner({
   const inputRef = useRef<HTMLInputElement>(null);
   const [explain, setExplain] = useState<{ mode: ExplainMode; text: string } | null>(null);
 
-  const ex = exercises[index];
-  const done = index >= exercises.length;
+  const ex = queue[index];
+  const done = index >= queue.length;
   const passage = typeof ex?.meta?.passage === "string" ? (ex.meta.passage as string) : "";
   const speakAfter = typeof ex?.meta?.speak_after === "string" ? (ex.meta.speak_after as string) : "";
   const isDictation = ex?.meta?.dictation === true;
@@ -221,12 +225,29 @@ export function ExerciseRunner({
   const next = useCallback(() => {
     if (!checked) return;
     const all = graded;
-    if (index + 1 >= exercises.length) {
+    if (index + 1 >= queue.length) {
+      const missed = all.filter((item) => !item.correct && item.exercise.meta?.retry_missed === true && item.exercise.meta?.is_retry !== true);
+      if (retryMissed && !retryAdded && missed.length) {
+        const retries = missed.map((item) => ({
+          ...item.exercise,
+          id: `${item.exercise.id}-retry`,
+          instructions: `Retry · ${item.exercise.instructions.replace(/^\d\s*\/\s*\d\s*·\s*/, "")}`,
+          meta: { ...item.exercise.meta, is_retry: true },
+        }));
+        setQueue((current) => [...current, ...retries]);
+        setRetryAdded(true);
+        setIndex((current) => current + 1);
+        return;
+      }
       finish(all);
     } else {
       setIndex((i) => i + 1);
     }
-  }, [checked, graded, index, exercises.length, finish]);
+  }, [checked, graded, index, queue.length, finish, retryMissed, retryAdded]);
+
+  const nextIntro = useCallback(() => {
+    if (index + 1 < queue.length) setIndex((current) => current + 1);
+  }, [index, queue.length]);
 
   // auto-advance for fast MC drills when correct
   useEffect(() => {
@@ -282,7 +303,10 @@ export function ExerciseRunner({
       const target = e.target as HTMLElement | null;
       const inField = target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName);
       if (e.key === "Enter") {
-        if (checked && (checked.score >= 0 || ex.kind !== "typed")) {
+        if (ex.kind === "intro") {
+          e.preventDefault();
+          nextIntro();
+        } else if (checked && (checked.score >= 0 || ex.kind !== "typed")) {
           e.preventDefault();
           next();
         } else if (ex.kind === "typed" && !checked) {
@@ -309,9 +333,9 @@ export function ExerciseRunner({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [ex, checked, next, checkTypedAnswer, pickOption, rateSelf, revealed]);
+  }, [ex, checked, next, nextIntro, checkTypedAnswer, pickOption, rateSelf, revealed]);
 
-  const progressPct = useMemo(() => (exercises.length ? (index / exercises.length) * 100 : 0), [index, exercises.length]);
+  const progressPct = useMemo(() => (queue.length ? (index / queue.length) * 100 : 0), [index, queue.length]);
 
   if (!ex || done) {
     return null;
@@ -329,7 +353,7 @@ export function ExerciseRunner({
           <i style={{ width: `${progressPct}%` }} />
         </div>
         <span>
-          {index + 1} / {exercises.length}
+          {index + 1} / {queue.length}
         </span>
         {graded.length > 0 && <span>{Math.round((graded.reduce((a, b) => a + b.score, 0) / graded.length) * 100)}%</span>}
         <button type="button" className="xp-link" onClick={onExit}>
@@ -353,7 +377,7 @@ export function ExerciseRunner({
           {ex.source === "llm" && <span className="xp-muted"> · ✦</span>}
         </div>
 
-        {ex.kind !== "self" && ex.audio && (ex.audio_only || ex.format === "sentence_transform") && (
+        {ex.kind !== "self" && ex.audio && (ex.audio_only || ex.format === "sentence_transform" || ex.kind === "intro") && (
           <div className="mb-2">
             <Speak language={ex.audio.language} text={ex.audio.text} label="► écouter (P)" className="xp-btn pr-big-play" />
           </div>
@@ -365,6 +389,15 @@ export function ExerciseRunner({
         )}
         {ex.prompt_es && showPromptText && ex.kind !== "self" && ex.format !== "es_to_fr" && (
           <div className="pr-prompt-es">{ex.prompt_es}</div>
+        )}
+
+        {ex.kind === "intro" && (
+          <div className="pr-feedback">
+            <div>{ex.explanation}</div>
+            <div className="pr-actions">
+              <button type="button" className="xp-btn is-default" onClick={nextIntro}>Continue (Enter)</button>
+            </div>
+          </div>
         )}
 
         {/* ---- multiple choice ---- */}

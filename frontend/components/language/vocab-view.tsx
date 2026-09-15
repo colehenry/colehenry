@@ -10,10 +10,10 @@ import { importVocab, listVocab, setVocabStatus, type VocabItem } from "@/lib/ap
 import { Speak } from "./language-shared";
 
 const DIMS: [keyof VocabItem, string][] = [
-  ["recognition", "rec"],
-  ["audio_recognition", "ear"],
-  ["written_production", "write"],
-  ["contextual_use", "ctx"],
+  ["recognition", "Recognize"],
+  ["audio_recognition", "Listen"],
+  ["written_production", "Write"],
+  ["contextual_use", "Context"],
 ];
 
 const IMPORT_EXAMPLE = `[
@@ -136,7 +136,7 @@ export function VocabView({ activeSprint, onPractice, onOpenRef }: { activeSprin
                   {l}
                 </th>
               ))}
-              <th style={{ width: 1 }}>n</th>
+              <th style={{ width: 1 }}>Tries</th>
             </tr>
           </thead>
           <tbody>

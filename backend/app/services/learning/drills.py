@@ -303,6 +303,46 @@ def cloze(rng: random.Random, pool: list[PoolItem], sprint: int, count: int) -> 
     return out
 
 
+def vocabulary_lesson(rng: random.Random, pool: list[PoolItem], sprint: int, count: int = 8) -> list[dict]:
+    """One coherent word batch: recognize, hear, use, then produce.
+
+    Production is deliberately last, after every word has appeared in two
+    other modes. The shared runner adds one retry round for missed prompts.
+    """
+    unseen = [item for item in pool if item.attempts == 0]
+    batch = _weighted_sample(rng, unseen, count, "recognition")
+    if len(batch) < count:
+        remaining = [item for item in pool if item.id not in {chosen.id for chosen in batch}]
+        batch.extend(_weighted_sample(rng, remaining, count - len(batch), "recognition"))
+    if not batch:
+        return []
+
+    introductions = [
+        _base(
+            "vocab_intro", "intro", sprint, "vocabulary", {},
+            instructions="Meet the words", prompt=item.headword, prompt_es=item.spanish,
+            hint=item.ipa, audio=_fr_audio(item.headword), autoplay=True,
+            explanation=_vocab_explanation(item), refs=_vocab_refs(item), target_ids=[item.id],
+            group="vocab-lesson", meta={"lesson_stage": "Meet the words"},
+        )
+        for item in batch
+    ]
+    rounds = [
+        ("1 / 4 · Recognize", fr_to_es(rng, batch, sprint, len(batch))),
+        ("2 / 4 · Listen", audio_recognition(rng, batch, sprint, len(batch))),
+        ("3 / 4 · Use in context", cloze(rng, batch, sprint, len(batch))),
+        ("4 / 4 · Produce", es_to_fr(rng, batch, sprint, len(batch))),
+    ]
+    out: list[dict] = introductions
+    for stage, exercises in rounds:
+        for exercise in exercises:
+            exercise["instructions"] = stage
+            exercise["group"] = "vocab-lesson"
+            exercise["meta"] = {**exercise.get("meta", {}), "lesson_stage": stage, "retry_missed": True}
+            out.append(exercise)
+    return out
+
+
 def audio_comprehension(rng: random.Random, pool: list[PoolItem], sprint: int, count: int) -> list[dict]:
     candidates = [p for p in pool if p.example_fr and p.example_es]
     out = []

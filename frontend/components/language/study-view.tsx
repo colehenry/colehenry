@@ -25,12 +25,14 @@ export function StudyView({
   initialLanguage,
   initialDeckId,
   initialVerbSetId,
+  initialMode = "mixed",
 }: {
   decks: Deck[];
   readOnly?: boolean;
   initialLanguage?: LanguageCode;
   initialDeckId?: number | null;
   initialVerbSetId?: number | null;
+  initialMode?: "mixed" | "review" | "learn";
 }) {
   const queryClient = useQueryClient();
   const [language, setLanguage] = useState<LanguageCode | "all">(
@@ -40,17 +42,19 @@ export function StudyView({
   const [verbSetId, setVerbSetId] = useState<number | "all">(
     initialVerbSetId ?? "all",
   );
+  const [mode, setMode] = useState<"mixed" | "review" | "learn">(initialMode);
   const [index, setIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
 
   const queue = useQuery({
-    queryKey: ["language", "study", language, deckId, verbSetId],
+    queryKey: ["language", "study", language, deckId, verbSetId, mode],
     queryFn: () =>
       getStudyQueue({
         language: language === "all" ? undefined : language,
         deckId: deckId === "all" ? undefined : deckId,
         verbSetId: verbSetId === "all" ? undefined : verbSetId,
-        newLimit: 12,
+        newLimit: mode === "review" ? 0 : 12,
+        mode,
       }),
   });
   const verbSets = useQuery({
@@ -76,6 +80,7 @@ export function StudyView({
       reviewCard(cardId, rating),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["language", "decks"] });
+      queryClient.invalidateQueries({ queryKey: ["language", "dashboard"] });
       advance();
     },
   });
@@ -145,6 +150,22 @@ export function StudyView({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
+        <span className="hub-durations" aria-label="Study mode">
+          {(["review", "learn", "mixed"] as const).map((item) => (
+            <button
+              key={item}
+              type="button"
+              className={`xp-btn is-small ${mode === item ? "is-on" : ""}`}
+              onClick={() => {
+                setMode(item);
+                setIndex(0);
+                setRevealed(false);
+              }}
+            >
+              {item === "review" ? "Review due" : item === "learn" ? "Learn new" : "Both"}
+            </button>
+          ))}
+        </span>
         <label className="xp-label mb-0" htmlFor="study-language">
           Language:
         </label>
@@ -233,10 +254,9 @@ export function StudyView({
       )}
       {!queue.isLoading && !queue.isError && !card && (
         <div className="xp-well flex h-72 flex-col items-center justify-center gap-1 text-center">
-          <p style={{ fontWeight: 700 }}>No cards are due.</p>
+          <p style={{ fontWeight: 700 }}>{mode === "learn" ? "No new cards are ready." : "No cards are due."}</p>
           <p className="xp-muted">
-            Cards return on their schedule. Change the filters to drill a deck
-            early.
+            {mode === "learn" ? "Complete recognition cards before their production cards unlock." : "Cards return on their schedule."}
           </p>
         </div>
       )}

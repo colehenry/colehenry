@@ -14,7 +14,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.curriculum.sprints import SPRINT_BY_NUMBER, Activity
-from app.models import FlashcardReview, LearningResult, LearningSession, ReviewStateName
+from app.models import Flashcard, FlashcardDeck, FlashcardReview, Language, LearningResult, LearningSession, ReviewStateName
 from app.services.learning import llm_learning
 from app.services.learning.mastery import carryover, sprint_progress, weakest_dimensions
 
@@ -42,15 +42,26 @@ def _recent_activity_ids(db: Session, days: int = 2) -> set[str]:
     return set(rows)
 
 
+def _due_french_cards(db: Session) -> int:
+    return db.execute(
+        select(func.count(FlashcardReview.id))
+        .join(Flashcard, Flashcard.id == FlashcardReview.card_id)
+        .join(FlashcardDeck, FlashcardDeck.id == Flashcard.deck_id)
+        .where(
+            FlashcardDeck.language == Language.fr,
+            FlashcardReview.state != ReviewStateName.new,
+            FlashcardReview.due <= datetime.now(timezone.utc),
+        )
+    ).scalar_one()
+
+
 def compose_rules(db: Session, *, sprint: int, minutes: int, progress: dict | None = None) -> list[dict]:
     cfg = SPRINT_BY_NUMBER[sprint]
     progress = progress or sprint_progress(db, sprint)
     weak = weakest_dimensions(progress, 3)
     recent = _recent_activity_ids(db)
     rng = random.Random()
-    due = db.execute(
-        select(func.count(FlashcardReview.id)).where(FlashcardReview.state != ReviewStateName.new, FlashcardReview.due <= datetime.now(timezone.utc))
-    ).scalar_one()
+    due = _due_french_cards(db)
 
     bank = [a for a in cfg.activities if a.kind != "test"]
     used: set[str] = set()
@@ -124,9 +135,7 @@ def recommend_next(db: Session, *, sprint: int, progress: dict | None = None, co
     used_ids: set[str] = set()
     queue: list[dict] = []
 
-    due = db.execute(
-        select(func.count(FlashcardReview.id)).where(FlashcardReview.state != ReviewStateName.new, FlashcardReview.due <= datetime.now(timezone.utc))
-    ).scalar_one()
+    due = _due_french_cards(db)
     if due > 0:
         srs = next((a for a in cfg.activities if a.kind == "srs"), None)
         if srs:
@@ -145,9 +154,10 @@ def recommend_next(db: Session, *, sprint: int, progress: dict | None = None, co
         if skill in used_skills:
             return False
         candidates = [a for a in bank if a.skill == skill and a.id not in used_ids]
-        unfinished = [a for a in candidates if a.id not in completed and a.id not in recent]
+        repeatable = {a.id for a in candidates if a.format == "vocab_lesson" and progress["dims"].get("vocabulary", 0) < 1}
+        unfinished = [a for a in candidates if (a.id not in completed or a.id in repeatable) and a.id not in recent]
         if not unfinished:
-            unfinished = [a for a in candidates if a.id not in completed]
+            unfinished = [a for a in candidates if a.id not in completed or a.id in repeatable]
         if not unfinished and fallback:
             unfinished = [a for a in candidates if a.id not in recent] or candidates
         if not unfinished:

@@ -45,6 +45,7 @@ type StudyInit = {
   deckId?: number;
   verbSetId?: number;
   language?: LanguageCode;
+  mode?: "mixed" | "review" | "learn";
   key: number;
 };
 type MenuId = "file" | "study" | "view" | "help";
@@ -535,7 +536,7 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
                         <DashboardView
                           viewSprint={dashboardSprint}
                           onPractice={(cfg) => goPractice(cfg.format === undefined && !cfg.activityId ? null : cfg)}
-                          onStudy={() => goStudy({ language: "fr" })}
+                          onStudy={() => goStudy({ language: "fr", mode: "review" })}
                           onTest={goTest}
                           onOpenRef={goRef}
                           onTexts={() => go("texts")}
@@ -574,6 +575,7 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
                           initialLanguage={studyInit.language}
                           initialDeckId={studyInit.deckId ?? null}
                           initialVerbSetId={studyInit.verbSetId ?? null}
+                          initialMode={studyInit.mode}
                         />
                       )}
                       {section === "decks" && (

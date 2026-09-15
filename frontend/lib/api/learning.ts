@@ -9,7 +9,7 @@ import { API_URL, ApiError, apiFetch } from "@/lib/api/client";
 export const exerciseSchema = z.object({
   id: z.string(),
   format: z.string(),
-  kind: z.enum(["mc", "typed", "self"]),
+  kind: z.enum(["mc", "typed", "self", "intro"]),
   sprint: z.number(),
   skill: z.string(),
   dims: z.record(z.string(), z.number()),

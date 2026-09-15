@@ -15,7 +15,10 @@ from app.curriculum.sprints import ALL_ACTIVITIES, SPRINT_BY_NUMBER, SPRINTS
 from app.curriculum.verbs import CORE_VERBS
 from app.db import get_db
 from app.models import (
+    Flashcard,
+    FlashcardDeck,
     FlashcardReview,
+    Language,
     LearningInterference,
     LearningResult,
     LearningSession,
@@ -98,8 +101,14 @@ def _pool(db: Session, sprint: int, *, statuses: tuple[str, ...] = ("core",), on
 
 def _due_counts(db: Session) -> dict:
     now = datetime.now(timezone.utc)
-    due = db.execute(select(func.count(FlashcardReview.id)).where(FlashcardReview.state != ReviewStateName.new, FlashcardReview.due <= now)).scalar_one()
-    new = db.execute(select(func.count(FlashcardReview.id)).where(FlashcardReview.state == ReviewStateName.new)).scalar_one()
+    base = (
+        select(func.count(FlashcardReview.id))
+        .join(Flashcard, Flashcard.id == FlashcardReview.card_id)
+        .join(FlashcardDeck, FlashcardDeck.id == Flashcard.deck_id)
+        .where(FlashcardDeck.language == Language.fr)
+    )
+    due = db.execute(base.where(FlashcardReview.state != ReviewStateName.new, FlashcardReview.due <= now)).scalar_one()
+    new = db.execute(base.where(FlashcardReview.state == ReviewStateName.new)).scalar_one()
     return {"due": int(due), "new": int(new)}
 
 
@@ -262,7 +271,7 @@ def build_exercises(db: Session, body: ExercisesIn) -> dict:
 
     fmt = DETERMINISTIC_FALLBACK.get(fmt, fmt)
     statuses = ("core", "recognition") if fmt in ("fr_to_es", "audio_recognition", "cloze") else ("core",)
-    pool = _pool(db, sprint, statuses=statuses, only_sprint=bool(params.get("only_sprint_vocab")))
+    pool = _pool(db, sprint, statuses=statuses, only_sprint=bool(params.get("only_sprint_vocab")) or fmt == "vocab_lesson")
     if fmt == "fr_to_es":
         ex = drills.fr_to_es(rng, pool, sprint, count, timed=bool(params.get("timed")))
     elif fmt == "es_to_fr":
@@ -271,6 +280,8 @@ def build_exercises(db: Session, body: ExercisesIn) -> dict:
         ex = drills.audio_recognition(rng, pool, sprint, count, timed=bool(params.get("timed")))
     elif fmt == "cloze":
         ex = drills.cloze(rng, pool, sprint, count)
+    elif fmt == "vocab_lesson":
+        ex = drills.vocabulary_lesson(rng, pool, sprint, count)
     elif fmt == "audio_comprehension":
         ex = drills.audio_comprehension(rng, pool, sprint, count)
     elif fmt == "dictation":

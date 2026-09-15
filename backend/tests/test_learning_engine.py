@@ -201,6 +201,18 @@ def test_activity_bank_covers_every_skill_per_sprint():
     assert len(ALL_ACTIVITIES) > 90
 
 
+def test_vocabulary_lesson_delays_production_and_keeps_one_word_batch():
+    rng = random.Random(17)
+    pool = drills.pool_from_curriculum(1, statuses=("core",), only_sprint=True)
+    lesson = drills.vocabulary_lesson(rng, pool, 1, 8)
+    assert [exercise["kind"] for exercise in lesson[:8]] == ["intro"] * 8
+    assert all(exercise["format"] != "es_to_fr" for exercise in lesson[:-8])
+    assert lesson[-1]["format"] == "es_to_fr"
+    targets = {target for exercise in lesson for target in exercise["target_ids"]}
+    assert len(targets) == 8
+    assert all(exercise["meta"]["retry_missed"] for exercise in lesson[8:])
+
+
 def test_generated_drill_cache_separates_selected_sentences():
     first = _params_hash("sentence_transform", 2, [], 2, {"base_sentence": "Je vais au bureau."})
     second = _params_hash("sentence_transform", 2, [], 2, {"base_sentence": "Je reste à la maison."})
