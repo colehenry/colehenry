@@ -180,6 +180,7 @@ export function getStudyQueue(params: {
   verbSetId?: number;
   language?: LanguageCode;
   newLimit?: number;
+  mode?: "mixed" | "review" | "learn";
 }): Promise<StudyQueue> {
   const search = new URLSearchParams();
   if (params.deckId != null) search.set("deck_id", String(params.deckId));
@@ -187,6 +188,7 @@ export function getStudyQueue(params: {
     search.set("verb_set_id", String(params.verbSetId));
   if (params.language) search.set("language", params.language);
   if (params.newLimit != null) search.set("new_limit", String(params.newLimit));
+  if (params.mode) search.set("mode", params.mode);
   return apiFetch(`/language/study/queue?${search}`, studyQueueSchema);
 }
 

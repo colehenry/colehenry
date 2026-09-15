@@ -1,4 +1,5 @@
 from functools import lru_cache
+from urllib.parse import urlsplit
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -35,6 +36,9 @@ class Settings(BaseSettings):
     open_router_api_key: str = ""
     multilingual_model: str = ""
     fallback_model: str = ""
+    # Learning hub (drill generation / session composer / explain). Falls back
+    # to FALLBACK_MODEL then MULTILINGUAL_MODEL when unset; any OpenAI-compatible slug.
+    learning_model: str = ""
 
     # Brain (/brain) — private Obsidian vault synced from a GitHub repo.
     # All optional so local dev degrades gracefully when unset.
@@ -75,6 +79,14 @@ class Settings(BaseSettings):
     def cookie_secure(self) -> bool:
         # Secure cookies require https; localhost dev runs plain http.
         return self.frontend_origin.startswith("https://")
+
+    @property
+    def effective_cookie_domain(self) -> str:
+        """Never attach a production cookie domain to a loopback login."""
+        hostname = (urlsplit(self.frontend_origin).hostname or "").lower()
+        if hostname in {"localhost", "127.0.0.1", "::1"}:
+            return ""
+        return self.cookie_domain.strip()
 
     @property
     def cambio_host_email_set(self) -> set[str]:

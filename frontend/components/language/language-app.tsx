@@ -10,17 +10,26 @@ import {
   wikiLookup,
   type LanguageCode,
 } from "@/lib/api/language";
+import { getDashboard } from "@/lib/api/learning";
 import { Speak } from "./language-shared";
 import { StudyView } from "./study-view";
 import { DecksView } from "./decks-view";
 import { TextsView } from "./texts-view";
 import { WikiView, type WikiQuery, type WikiTab } from "./wiki-view";
+import { DashboardView } from "./dashboard-view";
+import { PracticeView, type PracticeConfig } from "./practice-view";
+import { VocabView } from "./vocab-view";
+import { ReferenceView } from "./reference-view";
+import { MasteryTestView } from "./mastery-test-view";
 import "./xp.css";
 
-type SectionId = "study" | "decks" | "texts" | "wiki";
+type SectionId = "dashboard" | "study" | "practice" | "vocab" | "decks" | "texts" | "wiki" | "test";
 
 const SECTIONS: { id: SectionId; label: string }[] = [
+  { id: "dashboard", label: "Dashboard" },
   { id: "study", label: "Study" },
+  { id: "practice", label: "Practice" },
+  { id: "vocab", label: "Vocabulary" },
   { id: "decks", label: "Decks" },
   { id: "texts", label: "Texts" },
   { id: "wiki", label: "Wiki" },
@@ -29,12 +38,14 @@ const SECTIONS: { id: SectionId; label: string }[] = [
 const WIKI_CHILDREN: { tab: WikiTab; label: string }[] = [
   { tab: "conjugation", label: "Conjugations" },
   { tab: "pronunciation", label: "Pronunciation" },
+  { tab: "references", label: "References" },
 ];
 
 type StudyInit = {
   deckId?: number;
   verbSetId?: number;
   language?: LanguageCode;
+  mode?: "mixed" | "review" | "learn";
   key: number;
 };
 type MenuId = "file" | "study" | "view" | "help";
@@ -73,13 +84,19 @@ const TITLE_PHRASES: { text: string; language: LanguageCode }[] = [
  */
 export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
   const router = useRouter();
-  const [section, setSection] = useState<SectionId>("study");
+  // The public showcase opens on Study; the owner lands on the Dashboard.
+  const [section, setSection] = useState<SectionId>(readOnly ? "study" : "dashboard");
   const [wikiTab, setWikiTab] = useState<WikiTab>("search");
+  const [refTarget, setRefTarget] = useState<string | null>(null);
+  const [verbInfinitive, setVerbInfinitive] = useState<string | null>(null);
+  const [practiceConfig, setPracticeConfig] = useState<PracticeConfig | null>(null);
+  const [testSprint, setTestSprint] = useState<number>(1);
+  const [dashboardSprint, setDashboardSprint] = useState<number | undefined>(undefined);
   const [wikiExpanded, setWikiExpanded] = useState(true);
   const [wikiQuery, setWikiQuery] = useState<WikiQuery | null>(null);
   const [studyInit, setStudyInit] = useState<StudyInit>({ key: 0 });
   const [openMenu, setOpenMenu] = useState<MenuId | null>(null);
-  const [wide, setWide] = useState(false);
+  const [wide, setWide] = useState(true);
   const [minimized, setMinimized] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
@@ -174,6 +191,15 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
   const dueTotal = decks.reduce((sum, d) => sum + d.due_count, 0);
   const newTotal = decks.reduce((sum, d) => sum + d.new_count, 0);
 
+  // Active sprint + resources for the practice runner (owner only).
+  const dashboardQuery = useQuery({
+    queryKey: ["language", "dashboard", "active"],
+    queryFn: () => getDashboard(),
+    enabled: !readOnly,
+  });
+  const activeSprint = dashboardQuery.data?.state.active_sprint ?? 1;
+  const resources = dashboardQuery.data?.sprint.resources ?? [];
+
   const go = (id: SectionId) => {
     setSection(id);
     setOpenMenu(null);
@@ -187,6 +213,52 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
     setStudyInit((prev) => ({ ...target, key: prev.key + 1 }));
     go("study");
   };
+  const goPractice = (config: PracticeConfig | null) => {
+    setPracticeConfig(config ? { ...config } : null);
+    go("practice");
+  };
+  const goRef = (ref: string) => {
+    setRefTarget(ref);
+    goWiki("references");
+  };
+  const goConjugation = (infinitive?: string) => {
+    if (infinitive) setVerbInfinitive(infinitive);
+    goWiki("conjugation");
+  };
+  const goTest = (sprint: number) => {
+    setTestSprint(sprint);
+    go("test");
+  };
+
+  // Hash deep links: #dashboard · #practice · #vocab · #ref/<sheet>/<section> · #wiki/<tab>
+  useEffect(() => {
+    if (readOnly) return;
+    const apply = () => {
+      const hash = window.location.hash.replace(/^#/, "");
+      if (!hash) return;
+      const [head, ...rest] = hash.split("/");
+      if (head === "ref") {
+        setRefTarget(rest.length ? `${rest[0]}${rest[1] ? `#${rest[1]}` : ""}` : null);
+        setWikiTab("references");
+        setSection("wiki");
+      } else if (head === "wiki") {
+        setWikiTab((rest[0] as WikiTab) || "search");
+        setSection("wiki");
+      } else if ((SECTIONS as { id: string }[]).some((sec) => sec.id === head)) {
+        setSection(head as SectionId);
+      }
+    };
+    apply();
+    window.addEventListener("hashchange", apply);
+    return () => window.removeEventListener("hashchange", apply);
+  }, [readOnly]);
+  useEffect(() => {
+    if (readOnly || typeof window === "undefined") return;
+    const next = section === "wiki" ? (wikiTab === "references" && refTarget ? `ref/${refTarget.replace("#", "/")}` : `wiki/${wikiTab}`) : section;
+    if (window.location.hash.replace(/^#/, "") !== next) {
+      window.history.replaceState(null, "", `#${next}`);
+    }
+  }, [section, wikiTab, refTarget, readOnly]);
 
   const menu = (id: MenuId, label: string, items: React.ReactNode) => (
     <div className="relative">
@@ -224,7 +296,7 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
   return (
     <div data-section="language" id="quenoseteolvide-app" className="xp-app">
       <div className="xp-desktop">
-        <div className={`xp-window ${wide ? "is-wide" : ""}`}>
+        <div className={`xp-window ${wide ? "is-wide" : "is-narrow"}`}>
           <div className="xp-titlebar">
             <span className="xp-title-text">
               Qué no se te olvide
@@ -260,6 +332,20 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
               )}
               {dueTotal > 0 ? ` - ${dueTotal} due` : ""}
             </span>
+            {section === "dashboard" && !readOnly && (
+              <span className="xp-title-sprints" aria-label="Dashboard sprint">
+                {[1, 2, 3, 4].map((number) => (
+                  <button
+                    key={number}
+                    type="button"
+                    className={(dashboardSprint ?? activeSprint) === number ? "is-active" : ""}
+                    onClick={() => setDashboardSprint(number)}
+                  >
+                    S{number}
+                  </button>
+                ))}
+              </span>
+            )}
             <button
               type="button"
               className="xp-caption-btn"
@@ -308,11 +394,20 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
                   "study",
                   "Study",
                   <>
-                    {menuItem("Start session", () => goStudy({}), {
+                    {menuItem("Review due", () => goStudy({}), {
                       hint: `${dueTotal} due`,
                     })}
                     {menuItem("French only", () => goStudy({ language: "fr" }))}
                     {menuItem("Spanish only", () => goStudy({ language: "es" }))}
+                    {!readOnly && (
+                      <>
+                        <hr className="xp-menu-sep" />
+                        {menuItem("Dashboard", () => go("dashboard"), { hint: `sprint ${activeSprint}` })}
+                        {menuItem("Generate drill…", () => goPractice(null))}
+                        {menuItem("Mastery test…", () => goTest(activeSprint))}
+                        {menuItem("Interference log", () => goRef("interference"))}
+                      </>
+                    )}
                   </>,
                 )}
                 {menu(
@@ -354,7 +449,7 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
               )}
 
               <div className="xp-mobile-nav">
-                {SECTIONS.map(({ id, label }) => (
+                {SECTIONS.filter(({ id }) => !readOnly || !["dashboard", "practice", "vocab"].includes(id)).map(({ id, label }) => (
                   <button
                     key={id}
                     type="button"
@@ -369,7 +464,7 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
               <div className="xp-body">
                 <div className="xp-tree-panel xp-well">
                   <nav className="xp-tree" aria-label="Sections">
-                    {SECTIONS.map(({ id, label }) => (
+                    {SECTIONS.filter(({ id }) => !readOnly || !["dashboard", "practice", "vocab"].includes(id)).map(({ id, label }) => (
                       <div key={id}>
                         <button
                           type="button"
@@ -402,7 +497,7 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
                         </button>
                         {id === "wiki" &&
                           wikiExpanded &&
-                          WIKI_CHILDREN.map(({ tab, label: childLabel }) => (
+                          WIKI_CHILDREN.filter(({ tab }) => !readOnly || tab !== "references").map(({ tab, label: childLabel }) => (
                             <button
                               key={tab}
                               type="button"
@@ -437,6 +532,41 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
                     </div>
                   ) : (
                     <>
+                      {section === "dashboard" && !readOnly && (
+                        <DashboardView
+                          viewSprint={dashboardSprint}
+                          onPractice={(cfg) => goPractice(cfg.format === undefined && !cfg.activityId ? null : cfg)}
+                          onStudy={() => goStudy({ language: "fr", mode: "review" })}
+                          onTest={goTest}
+                          onOpenRef={goRef}
+                          onTexts={() => go("texts")}
+                        />
+                      )}
+                      {section === "practice" && !readOnly && (
+                        <PracticeView
+                          key={JSON.stringify(practiceConfig)}
+                          config={practiceConfig}
+                          decks={decks}
+                          activeSprint={activeSprint}
+                          resources={resources}
+                          onExit={() => go("dashboard")}
+                          onOpenRef={goRef}
+                          onOpenTexts={() => go("texts")}
+                          onStartTest={goTest}
+                        />
+                      )}
+                      {section === "vocab" && !readOnly && (
+                        <VocabView
+                          activeSprint={activeSprint}
+                          onOpenRef={goRef}
+                          onPractice={(targets, format) =>
+                            goPractice({ format, targets, source: "deterministic", count: Math.min(20, Math.max(6, targets.length)), title: `Vocabulary · ${format}` })
+                          }
+                        />
+                      )}
+                      {section === "test" && !readOnly && (
+                        <MasteryTestView sprint={testSprint} onExit={() => go("dashboard")} onOpenRef={goRef} />
+                      )}
                       {section === "study" && (
                         <StudyView
                           key={studyInit.key}
@@ -445,6 +575,7 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
                           initialLanguage={studyInit.language}
                           initialDeckId={studyInit.deckId ?? null}
                           initialVerbSetId={studyInit.verbSetId ?? null}
+                          initialMode={studyInit.mode}
                         />
                       )}
                       {section === "decks" && (
@@ -455,14 +586,41 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
                         />
                       )}
                       {section === "texts" && (
-                        <TextsView decks={decks} readOnly={readOnly} />
+                        <TextsView
+                          decks={decks}
+                          readOnly={readOnly}
+                          onOpenRef={readOnly ? undefined : goRef}
+                          onDrillSentence={
+                            readOnly
+                              ? undefined
+                              : (sentence) =>
+                                  goPractice({
+                                    format: "sentence_transform",
+                                    source: "llm",
+                                    count: 6,
+                                    params: { extra: { base_sentence: sentence } },
+                                    title: "Drill from text",
+                                    fresh: true,
+                                  })
+                          }
+                        />
                       )}
-                      {section === "wiki" && (
+                      {section === "wiki" && wikiTab === "references" && !readOnly && (
+                        <ReferenceView
+                          target={refTarget}
+                          onOpenVerb={(inf) => goConjugation(inf)}
+                          onPractice={(format, targets) =>
+                            goPractice({ format, targets, source: "deterministic", count: 10, title: `Drill · ${targets.join(", ") || format}` })
+                          }
+                        />
+                      )}
+                      {section === "wiki" && wikiTab !== "references" && (
                         <WikiView
                           decks={decks}
                           readOnly={readOnly}
                           initialTab={wikiTab}
                           initialQuery={wikiQuery}
+                          initialInfinitive={verbInfinitive}
                           onTabChange={setWikiTab}
                           onStudyDeck={(deckId) => goStudy({ deckId })}
                           onStudyVerbSet={(verbSetId, language) =>
@@ -487,6 +645,11 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
                 <span className="xp-status-cell">
                   {dueTotal} due · {newTotal} new
                 </span>
+                {!readOnly && dashboardQuery.data && (
+                  <span className="xp-status-cell">
+                    Sprint {activeSprint} · {Math.round(dashboardQuery.data.progress.readiness * 100)}%
+                  </span>
+                )}
                 <span className="xp-status-cell">{decks.length} decks</span>
                 <button
                   type="button"

@@ -1,6 +1,7 @@
 """Study queue and FSRS review grading."""
 
 from datetime import timedelta
+from typing import Literal
 
 from fastapi import Depends, HTTPException, Query
 from sqlalchemy import func, select
@@ -14,6 +15,7 @@ from app.models import (
     FlashcardReview,
     Language,
     ReviewLog,
+    ReviewLog,
     ReviewStateName,
     VerbSetMember,
 )
@@ -21,6 +23,7 @@ from app.routers.language.cards import card_out
 from app.routers.language.shared import now_utc, public, router
 from app.schemas.language import ReviewIn, ReviewOut, StudyQueue
 from app.services.fsrs_engine import grade
+from app.services.learning.mastery import on_card_review
 
 
 @public.get("/study/queue", response_model=StudyQueue)
@@ -30,9 +33,10 @@ def study_queue(
     language: Language | None = None,
     limit: int = Query(default=50, ge=1, le=200),
     new_limit: int = Query(default=10, ge=0, le=50),
+    mode: Literal["mixed", "review", "learn"] = "mixed",
     db: Session = Depends(get_db),
 ):
-    """Due cards first (oldest due first), then up to `new_limit` new cards."""
+    """Serve due reviews or eligible new cards without adjacent siblings."""
     now = now_utc()
 
     def card_query():
@@ -80,7 +84,7 @@ def study_queue(
             )
         return query
 
-    due_rows = (
+    due_rows = [] if mode == "learn" else (
         db.execute(
             card_query()
             .where(FlashcardReview.state != ReviewStateName.new)
@@ -91,16 +95,47 @@ def study_queue(
         .scalars()
         .all()
     )
-    new_rows = (
+
+    # A Core word has recognition and production siblings. Production stays
+    # buried until recognition has been reviewed at least once, which prevents
+    # an immediate reverse-card echo on first exposure.
+    learned_recognition_refs = set(
+        db.execute(
+            select(Flashcard.source_ref)
+            .join(ReviewLog, ReviewLog.card_id == Flashcard.id)
+            .where(
+                Flashcard.direction == "recognition",
+                ReviewLog.rating >= 3,
+                Flashcard.source_ref != "",
+            )
+            .distinct()
+        ).scalars().all()
+    )
+    new_candidates = [] if mode == "review" else (
         db.execute(
             card_query()
             .where(FlashcardReview.state == ReviewStateName.new)
             .order_by(Flashcard.id)
-            .limit(new_limit)
         )
         .scalars()
         .all()
     )
+    new_rows = [
+        card for card in new_candidates
+        if card.direction != "production" or not card.source_ref or card.source_ref in learned_recognition_refs
+    ][:new_limit]
+
+    def space_siblings(cards: list[Flashcard], gap: int = 10) -> list[Flashcard]:
+        pending = list(cards)
+        ordered: list[Flashcard] = []
+        while pending:
+            recent_refs = {card.source_ref for card in ordered[-gap:] if card.source_ref}
+            index = next((i for i, card in enumerate(pending) if not card.source_ref or card.source_ref not in recent_refs), 0)
+            ordered.append(pending.pop(index))
+        return ordered
+
+    due_rows = space_siblings(due_rows)
+    new_rows = space_siblings(new_rows)
     due_count = count_query().where(
         FlashcardReview.state != ReviewStateName.new, FlashcardReview.due <= now
     )
@@ -123,6 +158,7 @@ def review_card(body: ReviewIn, db: Session = Depends(get_db)):
     state_before = review.state
     now = now_utc()
     grade(review, body.rating, now)
+    on_card_review(db, card, body.rating)  # curriculum cards feed vocab mastery
     db.add(
         ReviewLog(
             card_id=card.id,

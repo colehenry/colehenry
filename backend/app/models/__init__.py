@@ -28,6 +28,15 @@ from app.models.language import (
     VerbSetMember,
     WikiEntry,
 )
+from app.models.learning import (
+    LearningGenerated,
+    LearningInterference,
+    LearningResult,
+    LearningSession,
+    LearningState,
+    LearningTest,
+    LearningVocab,
+)
 from app.models.project import Project, Visibility
 from app.models.recipe import Recipe
 from app.models.user import GoogleCalendarCredential, GoogleGmailCredential, User
@@ -65,6 +74,13 @@ __all__ = [
     "LanguageLexeme",
     "LanguageText",
     "LanguageTextAnnotation",
+    "LearningGenerated",
+    "LearningInterference",
+    "LearningResult",
+    "LearningSession",
+    "LearningState",
+    "LearningTest",
+    "LearningVocab",
     "LexiqueEntry",
     "Project",
     "Recipe",

@@ -8,6 +8,7 @@ SQLite database (shared across connections, unlike :memory:).
 import os
 import tempfile
 import unittest
+from unittest.mock import AsyncMock, patch
 
 _DB_FILE = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
 os.environ.setdefault("DATABASE_URL", f"sqlite+pysqlite:///{_DB_FILE.name}")
@@ -147,6 +148,45 @@ class AuthGuardTests(unittest.TestCase):
 
     def test_health_is_open(self):
         self.assertEqual(self.client.get("/health").status_code, 200)
+
+    def test_google_login_canonicalizes_loopback_hostname(self):
+        response = self.client.get(
+            "http://127.0.0.1/auth/google/login", follow_redirects=False
+        )
+        self.assertEqual(response.status_code, 307)
+        self.assertEqual(response.headers["location"], "http://localhost/auth/google/login")
+
+    def test_localhost_ignores_configured_production_cookie_domain(self):
+        settings = get_settings()
+        original_origin = settings.frontend_origin
+        original_domain = settings.cookie_domain
+        try:
+            settings.frontend_origin = "http://localhost:3000"
+            settings.cookie_domain = ".colehenry.dev"
+            self.assertEqual(settings.effective_cookie_domain, "")
+        finally:
+            settings.frontend_origin = original_origin
+            settings.cookie_domain = original_domain
+
+    def test_google_callback_cookie_authenticates_followup_request(self):
+        token = {
+            "userinfo": {
+                "email": "owner@example.com",
+                "email_verified": True,
+            }
+        }
+        with patch(
+            "app.routers.auth.oauth.google.authorize_access_token",
+            new=AsyncMock(return_value=token),
+        ):
+            callback = self.client.get(
+                "http://localhost/auth/google/callback", follow_redirects=False
+            )
+
+        self.assertEqual(callback.status_code, 307)
+        self.assertIn(f"{COOKIE}=", callback.headers["set-cookie"])
+        self.assertNotIn("Domain=", callback.headers["set-cookie"])
+        self.assertEqual(self.client.get("http://localhost/auth/me").status_code, 200)
 
     def test_owner_can_pair_and_revoke_a_coding_device(self):
         cookies = {COOKIE: create_token("owner@example.com")}

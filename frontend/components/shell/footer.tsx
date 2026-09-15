@@ -21,7 +21,8 @@ export function Footer() {
     pathname === "/brain" ||
     pathname.startsWith("/brain/") ||
     pathname === "/coding" ||
-    pathname.startsWith("/coding/")
+    pathname.startsWith("/coding/") ||
+    pathname === "/quenoseteolvide"
   ) return null;
 
   return (

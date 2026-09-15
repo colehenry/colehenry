@@ -15,6 +15,7 @@ from app.routers.language import (  # noqa: E402
     imports,
     wiki,
     verbs,
+    learning,
 )
 
 __all__ = [
@@ -28,4 +29,5 @@ __all__ = [
     "imports",
     "wiki",
     "verbs",
+    "learning",
 ]
