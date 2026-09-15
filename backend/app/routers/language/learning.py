@@ -121,7 +121,7 @@ def dashboard(sprint: int | None = Query(default=None, ge=1, le=4), db: Session 
         select(LearningTest).where(LearningTest.sprint == n, LearningTest.completed_at.is_not(None)).order_by(LearningTest.completed_at.desc())
     ).scalars().first()
     tests_count = db.execute(select(func.count(LearningTest.id)).where(LearningTest.sprint == n)).scalar_one()
-    suggestion = sessions.compose_rules(db, sprint=n, minutes=15, progress=progress)
+    suggestion = sessions.recommend_next(db, sprint=n, progress=progress)
     interference_due = db.execute(
         select(func.count(LearningInterference.id)).where(LearningInterference.resolved.is_(False), LearningInterference.next_review <= datetime.now(timezone.utc))
     ).scalar_one()

@@ -1,19 +1,15 @@
-"""Mastery model: results in, progress / weak areas out.
+"""Learning model: results in, sprint progress / weak areas out.
 
 Pragmatic, not ML. Every graded item lands in `learning_results`; vocabulary
 items also carry EMA mastery dimensions on their `learning_vocab` row (SRS
 reviews feed those too). Sprint progress is recomputed on read from those
 two sources — cheap at single-learner volume.
 
-Dimension → evidence:
-  vocabulary     Core items known (recognition ≥ .75) and productive (written ≥ .6)
-  verbs          accuracy × coverage on "verb:<inf>" targets, ≥ 8 attempts to count as mastered
-  pronunciation  per-target accuracy vs its threshold / min attempts
-  grammar        per-grammar-target accuracy × coverage
-  listening      completed listening activities vs sprint target + item accuracy
-  speaking       completed output checks vs target × self-rating
-  reading        completed reading activities / 3 + accuracy
-  writing        completed writing activities / 2 (light in Month 1)
+Dashboard percentages are completion measures, not accuracy or curriculum
+weights. Every dimension starts at zero. A learned target or a successfully
+completed, trackable sprint activity contributes one unit; partial attempts do
+not make the visible percentage move. Accuracy still determines when lexical,
+verb, pronunciation, and grammar targets count as learned.
 """
 
 from __future__ import annotations
@@ -251,10 +247,10 @@ def sprint_progress(db: Session, sprint: int) -> dict:
 
     by_target: dict[str, list[LearningResult]] = defaultdict(list)
     by_skill: dict[str, list[LearningResult]] = defaultdict(list)
-    completions: dict[str, list[LearningResult]] = defaultdict(list)  # skill → activity completions
+    completions: dict[str, list[LearningResult]] = defaultdict(list)  # skill → successful activity completions
     for r in results:
         if r.format == "activity":
-            if r.sprint == sprint or r.meta.get("sprint") == sprint:
+            if (r.sprint == sprint or r.meta.get("sprint") == sprint) and r.correct:
                 completions[r.skill].append(r)
             continue
         for t in r.target_ids:
@@ -267,7 +263,6 @@ def sprint_progress(db: Session, sprint: int) -> dict:
     ).scalars().all()
     known = [v for v in vocab_rows if v.recognition >= KNOWN_THRESHOLD]
     productive = [v for v in vocab_rows if v.written_production >= PRODUCTIVE_THRESHOLD]
-    vocab_progress = (0.5 * len(known) / len(vocab_rows) + 0.5 * len(productive) / len(vocab_rows)) if vocab_rows else 0.0
 
     # verbs
     verb_detail = []
@@ -277,7 +272,6 @@ def sprint_progress(db: Session, sprint: int) -> dict:
         verb_detail.append({"id": v.infinitive, "label": v.infinitive, "accuracy": round(acc, 2), "attempts": len(rs),
                             "met": len(rs) >= VERB_ATTEMPTS and acc >= 0.8,
                             "progress": round(_coverage(len(rs), VERB_ATTEMPTS) * acc, 2)})
-    verbs_progress = sum(d["progress"] for d in verb_detail) / len(verb_detail) if verb_detail else 0.0
 
     # pronunciation
     pron_detail = []
@@ -288,7 +282,6 @@ def sprint_progress(db: Session, sprint: int) -> dict:
         pron_detail.append({"id": t.id, "label": t.label, "accuracy": round(acc, 2), "attempts": len(rs), "met": met,
                             "progress": round(min(1.0, _coverage(len(rs), t.min_attempts) * acc / t.threshold), 2), "ref": t.ref,
                             "kind": t.kind})
-    pron_progress = sum(d["progress"] for d in pron_detail) / len(pron_detail) if pron_detail else 0.0
 
     # grammar
     grammar_detail = []
@@ -300,41 +293,60 @@ def sprint_progress(db: Session, sprint: int) -> dict:
         grammar_detail.append({"id": g.id, "label": g.label, "accuracy": round(acc, 2), "attempts": len(rs),
                                "met": len(rs) >= GRAMMAR_ATTEMPTS and acc >= 0.8,
                                "progress": round(_coverage(len(rs), GRAMMAR_ATTEMPTS) * acc, 2), "ref": g.ref})
-    grammar_progress = sum(d["progress"] for d in grammar_detail) / len(grammar_detail) if grammar_detail else 0.0
 
-    # listening / speaking / reading / writing — completions × quality
-    def completion_progress(skill: str, target: int, item_skills: tuple[str, ...]) -> tuple[float, int, float]:
-        done = completions.get(skill, [])
-        items = [r for s in item_skills for r in by_skill.get(s, []) if r.sprint == sprint]
-        quality = _acc(items) if items else (_acc(done) if done else 0.0)
-        coverage = _coverage(len(done), target)
-        if not items and not done:
-            return 0.0, 0, 0.0
-        return round(0.6 * coverage + 0.4 * quality, 3), len(done), round(quality, 2)
+    # Trackable practice is finite curriculum work. Resources, free text work,
+    # SRS queues, and the sprint test are useful but do not inflate completion.
+    trackable_kinds = {"drill", "llm", "self"}
+    practice_bank: dict[str, list[str]] = defaultdict(list)
+    for activity in cfg.activities:
+        if activity.kind in trackable_kinds:
+            practice_bank[activity.skill].append(activity.id)
+    completed_activity_ids = {r.activity_id for rows in completions.values() for r in rows}
+    practice = {
+        skill: {
+            "done": len(set(ids) & completed_activity_ids),
+            "total": len(ids),
+        }
+        for skill, ids in practice_bank.items()
+    }
 
-    listening_progress, listening_done, listening_quality = completion_progress("listening", cfg.listening_target, ("listening",))
-    speaking_progress, speaking_done, speaking_quality = completion_progress("speaking", cfg.output_target, ("speaking",))
-    reading_progress, reading_done, reading_quality = completion_progress("reading", 3, ("reading",))
-    writing_progress, writing_done, writing_quality = completion_progress("writing", 2, ("writing",))
+    def combined_progress(skill: str, learned: int, targets: int) -> float:
+        work = practice.get(skill, {"done": 0, "total": 0})
+        total = targets + work["total"]
+        return round((learned + work["done"]) / total, 3) if total else 0.0
+
+    verbs_learned = sum(d["met"] for d in verb_detail)
+    pron_learned = sum(d["met"] for d in pron_detail)
+    grammar_learned = sum(d["met"] for d in grammar_detail)
+    listening_done = len({r.activity_id for r in completions.get("listening", [])})
+    speaking_done = len({r.activity_id for r in completions.get("speaking", [])})
+    reading_done = len({r.activity_id for r in completions.get("reading", [])})
+    writing_done = len({r.activity_id for r in completions.get("writing", [])})
 
     dims = {
-        "vocabulary": round(vocab_progress, 3), "verbs": round(verbs_progress, 3), "pronunciation": round(pron_progress, 3),
-        "grammar": round(grammar_progress, 3), "listening": listening_progress, "speaking": speaking_progress,
-        "reading": reading_progress, "writing": writing_progress,
+        "vocabulary": combined_progress("vocabulary", len(known), len(vocab_rows)),
+        "verbs": combined_progress("verbs", verbs_learned, len(verb_detail)),
+        "pronunciation": combined_progress("pronunciation", pron_learned, len(pron_detail)),
+        "grammar": combined_progress("grammar", grammar_learned, len(grammar_detail)),
+        "listening": round(min(1.0, listening_done / cfg.listening_target), 3) if cfg.listening_target else 0.0,
+        "speaking": round(min(1.0, speaking_done / cfg.output_target), 3) if cfg.output_target else 0.0,
+        "reading": round(min(1.0, reading_done / 3), 3),
+        "writing": round(min(1.0, writing_done / 2), 3),
     }
     weights = cfg.weights
-    readiness = sum(weights.get(d, 0) * dims[d] for d in DIMENSIONS) / max(sum(weights.values()), 1e-9)
+    visible_dims = [d for d in DIMENSIONS if weights.get(d, 0) > 0]
+    readiness = sum(dims[d] for d in visible_dims) / len(visible_dims) if visible_dims else 0.0
 
     targets = [
         {"id": "vocab", "label": f"{len(vocab_rows)} core words", "done": len(known), "total": len(vocab_rows), "detail": f"{len(productive)} productive",
          "dimension": "vocabulary"},
-        {"id": "verbs", "label": f"{len(cfg.verbs)} core verbs", "done": sum(d['met'] for d in verb_detail), "total": len(verb_detail), "dimension": "verbs"},
-        {"id": "pronunciation", "label": f"{len(pron_detail)} pronunciation targets", "done": sum(d['met'] for d in pron_detail), "total": len(pron_detail),
+        {"id": "verbs", "label": f"{len(cfg.verbs)} core verbs", "done": verbs_learned, "total": len(verb_detail), "dimension": "verbs"},
+        {"id": "pronunciation", "label": f"{len(pron_detail)} pronunciation targets", "done": pron_learned, "total": len(pron_detail),
          "dimension": "pronunciation"},
-        {"id": "grammar", "label": f"{len(grammar_detail)} grammar patterns", "done": sum(d['met'] for d in grammar_detail), "total": len(grammar_detail),
+        {"id": "grammar", "label": f"{len(grammar_detail)} grammar patterns", "done": grammar_learned, "total": len(grammar_detail),
          "dimension": "grammar"},
         {"id": "listening", "label": f"{cfg.listening_target} listening exercises", "done": listening_done, "total": cfg.listening_target,
-         "detail": f"{int(listening_quality * 100)}% acc" if listening_done else "", "dimension": "listening"},
+         "dimension": "listening"},
         {"id": "output", "label": f"{cfg.output_target} output checks", "done": speaking_done, "total": cfg.output_target, "dimension": "speaking"},
     ]
 
@@ -349,6 +361,8 @@ def sprint_progress(db: Session, sprint: int) -> dict:
         "grammar": grammar_detail,
         "vocab": {"total": len(vocab_rows), "known": len(known), "productive": len(productive)},
         "completions": {k: len(v) for k, v in completions.items()},
+        "completed_activity_ids": sorted(completed_activity_ids),
+        "practice": practice,
     }
 
 

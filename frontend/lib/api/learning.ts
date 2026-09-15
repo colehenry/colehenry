@@ -156,6 +156,8 @@ export const progressSchema = z.object({
   grammar: z.array(detailSchema),
   vocab: z.object({ total: z.number(), known: z.number(), productive: z.number() }),
   completions: z.record(z.string(), z.number()),
+  completed_activity_ids: z.array(z.string()),
+  practice: z.record(z.string(), z.object({ done: z.number(), total: z.number() })),
 });
 export type Progress = z.infer<typeof progressSchema>;
 

@@ -19,6 +19,16 @@ from app.services.learning import llm_learning
 from app.services.learning.mastery import carryover, sprint_progress, weakest_dimensions
 
 SPRINT_MAIN_SKILL = {1: "pronunciation", 2: "grammar", 3: "grammar", 4: "speaking"}
+NEXT_LABELS = {
+    "vocabulary": "Learn core words",
+    "verbs": "Practice core verbs",
+    "pronunciation": "Train a weak sound",
+    "grammar": "Build French sentences",
+    "listening": "Train your listening",
+    "speaking": "Speak out loud",
+    "reading": "Read and mine a text",
+    "writing": "Write in French",
+}
 
 
 def _plan_item(act: Activity, minutes: int, why: str) -> dict:
@@ -100,6 +110,68 @@ def compose_rules(db: Session, *, sprint: int, minutes: int, progress: dict | No
         if not pick(None, kinds=("drill",), max_minutes=budget, why="fill"):
             break
     return plan
+
+
+def recommend_next(db: Session, *, sprint: int, progress: dict | None = None, count: int = 3) -> list[dict]:
+    """Return a stable, varied queue of unfinished sprint work."""
+    cfg = SPRINT_BY_NUMBER[sprint]
+    progress = progress or sprint_progress(db, sprint)
+    recent = _recent_activity_ids(db)
+    completed = set(progress.get("completed_activity_ids", []))
+    allowed_kinds = {"drill", "llm", "self"}
+    bank = [a for a in cfg.activities if a.kind in allowed_kinds]
+    used_skills: set[str] = set()
+    used_ids: set[str] = set()
+    queue: list[dict] = []
+
+    due = db.execute(
+        select(func.count(FlashcardReview.id)).where(FlashcardReview.state != ReviewStateName.new, FlashcardReview.due <= datetime.now(timezone.utc))
+    ).scalar_one()
+    if due > 0:
+        srs = next((a for a in cfg.activities if a.kind == "srs"), None)
+        if srs:
+            item = _plan_item(srs, srs.minutes, f"{due} due")
+            item["name"] = "Review due vocabulary"
+            queue.append(item)
+            used_ids.add(srs.id)
+            used_skills.add("vocabulary")
+
+    dimension_order = sorted(
+        (d for d in progress["dims"] if cfg.weights.get(d, 0) > 0),
+        key=lambda d: (progress["dims"][d], -cfg.weights.get(d, 0)),
+    )
+
+    def add_for_skill(skill: str, fallback: bool = False) -> bool:
+        if skill in used_skills:
+            return False
+        candidates = [a for a in bank if a.skill == skill and a.id not in used_ids]
+        unfinished = [a for a in candidates if a.id not in completed and a.id not in recent]
+        if not unfinished:
+            unfinished = [a for a in candidates if a.id not in completed]
+        if not unfinished and fallback:
+            unfinished = [a for a in candidates if a.id not in recent] or candidates
+        if not unfinished:
+            return False
+        activity = unfinished[0]
+        priority = len(queue) + 1
+        item = _plan_item(activity, activity.minutes, "Top priority today" if priority == 1 else "Next sprint gap")
+        item["name"] = NEXT_LABELS.get(skill, activity.name)
+        item["target"] = activity.name
+        queue.append(item)
+        used_ids.add(activity.id)
+        used_skills.add(skill)
+        return True
+
+    for dimension in dimension_order:
+        if len(queue) >= count:
+            break
+        add_for_skill(dimension)
+    if len(queue) < count:
+        for activity in bank:
+            if len(queue) >= count:
+                break
+            add_for_skill(activity.skill, fallback=True)
+    return queue[:count]
 
 
 def build_session(db: Session, *, sprint: int, minutes: int, use_llm: bool = True) -> LearningSession:

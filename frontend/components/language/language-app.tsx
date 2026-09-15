@@ -90,6 +90,7 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
   const [verbInfinitive, setVerbInfinitive] = useState<string | null>(null);
   const [practiceConfig, setPracticeConfig] = useState<PracticeConfig | null>(null);
   const [testSprint, setTestSprint] = useState<number>(1);
+  const [dashboardSprint, setDashboardSprint] = useState<number | undefined>(undefined);
   const [wikiExpanded, setWikiExpanded] = useState(true);
   const [wikiQuery, setWikiQuery] = useState<WikiQuery | null>(null);
   const [studyInit, setStudyInit] = useState<StudyInit>({ key: 0 });
@@ -330,6 +331,20 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
               )}
               {dueTotal > 0 ? ` - ${dueTotal} due` : ""}
             </span>
+            {section === "dashboard" && !readOnly && (
+              <span className="xp-title-sprints" aria-label="Dashboard sprint">
+                {[1, 2, 3, 4].map((number) => (
+                  <button
+                    key={number}
+                    type="button"
+                    className={(dashboardSprint ?? activeSprint) === number ? "is-active" : ""}
+                    onClick={() => setDashboardSprint(number)}
+                  >
+                    S{number}
+                  </button>
+                ))}
+              </span>
+            )}
             <button
               type="button"
               className="xp-caption-btn"
@@ -518,16 +533,12 @@ export function LanguageApp({ readOnly = false }: { readOnly?: boolean }) {
                     <>
                       {section === "dashboard" && !readOnly && (
                         <DashboardView
+                          viewSprint={dashboardSprint}
                           onPractice={(cfg) => goPractice(cfg.format === undefined && !cfg.activityId ? null : cfg)}
-                          onSession={(sessionId) => goPractice({ sessionId })}
                           onStudy={() => goStudy({ language: "fr" })}
                           onTest={goTest}
                           onOpenRef={goRef}
-                          onVocab={() => go("vocab")}
                           onTexts={() => go("texts")}
-                          onDecks={() => go("decks")}
-                          onConjugations={() => goConjugation()}
-                          onPronunciation={() => goWiki("pronunciation")}
                         />
                       )}
                       {section === "practice" && !readOnly && (
